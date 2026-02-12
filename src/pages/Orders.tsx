@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOrders, useClients, useCatalog, useCreateOrder } from "@/lib/data";
+import { useOrders, useClients, useCatalog, useCreateOrder, autoCreateCatalogEntry } from "@/lib/data";
 import { getStageBadgeClass, getStageLabel, BOTTLE_TYPES, MATERIALS, COLORS } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { format, addWeeks } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface OrdersProps {
   searchQuery: string;
@@ -95,9 +96,46 @@ export default function Orders({ searchQuery }: OrdersProps) {
   );
 }
 
+function SelectWithOther({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+  const [isOther, setIsOther] = useState(!options.includes(value) && value !== "");
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Select
+        value={isOther ? "__other__" : value}
+        onValueChange={v => {
+          if (v === "__other__") {
+            setIsOther(true);
+            onChange("");
+          } else {
+            setIsOther(false);
+            onChange(v);
+          }
+        }}
+      >
+        <SelectTrigger><SelectValue placeholder={`Select ${label.toLowerCase()}`} /></SelectTrigger>
+        <SelectContent>
+          {options.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          <SelectItem value="__other__">Other</SelectItem>
+        </SelectContent>
+      </Select>
+      {isOther && (
+        <Input
+          className="mt-2"
+          placeholder={`Enter custom ${label.toLowerCase()}`}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
   const { data: clients = [] } = useClients();
   const createOrder = useCreateOrder();
+  const queryClient = useQueryClient();
   const [clientId, setClientId] = useState("");
   const { data: catalogItems = [] } = useCatalog(clientId || undefined);
   const [catalogItemId, setCatalogItemId] = useState("");
@@ -112,7 +150,7 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
     material: "",
     bottle_color: "",
     num_colors: "",
-    print_colors: "",
+    pms_colors: [""] as string[],
     quantity: "",
     packing: "",
     client_po: "",
@@ -125,6 +163,7 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
     setCatalogItemId(itemId);
     const item = catalogItems.find(c => c.id === itemId);
     if (item) {
+      const colors = item.print_colors ? item.print_colors.split(",").map(s => s.trim()) : [""];
       setForm(prev => ({
         ...prev,
         item_name: item.product_name,
@@ -133,15 +172,34 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
         material: item.material || "",
         bottle_color: item.container_color || "",
         num_colors: item.num_colors?.toString() || "",
-        print_colors: item.print_colors || "",
+        pms_colors: colors.length > 0 ? colors : [""],
       }));
     }
+  };
+
+  const numColorsInt = parseInt(form.num_colors) || 0;
+
+  const handleNumColorsChange = (val: string) => {
+    const n = parseInt(val) || 0;
+    const clamped = Math.min(Math.max(n, 0), 8);
+    const newColors = Array.from({ length: Math.max(clamped, 1) }, (_, i) => form.pms_colors[i] || "");
+    setForm(prev => ({ ...prev, num_colors: val, pms_colors: newColors }));
+  };
+
+  const updatePmsColor = (index: number, val: string) => {
+    setForm(prev => {
+      const copy = [...prev.pms_colors];
+      copy[index] = val;
+      return { ...prev, pms_colors: copy };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId || !form.item_name) return;
-    await createOrder.mutateAsync({
+
+    const printColors = form.pms_colors.filter(c => c.trim()).join(", ");
+    const orderData: any = {
       client_id: clientId,
       item_name: form.item_name,
       bottle_type: form.bottle_type || null,
@@ -149,7 +207,7 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
       material: form.material || null,
       bottle_color: form.bottle_color || null,
       num_colors: form.num_colors ? parseInt(form.num_colors) : null,
-      print_colors: form.print_colors || null,
+      print_colors: printColors || null,
       quantity: form.quantity ? parseInt(form.quantity) : null,
       packing: form.packing || null,
       client_po: form.client_po || null,
@@ -157,7 +215,14 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
       date_entered: form.date_entered,
       due_date: form.due_date,
       stage: "preflight",
-    });
+    };
+
+    await createOrder.mutateAsync(orderData);
+
+    // Auto-create catalog entry (#10)
+    await autoCreateCatalogEntry(orderData, clientId);
+    queryClient.invalidateQueries({ queryKey: ["catalog"] });
+
     onSuccess();
   };
 
@@ -193,47 +258,49 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Container Type</Label>
-          <Select value={form.bottle_type} onValueChange={v => update("bottle_type", v)}>
-            <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-            <SelectContent>{BOTTLE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
+        <SelectWithOther label="Container Type" options={BOTTLE_TYPES} value={form.bottle_type} onChange={v => update("bottle_type", v)} />
         <div>
           <Label>Size</Label>
           <Input value={form.bottle_size} onChange={e => update("bottle_size", e.target.value)} placeholder="e.g. 2oz, 10ml" />
         </div>
-        <div>
-          <Label>Material</Label>
-          <Select value={form.material} onValueChange={v => update("material", v)}>
-            <SelectTrigger><SelectValue placeholder="Select material" /></SelectTrigger>
-            <SelectContent>{MATERIALS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Color</Label>
-          <Select value={form.bottle_color} onValueChange={v => update("bottle_color", v)}>
-            <SelectTrigger><SelectValue placeholder="Select color" /></SelectTrigger>
-            <SelectContent>{COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
+        <SelectWithOther label="Material" options={MATERIALS} value={form.material} onChange={v => update("material", v)} />
+        <SelectWithOther label="Color" options={COLORS} value={form.bottle_color} onChange={v => update("bottle_color", v)} />
         <div>
           <Label># Print Colors</Label>
-          <Input type="number" value={form.num_colors} onChange={e => update("num_colors", e.target.value)} />
-        </div>
-        <div>
-          <Label>PMS Colors</Label>
-          <Input value={form.print_colors} onChange={e => update("print_colors", e.target.value)} />
+          <Input
+            type="number"
+            min="0"
+            max="8"
+            value={form.num_colors}
+            onChange={e => handleNumColorsChange(e.target.value)}
+          />
         </div>
         <div>
           <Label>Quantity</Label>
           <Input type="number" value={form.quantity} onChange={e => update("quantity", e.target.value)} />
         </div>
-        <div>
-          <Label>Packing</Label>
-          <Input value={form.packing} onChange={e => update("packing", e.target.value)} placeholder="e.g. 8 cases @ 130/case" />
+      </div>
+
+      {/* Dynamic PMS Color Fields */}
+      {numColorsInt > 0 && (
+        <div className="space-y-2">
+          <Label>PMS Colors</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {form.pms_colors.slice(0, Math.min(numColorsInt, 8)).map((color, i) => (
+              <Input
+                key={i}
+                placeholder={numColorsInt === 1 ? "PMS Color" : `PMS Color ${i + 1}`}
+                value={color}
+                onChange={e => updatePmsColor(i, e.target.value)}
+              />
+            ))}
+          </div>
         </div>
+      )}
+
+      <div>
+        <Label>Packing</Label>
+        <Input value={form.packing} onChange={e => update("packing", e.target.value)} placeholder="e.g. 8 cases @ 130/case" />
       </div>
 
       <div>

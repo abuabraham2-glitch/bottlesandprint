@@ -114,9 +114,12 @@ export type Database = {
       }
       clients: {
         Row: {
-          address: string | null
           archived: boolean
-          billing_address: string | null
+          billing_city: string | null
+          billing_state: string | null
+          billing_street: string | null
+          billing_zip: string | null
+          city: string | null
           company: string
           contact_name: string | null
           created_at: string
@@ -124,11 +127,17 @@ export type Database = {
           form_signed: boolean
           id: string
           phone: string | null
+          state: string | null
+          street_address: string | null
+          zip: string | null
         }
         Insert: {
-          address?: string | null
           archived?: boolean
-          billing_address?: string | null
+          billing_city?: string | null
+          billing_state?: string | null
+          billing_street?: string | null
+          billing_zip?: string | null
+          city?: string | null
           company: string
           contact_name?: string | null
           created_at?: string
@@ -136,11 +145,17 @@ export type Database = {
           form_signed?: boolean
           id?: string
           phone?: string | null
+          state?: string | null
+          street_address?: string | null
+          zip?: string | null
         }
         Update: {
-          address?: string | null
           archived?: boolean
-          billing_address?: string | null
+          billing_city?: string | null
+          billing_state?: string | null
+          billing_street?: string | null
+          billing_zip?: string | null
+          city?: string | null
           company?: string
           contact_name?: string | null
           created_at?: string
@@ -148,6 +163,9 @@ export type Database = {
           form_signed?: boolean
           id?: string
           phone?: string | null
+          state?: string | null
+          street_address?: string | null
+          zip?: string | null
         }
         Relationships: []
       }

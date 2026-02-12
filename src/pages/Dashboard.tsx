@@ -78,15 +78,32 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                       >
                         <div className="font-medium text-sm">{order.item_name}</div>
                         <div className="text-xs text-muted-foreground">{order.clients?.company}</div>
+
+                        {/* #11 Color-coded status indicators */}
                         {stage.key === "preflight" && (
-                          <div className="text-xs mt-1.5 text-muted-foreground">✓ {checked}/6 items</div>
+                          <div className={`text-xs mt-1.5 font-medium ${checked === 6 ? "text-green-600" : "text-destructive"}`}>
+                            {checked === 6 ? "✓ 6/6 Ready" : `${checked}/6 items`}
+                          </div>
                         )}
-                        {stage.key === "completed" && !order.invoiced && (
-                          <div className="text-xs mt-1.5 text-destructive font-medium">Needs invoicing</div>
+                        {stage.key === "wip" && (
+                          <div className="text-xs mt-1.5 text-muted-foreground">In production</div>
                         )}
-                        {stage.key === "close" && !order.paid && (
-                          <div className="text-xs mt-1.5 text-primary font-medium">Awaiting payment</div>
+                        {stage.key === "completed" && (
+                          <div className={`text-xs mt-1.5 font-medium ${order.invoiced ? "text-green-600" : "text-destructive"}`}>
+                            {order.invoiced ? "✓ Invoiced" : "Needs Invoice"}
+                          </div>
                         )}
+                        {stage.key === "to_ship" && (
+                          <div className={`text-xs mt-1.5 font-medium ${order.outgoing_bol ? "text-green-600" : "text-destructive"}`}>
+                            {order.outgoing_bol ? "✓ Ready" : "BOL Needed"}
+                          </div>
+                        )}
+                        {stage.key === "close" && (
+                          <div className={`text-xs mt-1.5 font-medium ${order.paid ? "text-green-600" : "text-destructive"}`}>
+                            {order.paid ? "✓ Payment Received" : "Awaiting Payment"}
+                          </div>
+                        )}
+
                         {days !== null && (
                           <div className={`text-xs mt-1 font-medium ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
                             {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}

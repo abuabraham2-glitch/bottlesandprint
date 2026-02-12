@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useClient, useOrders, useCatalog } from "@/lib/data";
-import { getStageBadgeClass, getStageLabel } from "@/lib/constants";
+import { getStageBadgeClass, getStageLabel, formatAddress } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, CheckCircle, XCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, CheckCircle, XCircle, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { ClientForm } from "./Clients";
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -12,16 +16,21 @@ export default function ClientDetail() {
   const { data: client, isLoading } = useClient(id!);
   const { data: orders = [] } = useOrders(true);
   const { data: catalog = [] } = useCatalog(id);
+  const [editOpen, setEditOpen] = useState(false);
 
   const clientOrders = orders.filter(o => o.client_id === id);
 
   if (isLoading || !client) return <div className="p-8 text-muted-foreground">Loading...</div>;
+
+  const addr = formatAddress(client.street_address, client.city, client.state, client.zip);
+  const billingAddr = formatAddress(client.billing_street, client.billing_city, client.billing_state, client.billing_zip);
 
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
         <h1 className="text-2xl font-bold">{client.company}</h1>
+        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil size={14} className="mr-1" /> Edit</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
@@ -31,8 +40,14 @@ export default function ClientDetail() {
             <Row label="Contact" value={client.contact_name} />
             <Row label="Email" value={client.email} />
             <Row label="Phone" value={client.phone} />
-            <Row label="Address" value={client.address} />
-            <Row label="Billing" value={client.billing_address} />
+            <div className="flex justify-between items-start">
+              <span className="text-muted-foreground">Address</span>
+              <span className="text-right whitespace-pre-line">{addr || "—"}</span>
+            </div>
+            <div className="flex justify-between items-start">
+              <span className="text-muted-foreground">Billing</span>
+              <span className="text-right whitespace-pre-line">{billingAddr || "—"}</span>
+            </div>
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
@@ -107,6 +122,14 @@ export default function ClientDetail() {
           </table>
         </div>
       </div>
+
+      {/* Edit Client Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Client</DialogTitle></DialogHeader>
+          <ClientForm initialData={client} onSuccess={() => { setEditOpen(false); toast.success("Client updated"); }} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

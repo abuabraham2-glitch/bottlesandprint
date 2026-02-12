@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, Menu } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 const navItems = [
@@ -24,7 +24,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   return (
     <div className="flex min-h-screen w-full">
       {/* Sidebar */}
-      <aside className={`${collapsed ? "w-16" : "w-64"} bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-200 shrink-0`}>
+      <aside className={`${collapsed ? "w-16" : "w-64"} bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-200 shrink-0 relative`}>
         {/* Logo */}
         <div className="p-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-amber-600 flex items-center justify-center text-primary-foreground font-bold text-lg shrink-0">
@@ -36,10 +36,15 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               <div className="text-xs text-sidebar-muted leading-tight">Order Manager</div>
             </div>
           )}
-          <button onClick={() => setCollapsed(!collapsed)} className="ml-auto text-sidebar-muted hover:text-sidebar-foreground">
-            <Menu size={18} />
-          </button>
         </div>
+
+        {/* Collapse Toggle */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="absolute -right-3 top-7 z-10 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
+        >
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
 
         {/* Search */}
         {!collapsed && (
@@ -64,11 +69,12 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               <Link
                 key={item.to}
                 to={item.to}
+                title={collapsed ? item.label : undefined}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                   active
                     ? "bg-sidebar-accent text-sidebar-primary font-medium"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                }`}
+                } ${collapsed ? "justify-center" : ""}`}
               >
                 <item.icon size={18} />
                 {!collapsed && <span>{item.label}</span>}
