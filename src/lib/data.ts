@@ -159,7 +159,14 @@ export function useCatalog(clientId?: string) {
       if (clientId) query = query.eq("client_id", clientId);
       const { data, error } = await query;
       if (error) throw error;
-      return data as unknown as CatalogItem[];
+      // Sort by client company name, then product name
+      const sorted = (data as unknown as CatalogItem[]).sort((a, b) => {
+        const compA = (a.clients?.company || "").toLowerCase();
+        const compB = (b.clients?.company || "").toLowerCase();
+        if (compA !== compB) return compA.localeCompare(compB);
+        return a.product_name.toLowerCase().localeCompare(b.product_name.toLowerCase());
+      });
+      return sorted;
     },
   });
 }
@@ -176,15 +183,54 @@ export function useOrderDocuments(orderId: string) {
   });
 }
 
+export function useArchivedYears() {
+  return useQuery({
+    queryKey: ["archived_years"],
+    queryFn: async () => {
+      // Fetch all year values with pagination to avoid 1000-row limit
+      const yearsSet = new Set<string>();
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("archived_orders")
+          .select("year")
+          .order("year", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        for (const d of data || []) {
+          if (d.year) yearsSet.add(d.year);
+        }
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return [...yearsSet].sort((a, b) => Number(b) - Number(a));
+    },
+  });
+}
+
 export function useArchivedOrders(year?: string) {
   return useQuery({
     queryKey: ["archived_orders", year],
     queryFn: async () => {
-      let query = supabase.from("archived_orders").select("*").order("date_completed", { ascending: false });
-      if (year) query = query.eq("year", year);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as ArchivedOrder[];
+      if (!year) return [];
+      // Fetch all rows for the year (may exceed 1000 limit)
+      let allData: ArchivedOrder[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("archived_orders")
+          .select("*")
+          .eq("year", year)
+          .order("date_completed", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        allData = allData.concat(data as ArchivedOrder[]);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return allData;
     },
   });
 }
