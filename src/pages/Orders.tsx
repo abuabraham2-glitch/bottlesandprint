@@ -247,7 +247,7 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
           <Select value={catalogItemId} onValueChange={handleCatalogSelect}>
             <SelectTrigger><SelectValue placeholder="Pick existing product or enter new" /></SelectTrigger>
             <SelectContent>
-              {catalogItems.map(c => <SelectItem key={c.id} value={c.id}>{c.product_name}</SelectItem>)}
+              {catalogItems.map(c => <SelectItem key={c.id} value={c.id}>{c.product_name}{c.size ? ` — ${c.size}` : ""}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

@@ -493,7 +493,7 @@ export default function OrderDetail() {
       {order.notes && (
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-2">Notes</h3>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{order.notes}</p>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap font-bold">{order.notes}</p>
         </div>
       )}
 
