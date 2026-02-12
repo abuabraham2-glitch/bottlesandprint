@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useOrder, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun } from "@/lib/data";
-import { STAGES, checklistCount, daysUntilDue, generateInvoiceNumber, DOC_TYPES, formatAddress } from "@/lib/constants";
+import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, generateInvoiceNumber, DOC_TYPES, formatAddress, formatDateShort } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, ChevronDown } from "lucide-react";
+import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useCallback, useRef } from "react";
-import { format } from "date-fns";
+import { format, addWeeks } from "date-fns";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,25 +31,16 @@ export default function OrderDetail() {
   const [uploadType, setUploadType] = useState("Other");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-
-  // Delete confirm state
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; file_url: string } | null>(null);
-
-  // Move back state
   const [moveBackOpen, setMoveBackOpen] = useState(false);
   const [moveBackTarget, setMoveBackTarget] = useState("");
-
-  // Payment dialogs
   const [achDialogOpen, setAchDialogOpen] = useState(false);
   const [achDate, setAchDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [checkDialogOpen, setCheckDialogOpen] = useState(false);
   const [checkNumber, setCheckNumber] = useState("");
   const [checkDate, setCheckDate] = useState(format(new Date(), "yyyy-MM-dd"));
-
-  // BOL dialog
   const [bolDialogOpen, setBolDialogOpen] = useState(false);
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
 
@@ -64,10 +55,15 @@ export default function OrderDetail() {
   const checked = checklistCount(order);
   const allChecked = checked === 6;
   const days = daysUntilDue(order.due_date);
+  const daysInPreflight = daysSinceCreated(order.date_entered);
 
   const moveStage = async (newStage: string) => {
-    await update({ stage: newStage });
-    // #10: Update catalog last_run when moving to completed
+    const updates: Record<string, any> = { stage: newStage };
+    // Auto-set due_date when moving to WIP
+    if (newStage === "wip") {
+      updates.due_date = format(addWeeks(new Date(), 4), "yyyy-MM-dd");
+    }
+    await update(updates);
     if (newStage === "completed") {
       await updateCatalogLastRun(order.client_id, order.item_name);
       queryClient.invalidateQueries({ queryKey: ["catalog"] });
@@ -122,7 +118,6 @@ export default function OrderDetail() {
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || !id) return;
     for (let file of Array.from(files)) {
-      // Convert images to PDF (#6)
       if (/\.(jpg|jpeg|png)$/i.test(file.name)) {
         file = await convertImageToPdf(file);
       }
@@ -157,15 +152,23 @@ export default function OrderDetail() {
     setDeleteTarget(null);
   };
 
-  const downloadFile = (url: string, name: string) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.target = "_blank";
-    a.click();
+  const downloadFile = async (url: string, name: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
   };
 
-  // BOL Generation (#7)
   const handleGenerateBol = async () => {
     if (!order || !id) return;
     const bolNum = await getNextBolNumber();
@@ -176,11 +179,9 @@ export default function OrderDetail() {
     const pdf = new jsPDF();
     pdf.setFontSize(18);
     pdf.text("BILL OF LADING", 105, 20, { align: "center" });
-
     pdf.setFontSize(11);
     pdf.text(`BOL #: ${bolNum}`, 15, 35);
-    pdf.text(`Date: ${format(new Date(), "MM/dd/yyyy")}`, 140, 35);
-
+    pdf.text(`Date: ${formatDateShort(new Date().toISOString().split("T")[0])}`, 140, 35);
     pdf.setFontSize(10);
     pdf.text("SHIPPER:", 15, 50);
     pdf.setFontSize(9);
@@ -189,7 +190,6 @@ export default function OrderDetail() {
     pdf.text("PACOIMA, CA 91331", 15, 66);
     pdf.text("Phone: 951-421-1881", 15, 71);
     pdf.text("Email: info@bottlesandprint.com", 15, 76);
-
     pdf.setFontSize(10);
     pdf.text("CONSIGNEE:", 110, 50);
     pdf.setFontSize(9);
@@ -199,7 +199,6 @@ export default function OrderDetail() {
       const lines = clientAddr.split("\n");
       lines.forEach((line, i) => pdf.text(line, 110, 66 + i * 5));
     }
-
     pdf.setFontSize(10);
     pdf.text("DESCRIPTION:", 15, 90);
     pdf.setFontSize(9);
@@ -211,20 +210,15 @@ export default function OrderDetail() {
       order.client_po ? `Client PO: ${order.client_po}` : null,
     ].filter(Boolean).join(" | ");
     pdf.text(desc, 15, 96, { maxWidth: 180 });
-
     pdf.setFontSize(10);
     pdf.text(`Carrier: ${bolCarrier}`, 15, 115);
-
     pdf.text("_________________________________", 15, 145);
     pdf.text("Shipper Signature", 15, 152);
     pdf.text("_________________________________", 110, 145);
     pdf.text("Carrier Signature", 110, 152);
 
-    // Save PDF and upload as document
     const pdfBlob = pdf.output("blob");
     const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
-
-    // Upload to storage
     const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
     await supabase.storage.from("order-documents").upload(filePath, pdfFile);
     const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
@@ -234,7 +228,6 @@ export default function OrderDetail() {
       file_type: "Signed BOL",
       file_url: urlData.publicUrl,
     });
-
     await update({ outgoing_bol: bolNum });
     queryClient.invalidateQueries({ queryKey: ["order_documents", id] });
     setBolDialogOpen(false);
@@ -251,6 +244,10 @@ export default function OrderDetail() {
     { key: "checklist_bottles", label: "Bottles" },
     { key: "checklist_art_order_logged", label: "New Art / Order Logged" },
   ];
+
+  // Determine whether to show due date based on stage
+  const showDueDate = order.stage === "wip" || order.stage === "completed";
+  const showDaysInPreflight = order.stage === "preflight";
 
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
@@ -290,13 +287,11 @@ export default function OrderDetail() {
 
       {/* Action Bar */}
       <div className="bg-primary/10 rounded-lg border border-primary/20 p-4 flex flex-wrap items-center gap-3">
-        {/* Move Back button (#8) */}
         {previousStages.length > 0 && (
           <Button variant="outline" size="sm" onClick={() => setMoveBackOpen(true)}>
             <ArrowDown size={14} className="mr-1 rotate-90" /> Move Back
           </Button>
         )}
-
         {order.stage === "preflight" && (
           <>
             {allChecked ? (
@@ -347,7 +342,6 @@ export default function OrderDetail() {
             )}
           </>
         )}
-        {/* Invoice Early button for preflight/wip */}
         {(order.stage === "preflight" || order.stage === "wip") && !order.invoiced && (
           <Button variant="outline" onClick={createInvoice} className="ml-auto">Invoice Early</Button>
         )}
@@ -382,22 +376,35 @@ export default function OrderDetail() {
             <Detail label="Print" value={[order.num_colors ? `${order.num_colors} color(s)` : null, order.print_colors].filter(Boolean).join(" · ")} />
             <Detail label="Quantity" value={order.quantity?.toLocaleString()} />
             <Detail label="Packing" value={order.packing} />
-            <Detail label="Date Entered" value={order.date_entered} />
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Due Date</span>
-              <Input
-                type="date"
-                value={order.due_date || ""}
-                onChange={e => update({ due_date: e.target.value })}
-                className="w-40 h-8 text-sm"
-              />
-            </div>
-            {days !== null && (
+            <Detail label="Date Entered" value={formatDateShort(order.date_entered)} />
+
+            {showDaysInPreflight && (
               <Detail
-                label="Status"
-                value={days < 0 ? `${Math.abs(days)} days overdue` : `${days} days remaining`}
-                className={days < 0 ? "text-destructive font-medium" : days < 7 ? "text-warning font-medium" : ""}
+                label="Days in Pre-Flight"
+                value={`${daysInPreflight} day${daysInPreflight !== 1 ? "s" : ""}`}
+                className={daysInPreflight > 14 ? "text-destructive font-medium" : daysInPreflight > 7 ? "text-amber-600 font-medium" : ""}
               />
+            )}
+
+            {showDueDate && (
+              <>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Due Date</span>
+                  <Input
+                    type="date"
+                    value={order.due_date || ""}
+                    onChange={e => update({ due_date: e.target.value })}
+                    className="w-40 h-8 text-sm"
+                  />
+                </div>
+                {days !== null && (
+                  <Detail
+                    label="Status"
+                    value={days < 0 ? `${Math.abs(days)} days overdue` : `${days} days remaining`}
+                    className={days < 0 ? "text-destructive font-medium" : days < 7 ? "text-warning font-medium" : ""}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
@@ -411,20 +418,20 @@ export default function OrderDetail() {
             <Detail label="Client PO" value={order.client_po} />
             <Detail label="Vendor PO" value={order.vendor_po || "—"} />
             <Detail label="Invoiced" value={order.invoiced ? `Yes — ${order.invoice_num}` : "No"} />
-            <Detail label="Paid" value={order.paid ? `${order.pay_method} on ${order.pay_date}` : "No"} />
+            <Detail label="Paid" value={order.paid ? `${order.pay_method} on ${formatDateShort(order.pay_date)}` : "No"} />
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-4">Shipping</h3>
           <div className="space-y-2 text-sm">
-            <Detail label="Shipped" value={order.shipped ? `Yes — ${order.ship_date}` : "No"} />
+            <Detail label="Shipped" value={order.shipped ? `Yes — ${formatDateShort(order.ship_date)}` : "No"} />
             <Detail label="Outgoing BOL" value={order.outgoing_bol || "—"} />
             <Detail label="BOL Signed" value={order.bol_signed ? "Yes" : "No"} />
           </div>
         </div>
       </div>
 
-      {/* Documents (#5) */}
+      {/* Documents */}
       <div className="bg-card rounded-lg border p-5">
         <h3 className="font-semibold mb-4">Documents</h3>
         {documents.length > 0 && (
@@ -509,7 +516,7 @@ export default function OrderDetail() {
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader><DialogTitle>Document Preview</DialogTitle></DialogHeader>
           {previewUrl && (
-            previewUrl.match(/\.(pdf)$/i) ? (
+            previewUrl.toLowerCase().includes(".pdf") ? (
               <iframe src={previewUrl} className="w-full h-[70vh]" />
             ) : (
               <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] mx-auto" />
@@ -532,7 +539,7 @@ export default function OrderDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Move Back Dialog (#8) */}
+      {/* Move Back Dialog */}
       <Dialog open={moveBackOpen} onOpenChange={setMoveBackOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Move Order Back</DialogTitle></DialogHeader>
@@ -560,7 +567,7 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* ACH Payment Dialog (#9) */}
+      {/* ACH Payment Dialog */}
       <Dialog open={achDialogOpen} onOpenChange={setAchDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Record ACH Payment</DialogTitle></DialogHeader>
@@ -577,7 +584,7 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Check Payment Dialog (#9) */}
+      {/* Check Payment Dialog */}
       <Dialog open={checkDialogOpen} onOpenChange={setCheckDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Record Check Payment</DialogTitle></DialogHeader>
@@ -598,7 +605,7 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* BOL Generation Dialog (#7) */}
+      {/* BOL Generation Dialog */}
       <Dialog open={bolDialogOpen} onOpenChange={setBolDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Generate Bill of Lading</DialogTitle></DialogHeader>

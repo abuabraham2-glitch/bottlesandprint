@@ -214,6 +214,22 @@ export function useUpdateClient() {
   });
 }
 
+export function useDeleteClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (clientId: string) => {
+      // Delete associated catalog items first
+      await supabase.from("catalog").delete().eq("client_id", clientId);
+      const { error } = await supabase.from("clients").delete().eq("id", clientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["clients"] });
+      qc.invalidateQueries({ queryKey: ["catalog"] });
+    },
+  });
+}
+
 export function useCreateOrder() {
   const qc = useQueryClient();
   return useMutation({
@@ -260,6 +276,17 @@ export function useUpdateCatalogItem() {
       const { data, error } = await supabase.from("catalog").update(updates).eq("id", id).select().single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["catalog"] }),
+  });
+}
+
+export function useDeleteCatalogItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("catalog").delete().eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["catalog"] }),
   });
@@ -331,7 +358,6 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, orderId, file_url }: { id: string; orderId: string; file_url: string }) => {
-      // Extract storage path from URL
       const urlParts = file_url.split("/order-documents/");
       if (urlParts.length > 1) {
         const storagePath = decodeURIComponent(urlParts[1]);
@@ -346,22 +372,39 @@ export function useDeleteDocument() {
 }
 
 export async function getNextBolNumber(): Promise<string> {
+  // Use the settings table for atomic BOL numbering
   const { data, error } = await supabase
-    .from("orders")
-    .select("outgoing_bol")
-    .not("outgoing_bol", "is", null)
-    .order("outgoing_bol", { ascending: false });
-  if (error) throw error;
-  let maxNum = 1177;
-  for (const row of data || []) {
-    const num = parseInt(row.outgoing_bol || "0", 10);
-    if (!isNaN(num) && num > maxNum) maxNum = num;
+    .from("settings")
+    .select("value")
+    .eq("key", "next_bol_number")
+    .single();
+
+  if (error || !data) {
+    // Fallback: scan orders table
+    const { data: orders } = await supabase
+      .from("orders")
+      .select("outgoing_bol")
+      .not("outgoing_bol", "is", null)
+      .order("outgoing_bol", { ascending: false });
+    let maxNum = 1177;
+    for (const row of orders || []) {
+      const num = parseInt(row.outgoing_bol || "0", 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+    return (maxNum + 1).toString();
   }
-  return (maxNum + 1).toString();
+
+  const currentNum = parseInt(data.value, 10);
+  // Increment the sequence
+  await supabase
+    .from("settings")
+    .update({ value: (currentNum + 1).toString() })
+    .eq("key", "next_bol_number");
+
+  return currentNum.toString();
 }
 
 export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: string) {
-  // Check if a catalog item with same product name exists for this client
   const { data: existing } = await supabase
     .from("catalog")
     .select("id")
@@ -369,7 +412,7 @@ export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: st
     .eq("product_name", order.item_name || "")
     .limit(1);
 
-  if (existing && existing.length > 0) return; // already exists
+  if (existing && existing.length > 0) return;
 
   const now = new Date();
   const monthYear = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;

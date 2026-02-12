@@ -53,6 +53,14 @@ export function daysUntilDue(dueDate: string | null) {
   return Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+export function daysSinceCreated(dateEntered: string) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const entered = new Date(dateEntered);
+  entered.setHours(0, 0, 0, 0);
+  return Math.floor((now.getTime() - entered.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 export function generateInvoiceNumber() {
   const now = new Date();
   const y = now.getFullYear().toString().slice(-2);
@@ -67,4 +75,15 @@ export function formatAddress(street?: string | null, city?: string | null, stat
   const line2 = [parts, zip].filter(Boolean).join(" ");
   if (!line1 && !line2) return null;
   return [line1, line2].filter(Boolean).join("\n");
+}
+
+/** Format a date string as M/D/YY (no leading zeros) */
+export function formatDateShort(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr + (dateStr.length === 10 ? "T00:00:00" : ""));
+  if (isNaN(d.getTime())) return dateStr;
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const y = d.getFullYear().toString().slice(-2);
+  return `${m}/${day}/${y}`;
 }
