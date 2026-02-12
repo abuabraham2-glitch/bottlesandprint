@@ -43,6 +43,7 @@ export default function OrderDetail() {
   const [checkDate, setCheckDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [bolDialogOpen, setBolDialogOpen] = useState(false);
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
+  const [deleteOrderOpen, setDeleteOrderOpen] = useState(false);
 
   const update = useCallback(async (updates: Record<string, any>) => {
     if (!id) return;
@@ -94,6 +95,24 @@ export default function OrderDetail() {
     if (!confirm("Archive this order? It will be moved to completed data.")) return;
     await archiveOrder.mutateAsync(order);
     toast.success("Order archived");
+    navigate("/orders");
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!id) return;
+    // Delete associated documents from storage and DB
+    for (const doc of documents) {
+      const urlParts = doc.file_url.split("/order-documents/");
+      if (urlParts.length > 1) {
+        const storagePath = decodeURIComponent(urlParts[1]);
+        await supabase.storage.from("order-documents").remove([storagePath]);
+      }
+    }
+    await supabase.from("order_documents").delete().eq("order_id", id);
+    const { error } = await supabase.from("orders").delete().eq("id", id);
+    if (error) { toast.error("Failed to delete order"); return; }
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    toast.success("Order deleted");
     navigate("/orders");
   };
 
@@ -491,9 +510,9 @@ export default function OrderDetail() {
 
       {/* Notes */}
       {order.notes && (
-        <div className="bg-card rounded-lg border p-5">
-          <h3 className="font-semibold mb-2">Notes</h3>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap font-bold">{order.notes}</p>
+        <div className="rounded-lg border-l-4 p-5" style={{ borderLeftColor: "#C2793D", backgroundColor: "#FBF0E5" }}>
+          <h3 className="font-semibold mb-2" style={{ color: "#C2793D" }}>Notes</h3>
+          <p className="text-sm whitespace-pre-wrap font-bold">{order.notes}</p>
         </div>
       )}
 
@@ -622,6 +641,27 @@ export default function OrderDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Order Dialog */}
+      <AlertDialog open={deleteOrderOpen} onOpenChange={setDeleteOrderOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to permanently delete this order? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteOrder} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Order Link */}
+      <div className="flex justify-end pt-2 pb-8">
+        <Button variant="link" className="text-destructive text-sm" onClick={() => setDeleteOrderOpen(true)}>
+          <Trash2 size={14} className="mr-1" /> Delete Order
+        </Button>
+      </div>
     </div>
   );
 }
