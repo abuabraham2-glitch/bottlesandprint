@@ -1,0 +1,310 @@
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+// Types
+export interface Client {
+  id: string;
+  company: string;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  billing_address: string | null;
+  form_signed: boolean;
+  archived: boolean;
+  created_at: string;
+}
+
+export interface Order {
+  id: string;
+  client_id: string;
+  item_name: string;
+  bottle_type: string | null;
+  bottle_size: string | null;
+  material: string | null;
+  bottle_color: string | null;
+  num_colors: number | null;
+  print_colors: string | null;
+  quantity: number | null;
+  packing: string | null;
+  pass: number;
+  stage: string;
+  checklist_new_client_form: boolean;
+  checklist_artwork_in: boolean;
+  checklist_proof_approved: boolean;
+  checklist_purchase_order: boolean;
+  checklist_bottles: boolean;
+  checklist_art_order_logged: boolean;
+  client_po: string | null;
+  vendor_po: string | null;
+  invoiced: boolean;
+  invoice_num: string | null;
+  paid: boolean;
+  pay_method: string | null;
+  pay_date: string | null;
+  shipped: boolean;
+  ship_date: string | null;
+  outgoing_bol: string | null;
+  bol_signed: boolean;
+  date_entered: string;
+  due_date: string | null;
+  notes: string | null;
+  archived: boolean;
+  created_at: string;
+  clients?: Client;
+}
+
+export interface CatalogItem {
+  id: string;
+  client_id: string;
+  product_name: string;
+  size: string | null;
+  component: string | null;
+  material: string | null;
+  container_color: string | null;
+  num_colors: number | null;
+  print_colors: string | null;
+  first_run: string | null;
+  last_run: string | null;
+  archived: boolean;
+  created_at: string;
+  clients?: Client;
+}
+
+export interface OrderDocument {
+  id: string;
+  order_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_url: string;
+  uploaded_at: string;
+}
+
+export interface ArchivedOrder {
+  id: string;
+  year: string | null;
+  month: string | null;
+  client_company: string | null;
+  description: string | null;
+  size: string | null;
+  quantity: number | null;
+  pass: number | null;
+  comments: string | null;
+  date_completed: string | null;
+  original_order_id: string | null;
+}
+
+// Hooks
+export function useClients(includeArchived = false) {
+  return useQuery({
+    queryKey: ["clients", includeArchived],
+    queryFn: async () => {
+      let query = supabase.from("clients").select("*").order("company");
+      if (!includeArchived) query = query.eq("archived", false);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Client[];
+    },
+  });
+}
+
+export function useClient(id: string) {
+  return useQuery({
+    queryKey: ["client", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clients").select("*").eq("id", id).single();
+      if (error) throw error;
+      return data as Client;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useOrders(includeArchived = false) {
+  return useQuery({
+    queryKey: ["orders", includeArchived],
+    queryFn: async () => {
+      let query = supabase.from("orders").select("*, clients(*)").order("created_at", { ascending: false });
+      if (!includeArchived) query = query.eq("archived", false);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Order[];
+    },
+  });
+}
+
+export function useOrder(id: string) {
+  return useQuery({
+    queryKey: ["order", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("*, clients(*)").eq("id", id).single();
+      if (error) throw error;
+      return data as Order;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCatalog(clientId?: string) {
+  return useQuery({
+    queryKey: ["catalog", clientId],
+    queryFn: async () => {
+      let query = supabase.from("catalog").select("*, clients(*)").eq("archived", false).order("product_name");
+      if (clientId) query = query.eq("client_id", clientId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as CatalogItem[];
+    },
+  });
+}
+
+export function useOrderDocuments(orderId: string) {
+  return useQuery({
+    queryKey: ["order_documents", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("order_documents").select("*").eq("order_id", orderId).order("uploaded_at", { ascending: false });
+      if (error) throw error;
+      return data as OrderDocument[];
+    },
+    enabled: !!orderId,
+  });
+}
+
+export function useArchivedOrders(year?: string) {
+  return useQuery({
+    queryKey: ["archived_orders", year],
+    queryFn: async () => {
+      let query = supabase.from("archived_orders").select("*").order("date_completed", { ascending: false });
+      if (year) query = query.eq("year", year);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ArchivedOrder[];
+    },
+  });
+}
+
+// Mutations
+export function useCreateClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (client: Partial<Client>) => {
+      const { data, error } = await supabase.from("clients").insert(client as any).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+  });
+}
+
+export function useUpdateClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Client> & { id: string }) => {
+      const { data, error } = await supabase.from("clients").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
+  });
+}
+
+export function useCreateOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (order: Partial<Order>) => {
+      const { data, error } = await supabase.from("orders").insert(order as any).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+export function useUpdateOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Order> & { id: string }) => {
+      const { data, error } = await supabase.from("orders").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["order", vars.id] });
+    },
+  });
+}
+
+export function useCreateCatalogItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (item: Partial<CatalogItem>) => {
+      const { data, error } = await supabase.from("catalog").insert(item as any).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["catalog"] }),
+  });
+}
+
+export function useUpdateCatalogItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<CatalogItem> & { id: string }) => {
+      const { data, error } = await supabase.from("catalog").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["catalog"] }),
+  });
+}
+
+export function useArchiveOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (order: Order) => {
+      const now = new Date();
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const archived = {
+        year: now.getFullYear().toString(),
+        month: monthNames[now.getMonth()],
+        client_company: order.clients?.company || "",
+        description: order.item_name,
+        size: order.bottle_size,
+        quantity: order.quantity,
+        pass: order.pass,
+        comments: order.notes,
+        date_completed: now.toISOString().split("T")[0],
+        original_order_id: order.id,
+      };
+      const { error: archiveError } = await supabase.from("archived_orders").insert(archived);
+      if (archiveError) throw archiveError;
+      const { error: updateError } = await supabase.from("orders").update({ archived: true }).eq("id", order.id);
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["archived_orders"] });
+    },
+  });
+}
+
+export function useUploadDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orderId, file, fileType }: { orderId: string; file: File; fileType: string }) => {
+      const filePath = `${orderId}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage.from("order-documents").upload(filePath, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
+      const { error: dbError } = await supabase.from("order_documents").insert({
+        order_id: orderId,
+        file_name: file.name,
+        file_type: fileType,
+        file_url: urlData.publicUrl,
+      });
+      if (dbError) throw dbError;
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["order_documents", vars.orderId] }),
+  });
+}

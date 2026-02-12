@@ -1,0 +1,56 @@
+export const STAGES = [
+  { key: "preflight", label: "Pre-Flight", description: "Checking off requirements", color: "bg-blue-500" },
+  { key: "wip", label: "W.I.P.", description: "Work in progress at vendor", color: "bg-amber-500" },
+  { key: "completed", label: "Completed", description: "Done — awaiting invoice", color: "bg-green-500" },
+  { key: "to_ship", label: "To Ship", description: "Invoiced — ready to ship", color: "bg-purple-500" },
+  { key: "close", label: "Close", description: "Shipped — awaiting payment", color: "bg-stone-500" },
+] as const;
+
+export const STAGE_KEYS = STAGES.map(s => s.key);
+
+export const BOTTLE_TYPES = ["Bottle", "Jar", "Packer", "Dropper Bottle", "Tube"];
+export const MATERIALS = ["HDPE", "Glass", "PET", "PP"];
+export const COLORS = ["White", "Clear", "Amber", "Black"];
+export const DOC_TYPES = ["Client PO", "Invoice", "Signed BOL", "Approved Proof", "Incoming BOL", "Other"];
+
+export function getStageBadgeClass(stage: string) {
+  const map: Record<string, string> = {
+    preflight: "stage-badge-preflight",
+    wip: "stage-badge-wip",
+    completed: "stage-badge-completed",
+    to_ship: "stage-badge-to_ship",
+    close: "stage-badge-close",
+  };
+  return map[stage] || "";
+}
+
+export function getStageLabel(stage: string) {
+  return STAGES.find(s => s.key === stage)?.label || stage;
+}
+
+export function checklistCount(order: { checklist_new_client_form: boolean; checklist_artwork_in: boolean; checklist_proof_approved: boolean; checklist_purchase_order: boolean; checklist_bottles: boolean; checklist_art_order_logged: boolean }) {
+  return [
+    order.checklist_new_client_form,
+    order.checklist_artwork_in,
+    order.checklist_proof_approved,
+    order.checklist_purchase_order,
+    order.checklist_bottles,
+    order.checklist_art_order_logged,
+  ].filter(Boolean).length;
+}
+
+export function daysUntilDue(dueDate: string | null) {
+  if (!dueDate) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  return Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function generateInvoiceNumber() {
+  const now = new Date();
+  const y = now.getFullYear().toString().slice(-2);
+  const m = (now.getMonth() + 1).toString().padStart(2, "0");
+  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  return `INV-${y}${m}-${rand}`;
+}
