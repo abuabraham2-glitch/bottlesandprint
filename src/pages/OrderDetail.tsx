@@ -44,6 +44,7 @@ export default function OrderDetail() {
   const [checkDate, setCheckDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [bolDialogOpen, setBolDialogOpen] = useState(false);
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
+  const [bolRegenOpen, setBolRegenOpen] = useState(false);
   const [deleteOrderOpen, setDeleteOrderOpen] = useState(false);
 
   const update = useCallback(async (updates: Record<string, any>) => {
@@ -210,6 +211,37 @@ export default function OrderDetail() {
     toast.success(`BOL #${bolNum} generated`);
   };
 
+  const handleRegenerateBol = async () => {
+    if (!order || !id || !order.outgoing_bol) return;
+    const bolNum = order.outgoing_bol;
+
+    // Delete existing BOL document(s)
+    const existingBols = documents.filter(d => d.file_name.startsWith("BOL-"));
+    for (const doc of existingBols) {
+      const urlParts = doc.file_url.split("/order-documents/");
+      if (urlParts.length > 1) {
+        const storagePath = decodeURIComponent(urlParts[1]);
+        await supabase.storage.from("order-documents").remove([storagePath]);
+      }
+      await supabase.from("order_documents").delete().eq("id", doc.id);
+    }
+
+    const pdfBlob = generateBolPdf({ bolNumber: bolNum, carrier: bolCarrier, order });
+    const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
+    const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
+    await supabase.storage.from("order-documents").upload(filePath, pdfFile);
+    const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
+    await supabase.from("order_documents").insert({
+      order_id: id,
+      file_name: `BOL-${bolNum}.pdf`,
+      file_type: "Signed BOL",
+      file_url: urlData.publicUrl,
+    });
+    queryClient.invalidateQueries({ queryKey: ["order_documents", id] });
+    setBolRegenOpen(false);
+    toast.success("BOL regenerated successfully");
+  };
+
   const previousStages = STAGES.slice(0, stageIndex);
 
   const checklistItems = [
@@ -293,6 +325,19 @@ export default function OrderDetail() {
           <>
             {!order.outgoing_bol && (
               <Button onClick={() => setBolDialogOpen(true)}>Generate BOL</Button>
+            )}
+            {order.outgoing_bol && (
+              <>
+                {(() => {
+                  const bolDoc = documents.find(d => d.file_name.startsWith("BOL-"));
+                  return bolDoc ? (
+                    <Button variant="outline" onClick={() => setPreviewUrl(bolDoc.file_url)}>
+                      <Eye size={14} className="mr-1" /> View/Download BOL
+                    </Button>
+                  ) : null;
+                })()}
+                <Button variant="outline" onClick={() => setBolRegenOpen(true)}>Regenerate BOL</Button>
+              </>
             )}
             {order.outgoing_bol && !order.bol_signed && (
               <Button onClick={async () => { await update({ bol_signed: true }); toast.success("BOL marked as signed"); }}>
@@ -598,6 +643,26 @@ export default function OrderDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* BOL Regeneration Confirmation */}
+      <AlertDialog open={bolRegenOpen} onOpenChange={setBolRegenOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate BOL</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will generate a new BOL replacing the previous one. The BOL number will remain the same. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2">
+            <Label>Carrier</Label>
+            <Input value={bolCarrier} onChange={e => setBolCarrier(e.target.value)} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerateBol}>Regenerate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Order Dialog */}
       <AlertDialog open={deleteOrderOpen} onOpenChange={setDeleteOrderOpen}>
