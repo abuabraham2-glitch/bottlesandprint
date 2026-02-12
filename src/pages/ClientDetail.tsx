@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useClient, useOrders, useCatalog } from "@/lib/data";
-import { getStageBadgeClass, getStageLabel, formatAddress } from "@/lib/constants";
+import { useClient, useOrders, useCatalog, useDeleteClient } from "@/lib/data";
+import { getStageBadgeClass, getStageLabel, formatAddress, formatDateShort } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, CheckCircle, XCircle, Pencil } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClientForm } from "./Clients";
@@ -16,7 +17,10 @@ export default function ClientDetail() {
   const { data: client, isLoading } = useClient(id!);
   const { data: orders = [] } = useOrders(true);
   const { data: catalog = [] } = useCatalog(id);
+  const deleteClient = useDeleteClient();
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const clientOrders = orders.filter(o => o.client_id === id);
 
@@ -25,12 +29,30 @@ export default function ClientDetail() {
   const addr = formatAddress(client.street_address, client.city, client.state, client.zip);
   const billingAddr = formatAddress(client.billing_street, client.billing_city, client.billing_state, client.billing_zip);
 
+  const handleDeleteClick = () => {
+    const activeOrders = orders.filter(o => o.client_id === id && !o.archived);
+    if (activeOrders.length > 0) {
+      setDeleteError("This client has active orders and cannot be deleted. Archive them first.");
+    } else {
+      setDeleteError(null);
+    }
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteError) { setDeleteOpen(false); return; }
+    await deleteClient.mutateAsync(id!);
+    toast.success("Client deleted");
+    navigate("/clients");
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-[1200px]">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
         <h1 className="text-2xl font-bold">{client.company}</h1>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil size={14} className="mr-1" /> Edit</Button>
+        <Button variant="outline" size="sm" onClick={handleDeleteClick} className="text-destructive hover:text-destructive"><Trash2 size={14} className="mr-1" /> Delete</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
@@ -112,7 +134,7 @@ export default function ClientDetail() {
                   <td className="p-3">{order.bottle_size}</td>
                   <td className="p-3">{order.quantity?.toLocaleString()}</td>
                   <td className="p-3"><Badge variant="secondary" className={`text-xs ${getStageBadgeClass(order.stage)}`}>{getStageLabel(order.stage)}</Badge></td>
-                  <td className="p-3">{order.due_date || "—"}</td>
+                  <td className="p-3">{formatDateShort(order.due_date)}</td>
                 </tr>
               ))}
               {clientOrders.length === 0 && (
@@ -130,6 +152,24 @@ export default function ClientDetail() {
           <ClientForm initialData={client} onSuccess={() => { setEditOpen(false); toast.success("Client updated"); }} />
         </DialogContent>
       </Dialog>
+
+      {/* Delete Client Dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteError ? "Cannot Delete Client" : "Delete Client"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteError || `Are you sure you want to permanently delete "${client.company}"? This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {!deleteError && (
+              <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

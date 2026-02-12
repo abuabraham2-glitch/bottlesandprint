@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { useCatalog, useUpdateCatalogItem } from "@/lib/data";
+import { useCatalog, useUpdateCatalogItem, useDeleteCatalogItem } from "@/lib/data";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Archive } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Archive, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Catalog() {
   const [showArchived, setShowArchived] = useState(false);
   const { data: items = [], isLoading } = useCatalog();
   const updateItem = useUpdateCatalogItem();
+  const deleteItem = useDeleteCatalogItem();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const filtered = showArchived ? items : items.filter(i => !i.archived);
 
@@ -16,6 +19,13 @@ export default function Catalog() {
     if (!confirm("Archive this catalog item?")) return;
     await updateItem.mutateAsync({ id, archived: true });
     toast.success("Item archived");
+  };
+
+  const confirmDeleteItem = async () => {
+    if (!deleteTarget) return;
+    await deleteItem.mutateAsync(deleteTarget.id);
+    toast.success("Catalog item deleted");
+    setDeleteTarget(null);
   };
 
   const exportToExcel = () => {
@@ -78,11 +88,16 @@ export default function Catalog() {
                 <td className="p-3">{item.first_run || "—"}</td>
                 <td className="p-3">{item.last_run || "—"}</td>
                 <td className="p-3">
-                  {!item.archived && (
-                    <button onClick={() => archiveItem(item.id)} className="text-muted-foreground hover:text-foreground">
-                      <Archive size={14} />
+                  <div className="flex items-center gap-1">
+                    {!item.archived && (
+                      <button onClick={() => archiveItem(item.id)} className="text-muted-foreground hover:text-foreground" title="Archive">
+                        <Archive size={14} />
+                      </button>
+                    )}
+                    <button onClick={() => setDeleteTarget({ id: item.id, name: item.product_name })} className="text-muted-foreground hover:text-destructive" title="Delete">
+                      <Trash2 size={14} />
                     </button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -92,6 +107,22 @@ export default function Catalog() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete Catalog Item Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Catalog Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete "{deleteTarget?.name}"? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteItem} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

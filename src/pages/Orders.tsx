@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOrders, useClients, useCatalog, useCreateOrder, autoCreateCatalogEntry } from "@/lib/data";
-import { getStageBadgeClass, getStageLabel, BOTTLE_TYPES, MATERIALS, COLORS } from "@/lib/constants";
+import { getStageBadgeClass, getStageLabel, BOTTLE_TYPES, MATERIALS, COLORS, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Plus, StickyNote } from "lucide-react";
 import { toast } from "sonner";
-import { format, addWeeks } from "date-fns";
+import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface OrdersProps {
@@ -74,10 +74,15 @@ export default function Orders({ searchQuery }: OrdersProps) {
                 >
                   <td className="p-3 text-muted-foreground">{order.client_po || "—"}</td>
                   <td className="p-3">{order.clients?.company}</td>
-                  <td className="p-3 font-medium">{order.item_name}</td>
+                  <td className="p-3 font-medium">
+                    <span className="flex items-center gap-1">
+                      {order.item_name}
+                      {order.notes && <StickyNote size={12} className="text-amber-500 shrink-0" />}
+                    </span>
+                  </td>
                   <td className="p-3">{order.bottle_size}</td>
                   <td className="p-3">{order.quantity?.toLocaleString()}</td>
-                  <td className="p-3">{order.due_date || "—"}</td>
+                  <td className="p-3">{formatDateShort(order.due_date)}</td>
                   <td className="p-3">
                     <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(order.stage)}`}>
                       {getStageLabel(order.stage)}
@@ -141,7 +146,6 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
   const [catalogItemId, setCatalogItemId] = useState("");
 
   const today = format(new Date(), "yyyy-MM-dd");
-  const fourWeeks = format(addWeeks(new Date(), 4), "yyyy-MM-dd");
 
   const [form, setForm] = useState({
     item_name: "",
@@ -156,7 +160,6 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
     client_po: "",
     notes: "",
     date_entered: today,
-    due_date: fourWeeks,
   });
 
   const handleCatalogSelect = (itemId: string) => {
@@ -213,13 +216,11 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
       client_po: form.client_po || null,
       notes: form.notes || null,
       date_entered: form.date_entered,
-      due_date: form.due_date,
+      due_date: null, // No due date on creation; set when moving to WIP
       stage: "preflight",
     };
 
     await createOrder.mutateAsync(orderData);
-
-    // Auto-create catalog entry (#10)
     await autoCreateCatalogEntry(orderData, clientId);
     queryClient.invalidateQueries({ queryKey: ["catalog"] });
 
@@ -281,7 +282,6 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </div>
 
-      {/* Dynamic PMS Color Fields */}
       {numColorsInt > 0 && (
         <div className="space-y-2">
           <Label>PMS Colors</Label>
@@ -308,15 +308,9 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
         <Input value={form.client_po} onChange={e => update("client_po", e.target.value)} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Date Entered</Label>
-          <Input type="date" value={form.date_entered} onChange={e => update("date_entered", e.target.value)} />
-        </div>
-        <div>
-          <Label>Due Date</Label>
-          <Input type="date" value={form.due_date} onChange={e => update("due_date", e.target.value)} />
-        </div>
+      <div>
+        <Label>Date Entered</Label>
+        <Input type="date" value={form.date_entered} onChange={e => update("date_entered", e.target.value)} />
       </div>
 
       <div>

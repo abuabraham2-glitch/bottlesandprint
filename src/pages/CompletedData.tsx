@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useArchivedOrders } from "@/lib/data";
+import { formatDateShort } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -10,7 +11,6 @@ export default function CompletedData() {
   const [selectedYear, setSelectedYear] = useState(years[0]);
   const { data: archived = [], isLoading } = useArchivedOrders(selectedYear);
 
-  // Group by month
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const grouped = months
     .map(month => ({ month, orders: archived.filter(a => a.month === month) }))
@@ -71,7 +71,7 @@ export default function CompletedData() {
                         <td className="p-3">{order.quantity?.toLocaleString()}</td>
                         <td className="p-3">{order.pass}</td>
                         <td className="p-3">{order.comments}</td>
-                        <td className="p-3">{order.date_completed}</td>
+                        <td className="p-3">{formatDateShort(order.date_completed)}</td>
                       </tr>
                     ))
                   ))}

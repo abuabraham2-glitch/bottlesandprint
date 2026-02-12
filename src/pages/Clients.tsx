@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { useClients, useCreateClient, useUpdateClient, useOrders } from "@/lib/data";
+import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useOrders } from "@/lib/data";
 import { formatAddress } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Archive, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Archive, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
@@ -17,13 +18,34 @@ export default function Clients() {
   const { data: clients = [], isLoading } = useClients(showArchived);
   const { data: orders = [] } = useOrders();
   const updateClient = useUpdateClient();
+  const deleteClient = useDeleteClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; company: string } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const archiveClient = async (id: string) => {
     if (!confirm("Archive this client?")) return;
     await updateClient.mutateAsync({ id, archived: true });
     toast.success("Client archived");
+  };
+
+  const handleDeleteClick = (id: string, company: string) => {
+    const activeOrders = orders.filter(o => o.client_id === id && !o.archived);
+    if (activeOrders.length > 0) {
+      setDeleteError("This client has active orders and cannot be deleted. Archive them first.");
+      setDeleteTarget({ id, company });
+    } else {
+      setDeleteError(null);
+      setDeleteTarget({ id, company });
+    }
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!deleteTarget || deleteError) { setDeleteTarget(null); setDeleteError(null); return; }
+    await deleteClient.mutateAsync(deleteTarget.id);
+    toast.success("Client deleted");
+    setDeleteTarget(null);
   };
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
@@ -64,11 +86,16 @@ export default function Clients() {
                   <h3 className="font-semibold text-lg">{client.company}</h3>
                   {client.contact_name && <p className="text-sm text-muted-foreground">{client.contact_name}</p>}
                 </div>
-                {!client.archived && (
-                  <button onClick={e => { e.stopPropagation(); archiveClient(client.id); }} className="text-muted-foreground hover:text-foreground p-1">
-                    <Archive size={16} />
+                <div className="flex items-center gap-1">
+                  {!client.archived && (
+                    <button onClick={e => { e.stopPropagation(); archiveClient(client.id); }} className="text-muted-foreground hover:text-foreground p-1" title="Archive">
+                      <Archive size={16} />
+                    </button>
+                  )}
+                  <button onClick={e => { e.stopPropagation(); handleDeleteClick(client.id, client.company); }} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
+                    <Trash2 size={16} />
                   </button>
-                )}
+                </div>
               </div>
               {client.email && <p className="text-sm text-muted-foreground">{client.email}</p>}
               {client.phone && <p className="text-sm text-muted-foreground">{client.phone}</p>}
@@ -90,6 +117,24 @@ export default function Clients() {
           <div className="col-span-full text-center text-muted-foreground py-12">No clients found</div>
         )}
       </div>
+
+      {/* Delete Client Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteError ? "Cannot Delete Client" : "Delete Client"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteError || `Are you sure you want to permanently delete "${deleteTarget?.company}"? This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {!deleteError && (
+              <AlertDialogAction onClick={confirmDeleteClient} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

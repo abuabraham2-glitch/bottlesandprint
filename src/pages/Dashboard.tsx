@@ -1,7 +1,8 @@
 import { useOrders } from "@/lib/data";
-import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue } from "@/lib/constants";
+import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { StickyNote } from "lucide-react";
 
 interface DashboardProps {
   searchQuery: string;
@@ -68,30 +69,49 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 </div>
                 <div className="space-y-2 min-h-[100px]">
                   {stageOrders.map((order) => {
-                    const days = daysUntilDue(order.due_date);
                     const checked = checklistCount(order);
+                    const daysInPreflight = daysSinceCreated(order.date_entered);
+                    const days = daysUntilDue(order.due_date);
+
                     return (
                       <div
                         key={order.id}
                         onClick={() => navigate(`/orders/${order.id}`)}
                         className="bg-card border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
                       >
-                        <div className="font-medium text-sm">{order.item_name}</div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-sm">{order.item_name}</span>
+                          {order.notes && <StickyNote size={12} className="text-amber-500 shrink-0" />}
+                        </div>
                         <div className="text-xs text-muted-foreground">{order.clients?.company}</div>
 
-                        {/* #11 Color-coded status indicators */}
+                        {/* Status indicators */}
                         {stage.key === "preflight" && (
-                          <div className={`text-xs mt-1.5 font-medium ${checked === 6 ? "text-green-600" : "text-destructive"}`}>
-                            {checked === 6 ? "✓ 6/6 Ready" : `${checked}/6 items`}
-                          </div>
+                          <>
+                            <div className={`text-xs mt-1.5 font-medium ${checked === 6 ? "text-green-600" : "text-destructive"}`}>
+                              {checked === 6 ? "✓ 6/6 Ready" : `${checked}/6 items`}
+                            </div>
+                            <div className={`text-xs mt-0.5 font-medium ${daysInPreflight > 14 ? "text-destructive" : daysInPreflight > 7 ? "text-amber-600" : "text-muted-foreground"}`}>
+                              {daysInPreflight} day{daysInPreflight !== 1 ? "s" : ""} in Pre-Flight
+                            </div>
+                          </>
                         )}
-                        {stage.key === "wip" && (
-                          <div className="text-xs mt-1.5 text-muted-foreground">In production</div>
+                        {stage.key === "wip" && days !== null && (
+                          <div className={`text-xs mt-1.5 font-medium ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
+                            {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
+                          </div>
                         )}
                         {stage.key === "completed" && (
-                          <div className={`text-xs mt-1.5 font-medium ${order.invoiced ? "text-green-600" : "text-destructive"}`}>
-                            {order.invoiced ? "✓ Invoiced" : "Needs Invoice"}
-                          </div>
+                          <>
+                            <div className={`text-xs mt-1.5 font-medium ${order.invoiced ? "text-green-600" : "text-destructive"}`}>
+                              {order.invoiced ? "✓ Invoiced" : "Needs Invoice"}
+                            </div>
+                            {days !== null && (
+                              <div className={`text-xs mt-0.5 font-medium ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
+                                {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
+                              </div>
+                            )}
+                          </>
                         )}
                         {stage.key === "to_ship" && (
                           <div className={`text-xs mt-1.5 font-medium ${order.outgoing_bol ? "text-green-600" : "text-destructive"}`}>
@@ -101,12 +121,6 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                         {stage.key === "close" && (
                           <div className={`text-xs mt-1.5 font-medium ${order.paid ? "text-green-600" : "text-destructive"}`}>
                             {order.paid ? "✓ Payment Received" : "Awaiting Payment"}
-                          </div>
-                        )}
-
-                        {days !== null && (
-                          <div className={`text-xs mt-1 font-medium ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
-                            {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
                           </div>
                         )}
                       </div>
@@ -149,7 +163,12 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                     >
                       <td className="p-3">{i + 1}</td>
                       <td className="p-3">{order.clients?.company}</td>
-                      <td className="p-3 font-medium">{order.item_name}</td>
+                      <td className="p-3 font-medium">
+                        <span className="flex items-center gap-1">
+                          {order.item_name}
+                          {order.notes && <StickyNote size={12} className="text-amber-500 shrink-0" />}
+                        </span>
+                      </td>
                       <td className="p-3">{order.bottle_size}</td>
                       <td className="p-3">{order.quantity?.toLocaleString()}</td>
                       <td className="p-3">{order.pass}</td>
@@ -158,9 +177,9 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                           {getStageLabel(order.stage)}
                         </Badge>
                       </td>
-                      <td className="p-3">{order.date_entered}</td>
+                      <td className="p-3">{formatDateShort(order.date_entered)}</td>
                       <td className={`p-3 font-medium ${days !== null && days < 0 ? "text-destructive" : days !== null && days < 7 ? "text-warning" : ""}`}>
-                        {order.due_date}
+                        {formatDateShort(order.due_date)}
                       </td>
                     </tr>
                   );
