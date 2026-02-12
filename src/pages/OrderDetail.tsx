@@ -14,6 +14,7 @@ import { useState, useCallback, useRef } from "react";
 import { format, addWeeks } from "date-fns";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
+import { generateBolPdf } from "@/lib/generateBolPdf";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function OrderDetail() {
@@ -192,51 +193,7 @@ export default function OrderDetail() {
     if (!order || !id) return;
     const bolNum = await getNextBolNumber();
 
-    const client = order.clients;
-    const clientAddr = client ? formatAddress(client.street_address, client.city, client.state, client.zip) : "";
-
-    const pdf = new jsPDF();
-    pdf.setFontSize(18);
-    pdf.text("BILL OF LADING", 105, 20, { align: "center" });
-    pdf.setFontSize(11);
-    pdf.text(`BOL #: ${bolNum}`, 15, 35);
-    pdf.text(`Date: ${formatDateShort(new Date().toISOString().split("T")[0])}`, 140, 35);
-    pdf.setFontSize(10);
-    pdf.text("SHIPPER:", 15, 50);
-    pdf.setFontSize(9);
-    pdf.text("BOTTLES AND PRINT", 15, 56);
-    pdf.text("12990 BRANFORD ST, UNIT I", 15, 61);
-    pdf.text("PACOIMA, CA 91331", 15, 66);
-    pdf.text("Phone: 951-421-1881", 15, 71);
-    pdf.text("Email: info@bottlesandprint.com", 15, 76);
-    pdf.setFontSize(10);
-    pdf.text("CONSIGNEE:", 110, 50);
-    pdf.setFontSize(9);
-    pdf.text(client?.company || "", 110, 56);
-    if (client?.contact_name) pdf.text(client.contact_name, 110, 61);
-    if (clientAddr) {
-      const lines = clientAddr.split("\n");
-      lines.forEach((line, i) => pdf.text(line, 110, 66 + i * 5));
-    }
-    pdf.setFontSize(10);
-    pdf.text("DESCRIPTION:", 15, 90);
-    pdf.setFontSize(9);
-    const desc = [
-      order.item_name,
-      [order.bottle_size, order.bottle_type].filter(Boolean).join(" "),
-      order.num_colors ? `${order.num_colors} color(s)` : null,
-      order.packing,
-      order.client_po ? `Client PO: ${order.client_po}` : null,
-    ].filter(Boolean).join(" | ");
-    pdf.text(desc, 15, 96, { maxWidth: 180 });
-    pdf.setFontSize(10);
-    pdf.text(`Carrier: ${bolCarrier}`, 15, 115);
-    pdf.text("_________________________________", 15, 145);
-    pdf.text("Shipper Signature", 15, 152);
-    pdf.text("_________________________________", 110, 145);
-    pdf.text("Carrier Signature", 110, 152);
-
-    const pdfBlob = pdf.output("blob");
+    const pdfBlob = generateBolPdf({ bolNumber: bolNum, carrier: bolCarrier, order });
     const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
     const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
     await supabase.storage.from("order-documents").upload(filePath, pdfFile);
