@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useClients, useCreateClient, useUpdateClient, useOrders } from "@/lib/data";
+import { formatAddress } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Archive, CheckCircle, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import AddressFields from "@/components/AddressFields";
 
 export default function Clients() {
   const [showArchived, setShowArchived] = useState(false);
@@ -39,9 +41,9 @@ export default function Clients() {
             <DialogTrigger asChild>
               <Button><Plus size={16} className="mr-2" /> New Client</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Add New Client</DialogTitle></DialogHeader>
-              <NewClientForm onSuccess={() => { setDialogOpen(false); toast.success("Client created"); }} />
+              <ClientForm onSuccess={() => { setDialogOpen(false); toast.success("Client created"); }} />
             </DialogContent>
           </Dialog>
         </div>
@@ -50,6 +52,7 @@ export default function Clients() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {clients.map(client => {
           const activeOrders = orders.filter(o => o.client_id === client.id && !o.archived).length;
+          const addr = formatAddress(client.street_address, client.city, client.state, client.zip);
           return (
             <div
               key={client.id}
@@ -69,6 +72,7 @@ export default function Clients() {
               </div>
               {client.email && <p className="text-sm text-muted-foreground">{client.email}</p>}
               {client.phone && <p className="text-sm text-muted-foreground">{client.phone}</p>}
+              {addr && <p className="text-sm text-muted-foreground whitespace-pre-line mt-1">{addr}</p>}
               <div className="flex items-center gap-4 mt-3 pt-3 border-t">
                 <span className="text-xs text-muted-foreground">{activeOrders} active order{activeOrders !== 1 ? "s" : ""}</span>
                 <span className="flex items-center gap-1 text-xs">
@@ -90,33 +94,78 @@ export default function Clients() {
   );
 }
 
-function NewClientForm({ onSuccess }: { onSuccess: () => void }) {
+export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; initialData?: any }) {
   const createClient = useCreateClient();
+  const updateClient = useUpdateClient();
+  const isEdit = !!initialData;
   const [form, setForm] = useState({
-    company: "", contact_name: "", email: "", phone: "", address: "", billing_address: "", form_signed: false,
+    company: initialData?.company || "",
+    contact_name: initialData?.contact_name || "",
+    email: initialData?.email || "",
+    phone: initialData?.phone || "",
+    street_address: initialData?.street_address || "",
+    city: initialData?.city || "",
+    state: initialData?.state || "",
+    zip: initialData?.zip || "",
+    billing_street: initialData?.billing_street || "",
+    billing_city: initialData?.billing_city || "",
+    billing_state: initialData?.billing_state || "",
+    billing_zip: initialData?.billing_zip || "",
+    form_signed: initialData?.form_signed || false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.company) return;
-    await createClient.mutateAsync(form);
+    if (isEdit) {
+      await updateClient.mutateAsync({ id: initialData.id, ...form });
+    } else {
+      await createClient.mutateAsync(form);
+    }
     onSuccess();
   };
 
+  const updateField = (key: string, val: string | boolean) => setForm(p => ({ ...p, [key]: val }));
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div><Label>Company *</Label><Input value={form.company} onChange={e => setForm(p => ({ ...p, company: e.target.value }))} required /></div>
-      <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} /></div>
-      <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
-      <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
-      <div><Label>Address</Label><Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} /></div>
-      <div><Label>Billing Address</Label><Input value={form.billing_address} onChange={e => setForm(p => ({ ...p, billing_address: e.target.value }))} /></div>
+      <div><Label>Company *</Label><Input value={form.company} onChange={e => updateField("company", e.target.value)} required /></div>
+      <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => updateField("contact_name", e.target.value)} /></div>
+      <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => updateField("email", e.target.value)} /></div>
+      <div><Label>Phone</Label><Input value={form.phone} onChange={e => updateField("phone", e.target.value)} /></div>
+
+      <AddressFields
+        label="Mailing Address"
+        street={form.street_address}
+        city={form.city}
+        state={form.state}
+        zip={form.zip}
+        onChange={(f, v) => updateField(f, v)}
+        streetField="street_address"
+        cityField="city"
+        stateField="state"
+        zipField="zip"
+      />
+
+      <AddressFields
+        label="Billing Address"
+        street={form.billing_street}
+        city={form.billing_city}
+        state={form.billing_state}
+        zip={form.billing_zip}
+        onChange={(f, v) => updateField(f, v)}
+        streetField="billing_street"
+        cityField="billing_city"
+        stateField="billing_state"
+        zipField="billing_zip"
+      />
+
       <label className="flex items-center gap-2">
-        <Checkbox checked={form.form_signed} onCheckedChange={v => setForm(p => ({ ...p, form_signed: !!v }))} />
+        <Checkbox checked={form.form_signed} onCheckedChange={v => updateField("form_signed", !!v)} />
         <span className="text-sm">Form Signed</span>
       </label>
-      <Button type="submit" disabled={createClient.isPending} className="w-full">
-        {createClient.isPending ? "Creating..." : "Add Client"}
+      <Button type="submit" disabled={createClient.isPending || updateClient.isPending} className="w-full">
+        {isEdit ? "Save Changes" : (createClient.isPending ? "Creating..." : "Add Client")}
       </Button>
     </form>
   );

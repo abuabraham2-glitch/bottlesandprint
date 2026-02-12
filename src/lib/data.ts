@@ -8,8 +8,14 @@ export interface Client {
   contact_name: string | null;
   email: string | null;
   phone: string | null;
-  address: string | null;
-  billing_address: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  billing_street: string | null;
+  billing_city: string | null;
+  billing_state: string | null;
+  billing_zip: string | null;
   form_signed: boolean;
   archived: boolean;
   created_at: string;
@@ -103,7 +109,7 @@ export function useClients(includeArchived = false) {
       if (!includeArchived) query = query.eq("archived", false);
       const { data, error } = await query;
       if (error) throw error;
-      return data as Client[];
+      return data as unknown as Client[];
     },
   });
 }
@@ -114,7 +120,7 @@ export function useClient(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase.from("clients").select("*").eq("id", id).single();
       if (error) throw error;
-      return data as Client;
+      return data as unknown as Client;
     },
     enabled: !!id,
   });
@@ -128,7 +134,7 @@ export function useOrders(includeArchived = false) {
       if (!includeArchived) query = query.eq("archived", false);
       const { data, error } = await query;
       if (error) throw error;
-      return data as Order[];
+      return data as unknown as Order[];
     },
   });
 }
@@ -139,7 +145,7 @@ export function useOrder(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase.from("orders").select("*, clients(*)").eq("id", id).single();
       if (error) throw error;
-      return data as Order;
+      return data as unknown as Order;
     },
     enabled: !!id,
   });
@@ -153,7 +159,7 @@ export function useCatalog(clientId?: string) {
       if (clientId) query = query.eq("client_id", clientId);
       const { data, error } = await query;
       if (error) throw error;
-      return data as CatalogItem[];
+      return data as unknown as CatalogItem[];
     },
   });
 }
@@ -307,4 +313,93 @@ export function useUploadDocument() {
     },
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["order_documents", vars.orderId] }),
   });
+}
+
+export function useRenameDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, file_name, orderId }: { id: string; file_name: string; orderId: string }) => {
+      const { error } = await supabase.from("order_documents").update({ file_name }).eq("id", id);
+      if (error) throw error;
+      return orderId;
+    },
+    onSuccess: (orderId) => qc.invalidateQueries({ queryKey: ["order_documents", orderId] }),
+  });
+}
+
+export function useDeleteDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, orderId, file_url }: { id: string; orderId: string; file_url: string }) => {
+      // Extract storage path from URL
+      const urlParts = file_url.split("/order-documents/");
+      if (urlParts.length > 1) {
+        const storagePath = decodeURIComponent(urlParts[1]);
+        await supabase.storage.from("order-documents").remove([storagePath]);
+      }
+      const { error } = await supabase.from("order_documents").delete().eq("id", id);
+      if (error) throw error;
+      return orderId;
+    },
+    onSuccess: (orderId) => qc.invalidateQueries({ queryKey: ["order_documents", orderId] }),
+  });
+}
+
+export async function getNextBolNumber(): Promise<string> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("outgoing_bol")
+    .not("outgoing_bol", "is", null)
+    .order("outgoing_bol", { ascending: false });
+  if (error) throw error;
+  let maxNum = 1177;
+  for (const row of data || []) {
+    const num = parseInt(row.outgoing_bol || "0", 10);
+    if (!isNaN(num) && num > maxNum) maxNum = num;
+  }
+  return (maxNum + 1).toString();
+}
+
+export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: string) {
+  // Check if a catalog item with same product name exists for this client
+  const { data: existing } = await supabase
+    .from("catalog")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("product_name", order.item_name || "")
+    .limit(1);
+
+  if (existing && existing.length > 0) return; // already exists
+
+  const now = new Date();
+  const monthYear = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;
+
+  await supabase.from("catalog").insert({
+    client_id: clientId,
+    product_name: order.item_name || "",
+    size: order.bottle_size || null,
+    component: order.bottle_type || null,
+    material: order.material || null,
+    container_color: order.bottle_color || null,
+    num_colors: order.num_colors || null,
+    print_colors: order.print_colors || null,
+    first_run: monthYear,
+    last_run: monthYear,
+  });
+}
+
+export async function updateCatalogLastRun(clientId: string, itemName: string) {
+  const now = new Date();
+  const monthYear = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;
+
+  const { data: items } = await supabase
+    .from("catalog")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("product_name", itemName)
+    .limit(1);
+
+  if (items && items.length > 0) {
+    await supabase.from("catalog").update({ last_run: monthYear }).eq("id", items[0].id);
+  }
 }

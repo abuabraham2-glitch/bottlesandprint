@@ -1,26 +1,57 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useOrder, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder } from "@/lib/data";
-import { STAGES, checklistCount, daysUntilDue, generateInvoiceNumber, DOC_TYPES } from "@/lib/constants";
+import { useOrder, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun } from "@/lib/data";
+import { STAGES, checklistCount, daysUntilDue, generateInvoiceNumber, DOC_TYPES, formatAddress } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Check, Eye, Upload, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useCallback, useRef } from "react";
+import { format } from "date-fns";
+import { jsPDF } from "jspdf";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: order, isLoading } = useOrder(id!);
   const { data: documents = [] } = useOrderDocuments(id!);
   const updateOrder = useUpdateOrder();
   const uploadDoc = useUploadDocument();
   const archiveOrder = useArchiveOrder();
+  const renameDoc = useRenameDocument();
+  const deleteDoc = useDeleteDocument();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadType, setUploadType] = useState("Other");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Rename state
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  // Delete confirm state
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; file_url: string } | null>(null);
+
+  // Move back state
+  const [moveBackOpen, setMoveBackOpen] = useState(false);
+  const [moveBackTarget, setMoveBackTarget] = useState("");
+
+  // Payment dialogs
+  const [achDialogOpen, setAchDialogOpen] = useState(false);
+  const [achDate, setAchDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [checkDialogOpen, setCheckDialogOpen] = useState(false);
+  const [checkNumber, setCheckNumber] = useState("");
+  const [checkDate, setCheckDate] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  // BOL dialog
+  const [bolDialogOpen, setBolDialogOpen] = useState(false);
+  const [bolCarrier, setBolCarrier] = useState("WILL CALL");
 
   const update = useCallback(async (updates: Record<string, any>) => {
     if (!id) return;
@@ -36,6 +67,11 @@ export default function OrderDetail() {
 
   const moveStage = async (newStage: string) => {
     await update({ stage: newStage });
+    // #10: Update catalog last_run when moving to completed
+    if (newStage === "completed") {
+      await updateCatalogLastRun(order.client_id, order.item_name);
+      queryClient.invalidateQueries({ queryKey: ["catalog"] });
+    }
     toast.success(`Order moved to ${STAGES.find(s => s.key === newStage)?.label}`);
   };
 
@@ -45,10 +81,17 @@ export default function OrderDetail() {
     toast.success(`Invoice ${num} created`);
   };
 
-  const recordPayment = async (method: string) => {
-    const payMethod = method === "Check" ? prompt("Enter check number:") || "Check" : "ACH";
-    await update({ paid: true, pay_method: payMethod, pay_date: new Date().toISOString().split("T")[0] });
-    toast.success("Payment recorded");
+  const handleAchPayment = async () => {
+    await update({ paid: true, pay_method: "ACH", pay_date: achDate });
+    setAchDialogOpen(false);
+    toast.success("ACH payment recorded");
+  };
+
+  const handleCheckPayment = async () => {
+    const method = checkNumber ? `Check #${checkNumber}` : "Check";
+    await update({ paid: true, pay_method: method, pay_date: checkDate });
+    setCheckDialogOpen(false);
+    toast.success("Check payment recorded");
   };
 
   const handleArchive = async () => {
@@ -58,9 +101,31 @@ export default function OrderDetail() {
     navigate("/orders");
   };
 
+  const convertImageToPdf = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const pdf = new jsPDF({
+          orientation: img.width > img.height ? "landscape" : "portrait",
+          unit: "px",
+          format: [img.width, img.height],
+        });
+        pdf.addImage(img, "JPEG", 0, 0, img.width, img.height);
+        const blob = pdf.output("blob");
+        const pdfName = file.name.replace(/\.(jpg|jpeg|png)$/i, ".pdf");
+        resolve(new File([blob], pdfName, { type: "application/pdf" }));
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || !id) return;
-    for (const file of Array.from(files)) {
+    for (let file of Array.from(files)) {
+      // Convert images to PDF (#6)
+      if (/\.(jpg|jpeg|png)$/i.test(file.name)) {
+        file = await convertImageToPdf(file);
+      }
       await uploadDoc.mutateAsync({ orderId: id, file, fileType: uploadType });
     }
     toast.success("Document uploaded");
@@ -70,6 +135,113 @@ export default function OrderDetail() {
     e.preventDefault();
     handleFileUpload(e.dataTransfer.files);
   };
+
+  const startRename = (doc: { id: string; file_name: string }) => {
+    setRenamingId(doc.id);
+    setRenameValue(doc.file_name);
+  };
+
+  const saveRename = async () => {
+    if (renamingId && renameValue.trim() && id) {
+      await renameDoc.mutateAsync({ id: renamingId, file_name: renameValue.trim(), orderId: id });
+      toast.success("Document renamed");
+    }
+    setRenamingId(null);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget && id) {
+      await deleteDoc.mutateAsync({ id: deleteTarget.id, orderId: id, file_url: deleteTarget.file_url });
+      toast.success("Document deleted");
+    }
+    setDeleteTarget(null);
+  };
+
+  const downloadFile = (url: string, name: string) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.target = "_blank";
+    a.click();
+  };
+
+  // BOL Generation (#7)
+  const handleGenerateBol = async () => {
+    if (!order || !id) return;
+    const bolNum = await getNextBolNumber();
+
+    const client = order.clients;
+    const clientAddr = client ? formatAddress(client.street_address, client.city, client.state, client.zip) : "";
+
+    const pdf = new jsPDF();
+    pdf.setFontSize(18);
+    pdf.text("BILL OF LADING", 105, 20, { align: "center" });
+
+    pdf.setFontSize(11);
+    pdf.text(`BOL #: ${bolNum}`, 15, 35);
+    pdf.text(`Date: ${format(new Date(), "MM/dd/yyyy")}`, 140, 35);
+
+    pdf.setFontSize(10);
+    pdf.text("SHIPPER:", 15, 50);
+    pdf.setFontSize(9);
+    pdf.text("BOTTLES AND PRINT", 15, 56);
+    pdf.text("12990 BRANFORD ST, UNIT I", 15, 61);
+    pdf.text("PACOIMA, CA 91331", 15, 66);
+    pdf.text("Phone: 951-421-1881", 15, 71);
+    pdf.text("Email: info@bottlesandprint.com", 15, 76);
+
+    pdf.setFontSize(10);
+    pdf.text("CONSIGNEE:", 110, 50);
+    pdf.setFontSize(9);
+    pdf.text(client?.company || "", 110, 56);
+    if (client?.contact_name) pdf.text(client.contact_name, 110, 61);
+    if (clientAddr) {
+      const lines = clientAddr.split("\n");
+      lines.forEach((line, i) => pdf.text(line, 110, 66 + i * 5));
+    }
+
+    pdf.setFontSize(10);
+    pdf.text("DESCRIPTION:", 15, 90);
+    pdf.setFontSize(9);
+    const desc = [
+      order.item_name,
+      [order.bottle_size, order.bottle_type].filter(Boolean).join(" "),
+      order.num_colors ? `${order.num_colors} color(s)` : null,
+      order.packing,
+      order.client_po ? `Client PO: ${order.client_po}` : null,
+    ].filter(Boolean).join(" | ");
+    pdf.text(desc, 15, 96, { maxWidth: 180 });
+
+    pdf.setFontSize(10);
+    pdf.text(`Carrier: ${bolCarrier}`, 15, 115);
+
+    pdf.text("_________________________________", 15, 145);
+    pdf.text("Shipper Signature", 15, 152);
+    pdf.text("_________________________________", 110, 145);
+    pdf.text("Carrier Signature", 110, 152);
+
+    // Save PDF and upload as document
+    const pdfBlob = pdf.output("blob");
+    const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
+
+    // Upload to storage
+    const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
+    await supabase.storage.from("order-documents").upload(filePath, pdfFile);
+    const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
+    await supabase.from("order_documents").insert({
+      order_id: id,
+      file_name: `BOL-${bolNum}.pdf`,
+      file_type: "Signed BOL",
+      file_url: urlData.publicUrl,
+    });
+
+    await update({ outgoing_bol: bolNum });
+    queryClient.invalidateQueries({ queryKey: ["order_documents", id] });
+    setBolDialogOpen(false);
+    toast.success(`BOL #${bolNum} generated`);
+  };
+
+  const previousStages = STAGES.slice(0, stageIndex);
 
   const checklistItems = [
     { key: "checklist_new_client_form", label: "New Client Form" },
@@ -118,6 +290,13 @@ export default function OrderDetail() {
 
       {/* Action Bar */}
       <div className="bg-primary/10 rounded-lg border border-primary/20 p-4 flex flex-wrap items-center gap-3">
+        {/* Move Back button (#8) */}
+        {previousStages.length > 0 && (
+          <Button variant="outline" size="sm" onClick={() => setMoveBackOpen(true)}>
+            <ArrowDown size={14} className="mr-1 rotate-90" /> Move Back
+          </Button>
+        )}
+
         {order.stage === "preflight" && (
           <>
             {allChecked ? (
@@ -142,10 +321,7 @@ export default function OrderDetail() {
         {order.stage === "to_ship" && (
           <>
             {!order.outgoing_bol && (
-              <Button onClick={async () => {
-                const bol = prompt("Enter BOL number:");
-                if (bol) { await update({ outgoing_bol: bol }); toast.success("BOL number saved"); }
-              }}>Generate BOL</Button>
+              <Button onClick={() => setBolDialogOpen(true)}>Generate BOL</Button>
             )}
             {order.outgoing_bol && !order.bol_signed && (
               <Button onClick={async () => { await update({ bol_signed: true }); toast.success("BOL marked as signed"); }}>
@@ -163,8 +339,8 @@ export default function OrderDetail() {
           <>
             {!order.paid ? (
               <>
-                <Button onClick={() => recordPayment("ACH")}>Payment: ACH</Button>
-                <Button variant="outline" onClick={() => recordPayment("Check")}>Payment: Check</Button>
+                <Button onClick={() => setAchDialogOpen(true)}>Payment: ACH</Button>
+                <Button variant="outline" onClick={() => setCheckDialogOpen(true)}>Payment: Check</Button>
               </>
             ) : (
               <Button onClick={handleArchive}>Archive & Close Order</Button>
@@ -248,19 +424,41 @@ export default function OrderDetail() {
         </div>
       </div>
 
-      {/* Documents */}
+      {/* Documents (#5) */}
       <div className="bg-card rounded-lg border p-5">
         <h3 className="font-semibold mb-4">Documents</h3>
         {documents.length > 0 && (
           <div className="space-y-2 mb-4">
             {documents.map(doc => (
               <div key={doc.id} className="flex items-center gap-3 p-2 rounded bg-muted/30">
-                <FileText size={16} className="text-muted-foreground" />
-                <span className="text-sm flex-1">{doc.file_name}</span>
-                <span className="text-xs bg-muted px-2 py-0.5 rounded">{doc.file_type}</span>
-                <button onClick={() => setPreviewUrl(doc.file_url)} className="text-muted-foreground hover:text-foreground">
-                  <Eye size={16} />
-                </button>
+                <FileText size={16} className="text-muted-foreground shrink-0" />
+                {renamingId === doc.id ? (
+                  <Input
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onBlur={saveRename}
+                    onKeyDown={e => e.key === "Enter" && saveRename()}
+                    className="h-7 text-sm flex-1"
+                    autoFocus
+                  />
+                ) : (
+                  <span className="text-sm flex-1">{doc.file_name}</span>
+                )}
+                <span className="text-xs bg-muted px-2 py-0.5 rounded shrink-0">{doc.file_type}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => setPreviewUrl(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
+                    <Eye size={15} />
+                  </button>
+                  <button onClick={() => startRename(doc)} className="text-muted-foreground hover:text-foreground p-1" title="Rename">
+                    <Pencil size={15} />
+                  </button>
+                  <button onClick={() => downloadFile(doc.file_url, doc.file_name)} className="text-muted-foreground hover:text-foreground p-1" title="Download">
+                    <Download size={15} />
+                  </button>
+                  <button onClick={() => setDeleteTarget({ id: doc.id, file_url: doc.file_url })} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -279,6 +477,7 @@ export default function OrderDetail() {
         >
           <Upload size={24} className="mx-auto mb-2 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Drag & drop files here — PNG, JPG, Word, PDF</p>
+          <p className="text-xs text-muted-foreground mt-1">Images (JPG/PNG) will be auto-converted to PDF</p>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={e => handleFileUpload(e.target.files)} />
         </div>
       </div>
@@ -300,7 +499,7 @@ export default function OrderDetail() {
             <Detail label="Contact" value={order.clients.contact_name} />
             <Detail label="Email" value={order.clients.email} />
             <Detail label="Phone" value={order.clients.phone} />
-            <Detail label="Address" value={order.clients.address} />
+            <Detail label="Address" value={formatAddress(order.clients.street_address, order.clients.city, order.clients.state, order.clients.zip)} />
           </div>
         </details>
       )}
@@ -318,6 +517,104 @@ export default function OrderDetail() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this document? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Move Back Dialog (#8) */}
+      <Dialog open={moveBackOpen} onOpenChange={setMoveBackOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Move Order Back</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Label>Select previous stage:</Label>
+            <Select value={moveBackTarget} onValueChange={setMoveBackTarget}>
+              <SelectTrigger><SelectValue placeholder="Choose stage" /></SelectTrigger>
+              <SelectContent>
+                {previousStages.map(s => (
+                  <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveBackOpen(false)}>Cancel</Button>
+            <Button disabled={!moveBackTarget} onClick={async () => {
+              await moveStage(moveBackTarget);
+              setMoveBackOpen(false);
+              setMoveBackTarget("");
+            }}>
+              Move Back to {STAGES.find(s => s.key === moveBackTarget)?.label || "..."}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ACH Payment Dialog (#9) */}
+      <Dialog open={achDialogOpen} onOpenChange={setAchDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Record ACH Payment</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Date Received</Label>
+              <Input type="date" value={achDate} onChange={e => setAchDate(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAchDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAchPayment}>Record Payment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Check Payment Dialog (#9) */}
+      <Dialog open={checkDialogOpen} onOpenChange={setCheckDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Record Check Payment</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Check Number</Label>
+              <Input value={checkNumber} onChange={e => setCheckNumber(e.target.value)} placeholder="Enter check number" />
+            </div>
+            <div>
+              <Label>Date Received</Label>
+              <Input type="date" value={checkDate} onChange={e => setCheckDate(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCheckDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCheckPayment}>Record Payment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BOL Generation Dialog (#7) */}
+      <Dialog open={bolDialogOpen} onOpenChange={setBolDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Generate Bill of Lading</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">A BOL number will be auto-assigned. The PDF will be saved to this order's documents.</p>
+            <div>
+              <Label>Carrier</Label>
+              <Input value={bolCarrier} onChange={e => setBolCarrier(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBolDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleGenerateBol}>Generate BOL</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -326,7 +623,7 @@ function Detail({ label, value, className }: { label: string; value?: string | n
   return (
     <div className="flex justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <span className={className}>{value || "—"}</span>
+      <span className={`${className} whitespace-pre-line text-right`}>{value || "—"}</span>
     </div>
   );
 }
