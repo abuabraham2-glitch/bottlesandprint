@@ -49,11 +49,12 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
   if (order.client_po) descLines.push({ text: `PO# ${order.client_po}` });
 
   const caseCount = parseCaseCount(order.packing);
+  const caseCountNum = caseCount ? parseInt(caseCount, 10) : 0;
 
   // Calculate how many pages we need
   const lineH = 16;
-  const maxDescLinesPerPage = 8; // first page
-  const maxDescLinesCont = 20;  // continuation pages
+  const maxDescLinesPerPage = 12; // more room now without Special Instructions
+  const maxDescLinesCont = 20;
   const totalDescPages = descLines.length <= maxDescLinesPerPage ? 1 :
     1 + Math.ceil((descLines.length - maxDescLinesPerPage) / maxDescLinesCont);
 
@@ -91,11 +92,12 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.text(legalLines, mx + 6, y + 9);
       y += legalH;
 
-      // ===== SHIPPER / CONSIGNEE =====
+      // ===== 2x2 GRID: SHIPPER | DELIVER TO / CONSIGNEE | PRO # =====
       const halfW = cw / 2;
-      const shipH = 82;
+      const boxH = 82;
 
-      rect(mx, y, halfW, shipH);
+      // Top-Left: SHIPPER (FROM)
+      rect(mx, y, halfW, boxH);
       pdf.setFontSize(8);
       bold("SHIPPER (FROM):", mx + 6, y + 14);
       pdf.setFontSize(11);
@@ -105,11 +107,12 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.text("UNIT D", mx + 6, y + 52);
       pdf.text("PACOIMA, CA 91331", mx + 6, y + 64);
 
-      rect(mx + halfW, y, halfW, shipH);
+      // Top-Right: DELIVER TO (auto-filled with client address)
+      rect(mx + halfW, y, halfW, boxH);
       pdf.setFontSize(8);
-      bold("CONSIGNEE (SOLD TO):", mx + halfW + 6, y + 14);
-      pdf.setFontSize(11);
+      bold("DELIVER TO:", mx + halfW + 6, y + 14);
       if (client) {
+        pdf.setFontSize(11);
         bold(client.company.toUpperCase(), mx + halfW + 6, y + 28);
         pdf.setFontSize(10);
         let cy = y + 40;
@@ -118,27 +121,28 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
         const fullLine = [cityLine, client.zip].filter(Boolean).join(" ").toUpperCase();
         if (fullLine) { pdf.text(fullLine, mx + halfW + 6, cy); }
       }
-      y += shipH;
+      y += boxH;
 
-      // ===== DELIVER TO + PRO # =====
-      const delH = 108; // ~1.5 inches
-      rect(mx, y, halfW, delH);
+      // Bottom-Left: CONSIGNEE (SOLD TO)
+      rect(mx, y, halfW, boxH);
       pdf.setFontSize(8);
-      bold("DELIVER TO (if different from Consignee):", mx + 6, y + 14);
-      pdf.setFontSize(10);
-      pdf.setDrawColor(180);
-      pdf.setLineWidth(0.3);
-      for (let i = 0; i < 4; i++) {
-        const ly = y + 34 + i * 18;
-        pdf.line(mx + 6, ly, mx + halfW - 6, ly);
+      bold("CONSIGNEE (SOLD TO):", mx + 6, y + 14);
+      if (client) {
+        pdf.setFontSize(11);
+        bold(client.company.toUpperCase(), mx + 6, y + 28);
+        pdf.setFontSize(10);
+        let cy = y + 40;
+        if (client.street_address) { pdf.text(client.street_address.toUpperCase(), mx + 6, cy); cy += 12; }
+        const cityLine = [client.city, client.state].filter(Boolean).join(", ");
+        const fullLine = [cityLine, client.zip].filter(Boolean).join(" ").toUpperCase();
+        if (fullLine) { pdf.text(fullLine, mx + 6, cy); }
       }
-      pdf.setDrawColor(0);
-      pdf.setLineWidth(0.75);
 
-      rect(mx + halfW, y, halfW, delH);
+      // Bottom-Right: PRO #
+      rect(mx + halfW, y, halfW, boxH);
       pdf.setFontSize(8);
       bold("PRO #:", mx + halfW + 6, y + 14);
-      y += delH;
+      y += boxH;
     }
 
     // ===== DESCRIPTION TABLE =====
@@ -172,10 +176,10 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
 
     // Calculate remaining space for body — fill available space
     const sigH = isLastPage ? 120 : 0;
-    const siH = isLastPage ? 48 : 0;
     const certH = isLastPage ? 90 : 0;
-    const bottomReserved = sigH + siH + certH + 20; // 20 for page number
-    const bodyH = Math.max(pageDescLines.length * lineH + 24, ph - y - bottomReserved - mx);
+    const totalLineH = 16; // height for TOTAL row
+    const bottomReserved = sigH + certH + 20; // 20 for page number
+    const bodyH = Math.max(pageDescLines.length * lineH + 24 + (isLastPage ? totalLineH : 0), ph - y - bottomReserved - mx);
 
     cx = mx;
     // NO. PKGS
@@ -183,6 +187,19 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
     if (page === 0) {
       pdf.setFontSize(11);
       pdf.text(caseCount, cx + colWidths[0] / 2, y + 20, { align: "center" });
+    }
+    // TOTAL at bottom of NO. PKGS column (last page only)
+    if (isLastPage) {
+      const totalY = y + bodyH - 6;
+      pdf.setDrawColor(0);
+      pdf.setLineWidth(0.5);
+      pdf.line(cx + 4, totalY - 14, cx + colWidths[0] - 4, totalY - 14);
+      pdf.setFontSize(8);
+      bold("TOTAL", cx + colWidths[0] / 2, totalY - 4, { align: "center" });
+      pdf.setFontSize(11);
+      if (caseCountNum > 0) {
+        pdf.text(String(caseCountNum), cx + colWidths[0] / 2, totalY + 10, { align: "center" });
+      }
     }
     cx += colWidths[0];
 
@@ -208,13 +225,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
     if (isLastPage) {
       const halfW = cw / 2;
 
-      // ===== SPECIAL INSTRUCTIONS =====
-      rect(mx, y, cw, siH);
-      pdf.setFontSize(8);
-      bold("Special Instructions:", mx + 6, y + 14);
-      y += siH;
-
-      // ===== SHIPPER CERTIFICATION + FREIGHT =====
+      // ===== SHIPPER CERTIFICATION (left) + SPECIAL INSTRUCTIONS (right) =====
       rect(mx, y, halfW, certH);
       rect(mx + halfW, y, halfW, certH);
 
@@ -231,8 +242,9 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.setFontSize(9);
       pdf.text("Per ___________________________________________", mx + 6, y + 82);
 
+      // Right side: Special Instructions (replaces Freight Charges)
       pdf.setFontSize(9);
-      bold("Freight charges are: N/A", mx + halfW + 6, y + 14);
+      bold("Special Instructions:", mx + halfW + 6, y + 14);
       y += certH;
 
       // ===== SIGNATURE BLOCKS =====
@@ -249,7 +261,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       bold(`Carrier/Driver: ${carrier.toUpperCase()}`, lineStartL, y + 14);
 
       pdf.setFontSize(9);
-      const sigSpacing = 36; // ~0.5 inches between lines
+      const sigSpacing = 36;
       pdf.text("Signature:", lineStartL, y + 14 + sigSpacing);
       pdf.line(lineStartL + 50, y + 14 + sigSpacing, lineEndL, y + 14 + sigSpacing);
 
