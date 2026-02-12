@@ -190,15 +190,15 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
     }
     // TOTAL at bottom of NO. PKGS column (last page only)
     if (isLastPage) {
-      const totalY = y + bodyH - 6;
+      const totalLineY = y + bodyH - 30;
       pdf.setDrawColor(0);
       pdf.setLineWidth(0.5);
-      pdf.line(cx + 4, totalY - 14, cx + colWidths[0] - 4, totalY - 14);
+      pdf.line(cx + 4, totalLineY, cx + colWidths[0] - 4, totalLineY);
       pdf.setFontSize(8);
-      bold("TOTAL", cx + colWidths[0] / 2, totalY - 4, { align: "center" });
-      pdf.setFontSize(11);
+      bold("TOTAL", cx + colWidths[0] / 2, totalLineY + 12, { align: "center" });
       if (caseCountNum > 0) {
-        pdf.text(String(caseCountNum), cx + colWidths[0] / 2, totalY + 10, { align: "center" });
+        pdf.setFontSize(11);
+        pdf.text(String(caseCountNum), cx + colWidths[0] / 2, totalLineY + 24, { align: "center" });
       }
     }
     cx += colWidths[0];
