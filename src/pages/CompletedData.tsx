@@ -1,20 +1,17 @@
 import { useState } from "react";
-import { useArchivedOrders } from "@/lib/data";
-import { formatDateShort } from "@/lib/constants";
+import { useArchivedOrders, useArchivedYears } from "@/lib/data";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-const currentYear = new Date().getFullYear();
-const years = [currentYear, currentYear - 1, currentYear - 2].map(String);
-
 export default function CompletedData() {
-  const [selectedYear, setSelectedYear] = useState(years[0]);
-  const { data: archived = [], isLoading } = useArchivedOrders(selectedYear);
+  const { data: years = [], isLoading: yearsLoading } = useArchivedYears();
+  const [selectedYear, setSelectedYear] = useState<string>("");
+  const activeYear = selectedYear || years[0] || "";
+  const { data: archived = [], isLoading } = useArchivedOrders(activeYear);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -31,7 +28,7 @@ export default function CompletedData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `completed_data_${selectedYear}.csv`;
+    a.download = `completed_data_${activeYear}.csv`;
     a.click();
   };
 
@@ -44,6 +41,8 @@ export default function CompletedData() {
     setDeleteTarget(null);
   };
 
+  if (yearsLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
+
   return (
     <div className="p-6 space-y-4 max-w-[1400px]">
       <div className="flex items-center justify-between">
@@ -51,58 +50,67 @@ export default function CompletedData() {
         <Button variant="outline" onClick={exportToExcel}>Export to Excel</Button>
       </div>
 
-      <Tabs value={selectedYear} onValueChange={setSelectedYear}>
-        <TabsList>
-          {years.map(y => <TabsTrigger key={y} value={y}>{y}</TabsTrigger>)}
-        </TabsList>
+      <div className="flex flex-wrap gap-1">
+        {years.map(y => (
+          <button
+            key={y}
+            onClick={() => setSelectedYear(y)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              activeYear === y
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value={selectedYear}>
-          {isLoading ? (
-            <div className="text-muted-foreground py-8">Loading...</div>
-          ) : grouped.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center">No completed orders for {selectedYear}</div>
-          ) : (
-            <div className="bg-card rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 font-medium">Month</th>
-                    <th className="text-left p-3 font-medium">Customer</th>
-                    <th className="text-left p-3 font-medium">Description</th>
-                    <th className="text-left p-3 font-medium">Size</th>
-                    <th className="text-left p-3 font-medium">Qty.</th>
-                    <th className="text-left p-3 font-medium">Pass</th>
-                    <th className="text-left p-3 font-medium">Comments</th>
-                    <th className="text-left p-3 font-medium">Date</th>
-                    <th className="p-3 w-10"></th>
+      {isLoading ? (
+        <div className="text-muted-foreground py-8">Loading...</div>
+      ) : grouped.length === 0 ? (
+        <div className="text-muted-foreground py-8 text-center">No completed orders for {activeYear}</div>
+      ) : (
+        <div className="bg-card rounded-lg border overflow-hidden">
+          <div className="text-xs text-muted-foreground p-3 border-b">{archived.length} records</div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 font-medium">Month</th>
+                <th className="text-left p-3 font-medium">Customer</th>
+                <th className="text-left p-3 font-medium">Description</th>
+                <th className="text-left p-3 font-medium">Size</th>
+                <th className="text-left p-3 font-medium">Qty.</th>
+                <th className="text-left p-3 font-medium">Pass</th>
+                <th className="text-left p-3 font-medium">Comments</th>
+                <th className="text-left p-3 font-medium">Date</th>
+                <th className="p-3 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map(group => (
+                group.orders.map((order, i) => (
+                  <tr key={order.id} className={`border-b last:border-b-0 ${i === 0 ? "bg-muted/20" : ""}`}>
+                    {i === 0 && <td className="p-3 font-semibold" rowSpan={group.orders.length}>{group.month}</td>}
+                    <td className="p-3">{order.client_company}</td>
+                    <td className="p-3">{order.description}</td>
+                    <td className="p-3">{order.size}</td>
+                    <td className="p-3">{order.quantity?.toLocaleString()}</td>
+                    <td className="p-3">{order.pass}</td>
+                    <td className="p-3">{order.comments}</td>
+                    <td className="p-3">{order.date_completed || "—"}</td>
+                    <td className="p-3">
+                      <button onClick={() => setDeleteTarget(order.id)} className="text-destructive hover:text-destructive/80">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {grouped.map(group => (
-                    group.orders.map((order, i) => (
-                      <tr key={order.id} className={`border-b last:border-b-0 ${i === 0 ? "bg-muted/20" : ""}`}>
-                        {i === 0 && <td className="p-3 font-semibold" rowSpan={group.orders.length}>{group.month}</td>}
-                        <td className="p-3">{order.client_company}</td>
-                        <td className="p-3">{order.description}</td>
-                        <td className="p-3">{order.size}</td>
-                        <td className="p-3">{order.quantity?.toLocaleString()}</td>
-                        <td className="p-3">{order.pass}</td>
-                        <td className="p-3">{order.comments}</td>
-                        <td className="p-3">{formatDateShort(order.date_completed)}</td>
-                        <td className="p-3">
-                          <button onClick={() => setDeleteTarget(order.id)} className="text-destructive hover:text-destructive/80">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                ))
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

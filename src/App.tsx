@@ -14,7 +14,14 @@ import Catalog from "@/pages/Catalog";
 import CompletedData from "@/pages/CompletedData";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 30, // 30 seconds
+      refetchOnWindowFocus: true,
+    },
+  },
+});
 
 const App = () => {
   const [searchQuery, setSearchQuery] = useState("");

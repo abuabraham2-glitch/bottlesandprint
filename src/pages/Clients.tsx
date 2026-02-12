@@ -48,6 +48,21 @@ export default function Clients() {
     setDeleteTarget(null);
   };
 
+  const exportClients = () => {
+    const headers = ["Company", "Contact Name", "Email", "Phone", "Street Address", "City", "State", "Zip", "Billing Street", "Billing City", "Billing State", "Billing Zip", "Form Signed"];
+    const rows = clients.map(c => [
+      c.company, c.contact_name, c.email, c.phone, c.street_address, c.city, c.state, c.zip,
+      c.billing_street, c.billing_city, c.billing_state, c.billing_zip, c.form_signed ? "Yes" : "No"
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v || ""}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "clients.csv";
+    a.click();
+  };
+
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
   return (
@@ -59,6 +74,7 @@ export default function Clients() {
             <Switch checked={showArchived} onCheckedChange={setShowArchived} />
             Show Archived
           </label>
+          <Button variant="outline" onClick={exportClients}>Export to Excel</Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus size={16} className="mr-2" /> New Client</Button>
