@@ -55,6 +55,9 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setOrders([]);
       setArchived([]);
       setClients([]);
+      setOrdersTotal(0);
+      setArchivedTotal(0);
+      setClientsTotal(0);
       return;
     }
 
@@ -62,16 +65,29 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setLoading(true);
       const term = `%${searchQuery.trim()}%`;
 
-      // Search active orders
+      // Search active orders - search item_name, client_po, vendor_po directly
+      // and also filter by client company via a separate approach
       const { data: orderData, count: oCount } = await supabase
         .from("orders")
-        .select("id, item_name, client_po, vendor_po, stage, clients(company)", { count: "exact" })
+        .select("id, item_name, client_po, vendor_po, stage, clients!inner(company)", { count: "exact" })
         .eq("archived", false)
         .or(`item_name.ilike.${term},client_po.ilike.${term},vendor_po.ilike.${term},clients.company.ilike.${term}`)
         .limit(showAllOrders ? 100 : PREVIEW_LIMIT);
       
-      setOrders((orderData || []) as unknown as OrderResult[]);
-      setOrdersTotal(oCount || 0);
+      // Also search orders where client company matches but other fields don't
+      const { data: orderByClient } = await supabase
+        .from("orders")
+        .select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
+        .eq("archived", false)
+        .ilike("clients.company" as any, term)
+        .limit(showAllOrders ? 100 : PREVIEW_LIMIT);
+
+      // Merge and deduplicate
+      const allOrders = [...(orderData || []), ...(orderByClient || [])];
+      const uniqueOrders = Array.from(new Map(allOrders.map(o => [o.id, o])).values());
+      
+      setOrders(uniqueOrders.slice(0, showAllOrders ? 100 : PREVIEW_LIMIT) as unknown as OrderResult[]);
+      setOrdersTotal(Math.max(oCount || 0, uniqueOrders.length));
 
       // Search archived orders
       const { data: archData, count: aCount } = await supabase
