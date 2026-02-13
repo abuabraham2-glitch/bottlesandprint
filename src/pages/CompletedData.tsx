@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useArchivedOrders, useArchivedYears, useOrderDocuments } from "@/lib/data";
+import { useArchivedOrders, useArchivedYears, useOrderDocuments, getSignedUrl } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -35,8 +35,18 @@ function ArchivedOrderDetail({ order, onClose }: { order: any; onClose: () => vo
   const { data: documents = [] } = useOrderDocuments(order.original_order_id || "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const downloadFile = async (url: string, name: string) => {
+  const openPreview = async (fileUrl: string) => {
     try {
+      const url = await getSignedUrl(fileUrl);
+      setPreviewUrl(url);
+    } catch {
+      toast.error("Failed to load document");
+    }
+  };
+
+  const downloadFile = async (fileUrl: string, name: string) => {
+    try {
+      const url = await getSignedUrl(fileUrl);
       const response = await fetch(url);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -48,7 +58,7 @@ function ArchivedOrderDetail({ order, onClose }: { order: any; onClose: () => vo
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(url, "_blank");
+      toast.error("Failed to download document");
     }
   };
 
@@ -83,7 +93,7 @@ function ArchivedOrderDetail({ order, onClose }: { order: any; onClose: () => vo
                         <FileText size={16} className="text-muted-foreground shrink-0" />
                         <span className="text-sm flex-1">{doc.file_name}</span>
                         <span className="text-xs bg-muted px-2 py-0.5 rounded shrink-0">{doc.file_type}</span>
-                        <button onClick={() => setPreviewUrl(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
+                        <button onClick={() => openPreview(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
                           <Eye size={15} />
                         </button>
                         <button onClick={() => downloadFile(doc.file_url, doc.file_name)} className="text-muted-foreground hover:text-foreground p-1" title="Download">
