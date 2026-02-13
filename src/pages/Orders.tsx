@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useOrders, useClients, useCatalog, useCreateOrder, autoCreateCatalogEntry } from "@/lib/data";
 import { getStageBadgeClass, getStageLabel, BOTTLE_TYPES, MATERIALS, COLORS, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, StickyNote } from "lucide-react";
+import { Plus, StickyNote, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,6 +31,26 @@ export default function Orders({ searchQuery }: OrdersProps) {
         o.vendor_po?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : orders;
+
+  // Build PO group counts
+  const poGroupCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of orders) {
+      if (o.client_po && !o.archived) {
+        map.set(o.client_po, (map.get(o.client_po) || 0) + 1);
+      }
+    }
+    return map;
+  }, [orders]);
+
+  const getPoPosition = (order: typeof orders[0]) => {
+    if (!order.client_po) return null;
+    const total = poGroupCounts.get(order.client_po) || 0;
+    if (total <= 1) return null;
+    const samePoOrders = orders.filter(o => o.client_po === order.client_po && !o.archived);
+    const idx = samePoOrders.findIndex(o => o.id === order.id);
+    return { index: idx + 1, total };
+  };
 
   return (
     <div className="p-6 space-y-4 max-w-[1400px]">
@@ -66,32 +86,47 @@ export default function Orders({ searchQuery }: OrdersProps) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((order) => (
-                <tr
-                  key={order.id}
-                  onClick={() => navigate(`/orders/${order.id}`)}
-                  className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer"
-                >
-                  <td className="p-3 text-muted-foreground">{order.client_po || "—"}</td>
-                  <td className="p-3">{order.clients?.company}</td>
-                  <td className="p-3 font-medium">
-                    <span className="flex items-center gap-1">
-                      {order.item_name}
-                      {order.notes && <StickyNote size={12} className="text-amber-500 shrink-0" />}
-                    </span>
-                  </td>
-                  <td className="p-3">{order.bottle_size}</td>
-                  <td className="p-3">{order.quantity?.toLocaleString()}</td>
-                  <td className="p-3">{formatDateShort(order.due_date)}</td>
-                  <td className="p-3">
-                    <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(order.stage)}`}>
-                      {getStageLabel(order.stage)}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((order) => {
+                const poPos = getPoPosition(order);
+                return (
+                  <tr
+                    key={order.id}
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                    className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer"
+                  >
+                    <td className="p-3 text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        {order.client_po || "—"}
+                        {poPos && (
+                          <span className="flex items-center gap-0.5 text-xs text-primary">
+                            <Link2 size={10} />
+                            {poPos.index}/{poPos.total}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3">{order.clients?.company}</td>
+                    <td className="p-3 font-medium">
+                      <span className="flex items-center gap-1">
+                        {order.item_name}
+                        {order.notes && <StickyNote size={12} className="text-amber-500 shrink-0" />}
+                      </span>
+                    </td>
+                    <td className="p-3">{order.bottle_size}</td>
+                    <td className="p-3">{order.quantity?.toLocaleString()}</td>
+                    <td className="p-3">{formatDateShort(order.due_date)}</td>
+                    <td className="p-3">
+                      <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(order.stage)}`}>
+                        {getStageLabel(order.stage)}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No orders found</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  {searchQuery ? `No orders found for "${searchQuery}"` : "No orders found"}
+                </td></tr>
               )}
             </tbody>
           </table>
@@ -216,7 +251,7 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
       client_po: form.client_po || null,
       notes: form.notes || null,
       date_entered: form.date_entered,
-      due_date: null, // No due date on creation; set when moving to WIP
+      due_date: null,
       stage: "preflight",
     };
 

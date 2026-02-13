@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -19,7 +19,32 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, searchQuery, onSearchChange }: AppLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleSearchChange = (value: string) => {
+    onSearchChange(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (value.trim() && location.pathname !== "/" && location.pathname !== "/orders") {
+        navigate("/orders");
+      }
+    }, 300);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && searchQuery.trim()) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (location.pathname !== "/" && location.pathname !== "/orders") {
+        navigate("/orders");
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
 
   return (
     <div className="flex min-h-screen w-full">
@@ -54,7 +79,8 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               <Input
                 placeholder="Search orders..."
                 value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-muted h-9 text-sm"
               />
             </div>

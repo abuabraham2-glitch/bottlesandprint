@@ -6,16 +6,18 @@ interface BolOptions {
   bolNumber: string;
   carrier: string;
   order: Order;
+  /** Additional orders to include in a combined BOL */
+  combinedOrders?: Order[];
 }
 
 /** Extract number of cases from packing string like "2 cases @ 500/case" */
-function parseCaseCount(packing: string | null): string {
-  if (!packing) return "";
-  const match = packing.match(/^(\d+)\s*cases?\b/i);
-  return match ? match[1] : "";
+function parseCaseCount(packing: string | null): number {
+  if (!packing) return 0;
+  const match = packing.match(/(\d+)\s*cases?\b/i);
+  return match ? parseInt(match[1], 10) : 0;
 }
 
-export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob {
+export function generateBolPdf({ bolNumber, carrier, order, combinedOrders }: BolOptions): Blob {
   const pdf = new jsPDF({ unit: "pt", format: "letter" }); // 612 x 792
   const pw = 612;
   const ph = 792;
@@ -23,6 +25,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
   const cw = pw - mx * 2; // content width
 
   const client = order.clients;
+  const allOrders = combinedOrders && combinedOrders.length > 0 ? [order, ...combinedOrders] : [order];
 
   const rect = (x: number, yy: number, w: number, h: number) => {
     pdf.setDrawColor(0);
@@ -36,24 +39,34 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
     pdf.setFont("helvetica", "normal");
   };
 
-  // Build description lines
+  // Build description lines from all orders
   const descLines: { text: string; bold?: boolean }[] = [];
   if (client) descLines.push({ text: client.company.toUpperCase(), bold: true });
-  descLines.push({ text: order.item_name.toUpperCase() });
 
-  const containerParts = [order.bottle_size, order.material, order.bottle_type].filter(Boolean).map(s => s!.toUpperCase());
-  if (order.num_colors) containerParts.push(`${order.num_colors} COLOR PRINT`);
-  if (containerParts.length) descLines.push({ text: containerParts.join(" — ") });
+  // Track case counts per item
+  const caseCounts: number[] = [];
 
-  if (order.packing) descLines.push({ text: order.packing.toUpperCase() });
+  for (let oi = 0; oi < allOrders.length; oi++) {
+    const o = allOrders[oi];
+    if (oi > 0) descLines.push({ text: "" }); // blank separator
+
+    descLines.push({ text: o.item_name.toUpperCase() });
+    const containerParts = [o.bottle_size, o.material, o.bottle_type].filter(Boolean).map(s => s!.toUpperCase());
+    if (o.num_colors) containerParts.push(`${o.num_colors} COLOR PRINT`);
+    if (containerParts.length) descLines.push({ text: containerParts.join(" — ") });
+    if (o.packing) descLines.push({ text: o.packing.toUpperCase() });
+
+    caseCounts.push(parseCaseCount(o.packing));
+  }
+
   if (order.client_po) descLines.push({ text: `PO# ${order.client_po}` });
 
-  const caseCount = parseCaseCount(order.packing);
-  const caseCountNum = caseCount ? parseInt(caseCount, 10) : 0;
+  const totalCases = caseCounts.reduce((a, b) => a + b, 0);
+  const firstCaseCount = caseCounts[0] || 0;
 
   // Calculate how many pages we need
   const lineH = 16;
-  const maxDescLinesPerPage = 12; // more room now without Special Instructions
+  const maxDescLinesPerPage = 12;
   const maxDescLinesCont = 20;
   const totalDescPages = descLines.length <= maxDescLinesPerPage ? 1 :
     1 + Math.ceil((descLines.length - maxDescLinesPerPage) / maxDescLinesCont);
@@ -74,7 +87,6 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
     pdf.setFontSize(10);
     pdf.text("Original — Not Negotiable", pw / 2, y + 30, { align: "center" });
 
-    // BOL# and Date — large bold
     pdf.setFontSize(14);
     bold(`BOL#: ${bolNumber}`, pw - mx - 6, y + 14, { align: "right" });
     const dateStr = formatDateShort(new Date().toISOString().split("T")[0]);
@@ -92,7 +104,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.text(legalLines, mx + 6, y + 9);
       y += legalH;
 
-      // ===== 2x2 GRID: SHIPPER | DELIVER TO / CONSIGNEE | PRO # =====
+      // ===== 2x2 GRID =====
       const halfW = cw / 2;
       const boxH = 82;
 
@@ -107,7 +119,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.text("UNIT D", mx + 6, y + 52);
       pdf.text("PACOIMA, CA 91331", mx + 6, y + 64);
 
-      // Top-Right: DELIVER TO (auto-filled with client address)
+      // Top-Right: DELIVER TO
       rect(mx + halfW, y, halfW, boxH);
       pdf.setFontSize(8);
       bold("DELIVER TO:", mx + halfW + 6, y + 14);
@@ -174,32 +186,44 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
 
     const isLastPage = page === totalDescPages - 1;
 
-    // Calculate remaining space for body — fill available space
+    // Calculate body height
     const sigH = isLastPage ? 120 : 0;
     const certH = isLastPage ? 90 : 0;
-    const totalLineH = 16; // height for TOTAL row
-    const bottomReserved = sigH + certH + 20; // 20 for page number
-    const bodyH = Math.max(pageDescLines.length * lineH + 24 + (isLastPage ? totalLineH : 0), ph - y - bottomReserved - mx);
+    const totalRowH = 36; // space reserved for TOTAL row
+    const bottomReserved = sigH + certH + 20;
+    const minBodyH = pageDescLines.length * lineH + 24 + (isLastPage ? totalRowH : 0);
+    const bodyH = Math.max(minBodyH, ph - y - bottomReserved - mx);
 
     cx = mx;
-    // NO. PKGS
+    // NO. PKGS column
     rect(cx, y, colWidths[0], bodyH);
     if (page === 0) {
       pdf.setFontSize(11);
-      pdf.text(caseCount, cx + colWidths[0] / 2, y + 20, { align: "center" });
+      // Show case counts for each order
+      if (allOrders.length === 1) {
+        if (firstCaseCount > 0) {
+          pdf.text(String(firstCaseCount), cx + colWidths[0] / 2, y + 20, { align: "center" });
+        }
+      } else {
+        let caseY = y + 20;
+        for (const cc of caseCounts) {
+          if (cc > 0) {
+            pdf.text(String(cc), cx + colWidths[0] / 2, caseY, { align: "center" });
+            caseY += lineH;
+          }
+        }
+      }
     }
     // TOTAL at bottom of NO. PKGS column (last page only)
-    if (isLastPage) {
-      const totalLineY = y + bodyH - 30;
+    if (isLastPage && totalCases > 0) {
+      const totalLineY = y + bodyH - totalRowH;
       pdf.setDrawColor(0);
       pdf.setLineWidth(0.5);
       pdf.line(cx + 4, totalLineY, cx + colWidths[0] - 4, totalLineY);
       pdf.setFontSize(8);
-      bold("TOTAL", cx + colWidths[0] / 2, totalLineY + 12, { align: "center" });
-      if (caseCountNum > 0) {
-        pdf.setFontSize(11);
-        pdf.text(String(caseCountNum), cx + colWidths[0] / 2, totalLineY + 24, { align: "center" });
-      }
+      bold("TOTAL", cx + colWidths[0] / 2, totalLineY + 14, { align: "center" });
+      pdf.setFontSize(11);
+      pdf.text(String(totalCases), cx + colWidths[0] / 2, totalLineY + 28, { align: "center" });
     }
     cx += colWidths[0];
 
@@ -242,7 +266,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.setFontSize(9);
       pdf.text("Per ___________________________________________", mx + 6, y + 82);
 
-      // Right side: Special Instructions (replaces Freight Charges)
+      // Right side: Special Instructions
       pdf.setFontSize(9);
       bold("Special Instructions:", mx + halfW + 6, y + 14);
       y += certH;
@@ -286,7 +310,7 @@ export function generateBolPdf({ bolNumber, carrier, order }: BolOptions): Blob 
       pdf.line(lineStartR + 30, y + 14 + sigSpacing * 3 - 4, lineEndR, y + 14 + sigSpacing * 3 - 4);
     }
 
-    // ===== PAGE NUMBER — bottom right =====
+    // ===== PAGE NUMBER =====
     pdf.setFontSize(7);
     pdf.text(`Page: ${page + 1} of ${totalDescPages}`, pw - mx - 6, ph - 12, { align: "right" });
   }

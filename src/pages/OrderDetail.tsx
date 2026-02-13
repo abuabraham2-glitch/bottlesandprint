@@ -1,16 +1,17 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useOrder, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun } from "@/lib/data";
-import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, generateInvoiceNumber, DOC_TYPES, formatAddress, formatDateShort } from "@/lib/constants";
+import { useOrder, useOrders, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun } from "@/lib/data";
+import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, generateInvoiceNumber, DOC_TYPES, formatAddress, formatDateShort, getStageBadgeClass, getStageLabel } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown } from "lucide-react";
+import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { format, addWeeks } from "date-fns";
 import { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,7 @@ export default function OrderDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: order, isLoading } = useOrder(id!);
+  const { data: allOrders = [] } = useOrders();
   const { data: documents = [] } = useOrderDocuments(id!);
   const updateOrder = useUpdateOrder();
   const uploadDoc = useUploadDocument();
@@ -47,10 +49,28 @@ export default function OrderDetail() {
   const [bolRegenOpen, setBolRegenOpen] = useState(false);
   const [deleteOrderOpen, setDeleteOrderOpen] = useState(false);
 
+  // New state for combined BOL/invoice dialogs
+  const [bolChoiceOpen, setBolChoiceOpen] = useState(false);
+  const [invoiceChoiceOpen, setInvoiceChoiceOpen] = useState(false);
+
+  // Vendor PO editing
+  const [editingVendorPo, setEditingVendorPo] = useState(false);
+  const [vendorPoValue, setVendorPoValue] = useState("");
+  const [vendorPoApplyOpen, setVendorPoApplyOpen] = useState(false);
+  const [pendingVendorPo, setPendingVendorPo] = useState("");
+
   const update = useCallback(async (updates: Record<string, any>) => {
     if (!id) return;
     await updateOrder.mutateAsync({ id, ...updates } as any);
   }, [id, updateOrder]);
+
+  // Related orders (same Client PO)
+  const relatedOrders = useMemo(() => {
+    if (!order?.client_po) return [];
+    return allOrders.filter(o => o.client_po === order.client_po && o.id !== order.id && !o.archived);
+  }, [order, allOrders]);
+
+  const hasRelatedOrders = relatedOrders.length > 0;
 
   if (isLoading || !order) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
@@ -62,7 +82,6 @@ export default function OrderDetail() {
 
   const moveStage = async (newStage: string) => {
     const updates: Record<string, any> = { stage: newStage };
-    // Auto-set due_date when moving to WIP
     if (newStage === "wip") {
       updates.due_date = format(addWeeks(new Date(), 4), "yyyy-MM-dd");
     }
@@ -75,9 +94,25 @@ export default function OrderDetail() {
   };
 
   const createInvoice = async () => {
+    if (hasRelatedOrders) {
+      setInvoiceChoiceOpen(true);
+      return;
+    }
+    await doCreateInvoice(false);
+  };
+
+  const doCreateInvoice = async (combined: boolean) => {
     const num = generateInvoiceNumber();
     await update({ invoiced: true, invoice_num: num });
-    toast.success(`Invoice ${num} created`);
+    if (combined) {
+      for (const ro of relatedOrders) {
+        await updateOrder.mutateAsync({ id: ro.id, invoiced: true, invoice_num: num } as any);
+      }
+      toast.success(`Invoice ${num} created for ${relatedOrders.length + 1} items under PO ${order.client_po}`);
+    } else {
+      toast.success(`Invoice ${num} created`);
+    }
+    setInvoiceChoiceOpen(false);
   };
 
   const handleAchPayment = async () => {
@@ -102,7 +137,6 @@ export default function OrderDetail() {
 
   const handleDeleteOrder = async () => {
     if (!id) return;
-    // Delete associated documents from storage and DB
     for (const doc of documents) {
       const urlParts = doc.file_url.split("/order-documents/");
       if (urlParts.length > 1) {
@@ -190,15 +224,27 @@ export default function OrderDetail() {
     }
   };
 
-  const handleGenerateBol = async () => {
+  // BOL Generation - check for related orders first
+  const initiateGenerateBol = () => {
+    if (hasRelatedOrders) {
+      setBolChoiceOpen(true);
+    } else {
+      setBolDialogOpen(true);
+    }
+  };
+
+  const handleGenerateBol = async (combined = false) => {
     if (!order || !id) return;
     const bolNum = await getNextBolNumber();
+    const combOrders = combined ? relatedOrders : undefined;
 
-    const pdfBlob = generateBolPdf({ bolNumber: bolNum, carrier: bolCarrier, order });
+    const pdfBlob = generateBolPdf({ bolNumber: bolNum, carrier: bolCarrier, order, combinedOrders: combOrders });
     const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
     const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
     await supabase.storage.from("order-documents").upload(filePath, pdfFile);
     const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
+
+    // Save doc to this order
     await supabase.from("order_documents").insert({
       order_id: id,
       file_name: `BOL-${bolNum}.pdf`,
@@ -206,16 +252,31 @@ export default function OrderDetail() {
       file_url: urlData.publicUrl,
     });
     await update({ outgoing_bol: bolNum });
+
+    // If combined, attach to all related orders
+    if (combined) {
+      for (const ro of relatedOrders) {
+        await supabase.from("order_documents").insert({
+          order_id: ro.id,
+          file_name: `BOL-${bolNum}.pdf`,
+          file_type: "Signed BOL",
+          file_url: urlData.publicUrl,
+        });
+        await updateOrder.mutateAsync({ id: ro.id, outgoing_bol: bolNum } as any);
+      }
+    }
+
     queryClient.invalidateQueries({ queryKey: ["order_documents", id] });
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
     setBolDialogOpen(false);
-    toast.success(`BOL #${bolNum} generated`);
+    setBolChoiceOpen(false);
+    toast.success(`BOL #${bolNum} generated${combined ? ` for ${relatedOrders.length + 1} items` : ""}`);
   };
 
   const handleRegenerateBol = async () => {
     if (!order || !id || !order.outgoing_bol) return;
     const bolNum = order.outgoing_bol;
 
-    // Delete existing BOL document(s)
     const existingBols = documents.filter(d => d.file_name.startsWith("BOL-"));
     for (const doc of existingBols) {
       const urlParts = doc.file_url.split("/order-documents/");
@@ -242,6 +303,39 @@ export default function OrderDetail() {
     toast.success("BOL regenerated successfully");
   };
 
+  // Vendor PO editing
+  const startVendorPoEdit = () => {
+    setVendorPoValue(order.vendor_po || "");
+    setEditingVendorPo(true);
+  };
+
+  const saveVendorPo = async () => {
+    setEditingVendorPo(false);
+    const val = vendorPoValue.trim() || null;
+    if (val === order.vendor_po) return;
+
+    if (hasRelatedOrders && val) {
+      setPendingVendorPo(val);
+      setVendorPoApplyOpen(true);
+    } else {
+      await update({ vendor_po: val });
+      toast.success("Vendor PO updated");
+    }
+  };
+
+  const applyVendorPoToGroup = async (applyAll: boolean) => {
+    await update({ vendor_po: pendingVendorPo });
+    if (applyAll) {
+      for (const ro of relatedOrders) {
+        await updateOrder.mutateAsync({ id: ro.id, vendor_po: pendingVendorPo } as any);
+      }
+      toast.success(`Vendor PO applied to ${relatedOrders.length + 1} orders`);
+    } else {
+      toast.success("Vendor PO updated");
+    }
+    setVendorPoApplyOpen(false);
+  };
+
   const previousStages = STAGES.slice(0, stageIndex);
 
   const checklistItems = [
@@ -253,7 +347,6 @@ export default function OrderDetail() {
     { key: "checklist_art_order_logged", label: "New Art / Order Logged" },
   ];
 
-  // Determine whether to show due date based on stage
   const showDueDate = order.stage === "wip" || order.stage === "completed";
   const showDaysInPreflight = order.stage === "preflight";
 
@@ -324,7 +417,7 @@ export default function OrderDetail() {
         {order.stage === "to_ship" && (
           <>
             {!order.outgoing_bol && (
-              <Button onClick={() => setBolDialogOpen(true)}>Generate BOL</Button>
+              <Button onClick={initiateGenerateBol}>Generate BOL</Button>
             )}
             {order.outgoing_bol && (
               <>
@@ -437,7 +530,31 @@ export default function OrderDetail() {
           <h3 className="font-semibold mb-4">PO & Invoice</h3>
           <div className="space-y-2 text-sm">
             <Detail label="Client PO" value={order.client_po} />
-            <Detail label="Vendor PO" value={order.vendor_po || "—"} />
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Vendor PO</span>
+              <div className="flex items-center gap-1">
+                {editingVendorPo ? (
+                  <Input
+                    value={vendorPoValue}
+                    onChange={e => setVendorPoValue(e.target.value)}
+                    onBlur={saveVendorPo}
+                    onKeyDown={e => e.key === "Enter" && saveVendorPo()}
+                    className="h-7 text-sm w-32"
+                    autoFocus
+                  />
+                ) : (
+                  <>
+                    <span>{order.vendor_po || "—"}</span>
+                    <button onClick={startVendorPoEdit} className="text-muted-foreground hover:text-foreground p-0.5">
+                      <Pencil size={12} />
+                    </button>
+                  </>
+                )}
+                <Button variant="outline" size="sm" className="h-7 text-xs ml-1" onClick={() => toast.info("QuickBooks integration coming soon — enter the Vendor PO manually for now.")}>
+                  <RefreshCw size={10} className="mr-1" /> Create in QuickBooks
+                </Button>
+              </div>
+            </div>
             <Detail label="Invoiced" value={order.invoiced ? `Yes — ${order.invoice_num}` : "No"} />
             <Detail label="Paid" value={order.paid ? `${order.pay_method} on ${formatDateShort(order.pay_date)}` : "No"} />
           </div>
@@ -451,6 +568,33 @@ export default function OrderDetail() {
           </div>
         </div>
       </div>
+
+      {/* Related Orders (Same PO) */}
+      {hasRelatedOrders && (
+        <div className="bg-card rounded-lg border p-5">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Link2 size={16} />
+            Related Orders (Same PO: {order.client_po})
+          </h3>
+          <div className="space-y-2">
+            {relatedOrders.map(ro => (
+              <div
+                key={ro.id}
+                onClick={() => navigate(`/orders/${ro.id}`)}
+                className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              >
+                <div>
+                  <span className="font-medium text-sm">{ro.item_name}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{ro.bottle_size}</span>
+                </div>
+                <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(ro.stage)}`}>
+                  {getStageLabel(ro.stage)}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Documents */}
       <div className="bg-card rounded-lg border p-5">
@@ -626,7 +770,31 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* BOL Generation Dialog */}
+      {/* BOL Choice Dialog (for grouped orders) */}
+      <Dialog open={bolChoiceOpen} onOpenChange={setBolChoiceOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Generate Bill of Lading</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This order is part of PO {order.client_po} with {relatedOrders.length} other item{relatedOrders.length > 1 ? "s" : ""}. What would you like to do?
+          </p>
+          <div className="space-y-3 mt-2">
+            <div>
+              <Label>Carrier</Label>
+              <Input value={bolCarrier} onChange={e => setBolCarrier(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => { setBolChoiceOpen(false); handleGenerateBol(false); }}>
+              BOL for this item only
+            </Button>
+            <Button onClick={() => handleGenerateBol(true)}>
+              Combined BOL for all {relatedOrders.length + 1} items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BOL Generation Dialog (single item) */}
       <Dialog open={bolDialogOpen} onOpenChange={setBolDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Generate Bill of Lading</DialogTitle></DialogHeader>
@@ -639,7 +807,7 @@ export default function OrderDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBolDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleGenerateBol}>Generate BOL</Button>
+            <Button onClick={() => handleGenerateBol(false)}>Generate BOL</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -663,6 +831,38 @@ export default function OrderDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Invoice Choice Dialog (for grouped orders) */}
+      <Dialog open={invoiceChoiceOpen} onOpenChange={setInvoiceChoiceOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create Invoice</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This order is part of PO {order.client_po} with {relatedOrders.length} other item{relatedOrders.length > 1 ? "s" : ""}. What would you like to do?
+          </p>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => { setInvoiceChoiceOpen(false); doCreateInvoice(false); }}>
+              Invoice this item only
+            </Button>
+            <Button onClick={() => doCreateInvoice(true)}>
+              Invoice all {relatedOrders.length + 1} items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vendor PO Apply to Group Dialog */}
+      <Dialog open={vendorPoApplyOpen} onOpenChange={setVendorPoApplyOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Apply Vendor PO</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Apply this Vendor PO to all {relatedOrders.length + 1} items under PO {order.client_po}?
+          </p>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => applyVendorPoToGroup(false)}>This item only</Button>
+            <Button onClick={() => applyVendorPoToGroup(true)}>Apply to all</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Order Dialog */}
       <AlertDialog open={deleteOrderOpen} onOpenChange={setDeleteOrderOpen}>
