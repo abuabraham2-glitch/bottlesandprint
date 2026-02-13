@@ -1,20 +1,14 @@
 import { useState } from "react";
-import { useArchivedOrders, useArchivedYears } from "@/lib/data";
+import { useArchivedOrders, useArchivedYears, useOrderDocuments } from "@/lib/data";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trash2, ChevronLeft, ChevronRight, Eye, Download, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
-
-const VALID_MONTHS = new Set([
-  "jan", "january", "feb", "february", "mar", "march",
-  "apr", "april", "may", "jun", "june", "jul", "july",
-  "aug", "august", "sep", "sept", "september",
-  "oct", "october", "nov", "november", "dec", "december",
-]);
 
 const MONTH_ORDER: Record<string, number> = {
   jan: 1, january: 1,
@@ -36,28 +30,93 @@ function monthNum(m: string | null): number {
   return MONTH_ORDER[m.toLowerCase().trim()] ?? 99;
 }
 
-function isValidMonth(m: string | null): boolean {
-  if (!m) return false;
-  return VALID_MONTHS.has(m.toLowerCase().trim());
-}
+// Detail modal for archived order with documents
+function ArchivedOrderDetail({ order, onClose }: { order: any; onClose: () => void }) {
+  const { data: documents = [] } = useOrderDocuments(order.original_order_id || "");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-// Display-side fix for shifted columns: if month doesn't look like a month name,
-// shift columns one to the right (month becomes empty, client_company becomes month, etc.)
-function getDisplayRow(row: { month: string | null; client_company: string | null; description: string | null; size: string | null; quantity: number | null; pass: number | null; comments: string | null; date_completed: string | null }) {
-  if (row.month && !isValidMonth(row.month)) {
-    // Data is shifted left — shift it right
-    return {
-      month: "",
-      client_company: row.month,
-      description: row.client_company,
-      size: row.description,
-      quantity: row.size ? parseInt(row.size) || null : null,
-      pass: row.quantity,
-      comments: row.pass?.toString() || null,
-      date_completed: row.comments,
-    };
-  }
-  return row;
+  const downloadFile = async (url: string, name: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  return (
+    <>
+      <Dialog open onOpenChange={() => onClose()}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{order.description || "Archived Order"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-muted-foreground">Customer:</span> <span className="ml-1 font-medium">{order.client_company || "—"}</span></div>
+              <div><span className="text-muted-foreground">Month:</span> <span className="ml-1">{order.month || "—"}</span></div>
+              <div><span className="text-muted-foreground">Year:</span> <span className="ml-1">{order.year || "—"}</span></div>
+              <div><span className="text-muted-foreground">Size:</span> <span className="ml-1">{order.size || "—"}</span></div>
+              <div><span className="text-muted-foreground">Quantity:</span> <span className="ml-1">{order.quantity?.toLocaleString() || "—"}</span></div>
+              <div><span className="text-muted-foreground">Pass:</span> <span className="ml-1">{order.pass ?? "—"}</span></div>
+              <div className="col-span-2"><span className="text-muted-foreground">Comments:</span> <span className="ml-1">{order.comments || "—"}</span></div>
+              <div><span className="text-muted-foreground">Date Completed:</span> <span className="ml-1">{order.date_completed || "—"}</span></div>
+            </div>
+
+            {order.original_order_id && (
+              <div>
+                <h4 className="font-semibold mb-2 text-sm">Documents</h4>
+                {documents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No documents found for this order.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {documents.map(doc => (
+                      <div key={doc.id} className="flex items-center gap-3 p-2 rounded bg-muted/30">
+                        <FileText size={16} className="text-muted-foreground shrink-0" />
+                        <span className="text-sm flex-1">{doc.file_name}</span>
+                        <span className="text-xs bg-muted px-2 py-0.5 rounded shrink-0">{doc.file_type}</span>
+                        <button onClick={() => setPreviewUrl(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
+                          <Eye size={15} />
+                        </button>
+                        <button onClick={() => downloadFile(doc.file_url, doc.file_name)} className="text-muted-foreground hover:text-foreground p-1" title="Download">
+                          <Download size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {!order.original_order_id && (
+              <p className="text-sm text-muted-foreground italic">This archived record has no linked original order. Documents are not available.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview */}
+      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader><DialogTitle>Document Preview</DialogTitle></DialogHeader>
+          {previewUrl && (
+            previewUrl.toLowerCase().includes(".pdf") ? (
+              <iframe src={previewUrl} className="w-full h-[70vh]" />
+            ) : (
+              <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] mx-auto" />
+            )
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 export default function CompletedData() {
@@ -66,6 +125,7 @@ export default function CompletedData() {
   const activeYear = selectedYear || years[0] || "";
   const { data: archived = [], isLoading } = useArchivedOrders(activeYear);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [detailOrder, setDetailOrder] = useState<any | null>(null);
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -76,20 +136,17 @@ export default function CompletedData() {
 
   // Sort by calendar month order, then date_completed
   const sorted = [...archived].sort((a, b) => {
-    const dispA = getDisplayRow(a);
-    const dispB = getDisplayRow(b);
-    const ma = monthNum(dispA.month);
-    const mb = monthNum(dispB.month);
+    const ma = monthNum(a.month);
+    const mb = monthNum(b.month);
     if (ma !== mb) return ma - mb;
-    return (dispA.date_completed || "").localeCompare(dispB.date_completed || "");
+    return (a.date_completed || "").localeCompare(b.date_completed || "");
   });
 
   // Group by month preserving calendar order
   const monthOrder: string[] = [];
   const monthMap = new Map<string, typeof sorted>();
   for (const a of sorted) {
-    const disp = getDisplayRow(a);
-    const m = disp.month || "Unknown";
+    const m = a.month || "Unknown";
     if (!monthMap.has(m)) {
       monthOrder.push(m);
       monthMap.set(m, []);
@@ -111,10 +168,7 @@ export default function CompletedData() {
 
   const exportToExcel = () => {
     const headers = ["Month", "Customer", "Description", "Size", "Qty", "Pass", "Comments", "Date"];
-    const rows = sorted.map(a => {
-      const d = getDisplayRow(a);
-      return [d.month, d.client_company, d.description, d.size, d.quantity, d.pass, d.comments, d.date_completed];
-    });
+    const rows = sorted.map(a => [a.month, a.client_company, a.description, a.size, a.quantity, a.pass, a.comments, a.date_completed]);
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v || ""}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -185,26 +239,35 @@ export default function CompletedData() {
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((row) => {
-                const disp = getDisplayRow(row.order);
-                return (
-                  <tr key={row.order.id} className={`border-b last:border-b-0 ${row.isFirst ? "bg-muted/20" : ""}`}>
-                    {row.isFirst && <td className="p-3 font-semibold" rowSpan={Math.min(row.groupSize, pageRows.filter(r => r.month === row.month).length)}>{row.month}</td>}
-                    <td className="p-3">{disp.client_company}</td>
-                    <td className="p-3">{disp.description}</td>
-                    <td className="p-3">{disp.size}</td>
-                    <td className="p-3">{disp.quantity?.toLocaleString()}</td>
-                    <td className="p-3">{disp.pass}</td>
-                    <td className="p-3">{disp.comments}</td>
-                    <td className="p-3">{disp.date_completed || "—"}</td>
-                    <td className="p-3">
-                      <button onClick={() => setDeleteTarget(row.order.id)} className="text-destructive hover:text-destructive/80">
-                        <Trash2 size={14} />
-                      </button>
+              {pageRows.map((row) => (
+                <tr
+                  key={row.order.id}
+                  className={`border-b last:border-b-0 hover:bg-muted/30 cursor-pointer ${row.isFirst ? "bg-muted/20" : ""}`}
+                  onClick={() => setDetailOrder(row.order)}
+                >
+                  {row.isFirst && (
+                    <td
+                      className="p-3 font-semibold"
+                      rowSpan={Math.min(row.groupSize, pageRows.filter(r => r.month === row.month).length)}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {row.month}
                     </td>
-                  </tr>
-                );
-              })}
+                  )}
+                  <td className="p-3">{row.order.client_company}</td>
+                  <td className="p-3">{row.order.description}</td>
+                  <td className="p-3">{row.order.size}</td>
+                  <td className="p-3">{row.order.quantity?.toLocaleString()}</td>
+                  <td className="p-3">{row.order.pass}</td>
+                  <td className="p-3">{row.order.comments}</td>
+                  <td className="p-3">{row.order.date_completed || "—"}</td>
+                  <td className="p-3" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setDeleteTarget(row.order.id)} className="text-destructive hover:text-destructive/80">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
 
@@ -220,6 +283,11 @@ export default function CompletedData() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailOrder && (
+        <ArchivedOrderDetail order={detailOrder} onClose={() => setDetailOrder(null)} />
       )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
