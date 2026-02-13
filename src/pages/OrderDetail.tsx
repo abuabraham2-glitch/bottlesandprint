@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
@@ -17,6 +18,57 @@ import { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { generateBolPdf } from "@/lib/generateBolPdf";
 import { useQueryClient } from "@tanstack/react-query";
+
+// Inline editable field component
+function EditableField({ label, value, onSave, type = "text" }: { label: string; value: string | number | null | undefined; onSave: (val: string) => void; type?: string }) {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState("");
+
+  const startEdit = () => {
+    setEditValue(value?.toString() || "");
+    setEditing(true);
+  };
+
+  const save = () => {
+    setEditing(false);
+    if (editValue !== (value?.toString() || "")) {
+      onSave(editValue);
+    }
+  };
+
+  return (
+    <div className="flex justify-between items-center group">
+      <span className="text-muted-foreground">{label}</span>
+      {editing ? (
+        type === "textarea" ? (
+          <Textarea
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={save}
+            className="w-48 text-sm"
+            autoFocus
+            rows={3}
+          />
+        ) : (
+          <Input
+            type={type}
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={save}
+            onKeyDown={e => e.key === "Enter" && save()}
+            className="h-7 text-sm w-48"
+            autoFocus
+          />
+        )
+      ) : (
+        <span className="flex items-center gap-1 cursor-pointer text-right" onClick={startEdit}>
+          <span>{value?.toString() ? (type === "number" ? Number(value).toLocaleString() : value.toString()) : "—"}</span>
+          <Pencil size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -49,22 +101,23 @@ export default function OrderDetail() {
   const [bolRegenOpen, setBolRegenOpen] = useState(false);
   const [deleteOrderOpen, setDeleteOrderOpen] = useState(false);
 
-  // New state for combined BOL/invoice dialogs
   const [bolChoiceOpen, setBolChoiceOpen] = useState(false);
   const [invoiceChoiceOpen, setInvoiceChoiceOpen] = useState(false);
 
-  // Vendor PO editing
   const [editingVendorPo, setEditingVendorPo] = useState(false);
   const [vendorPoValue, setVendorPoValue] = useState("");
   const [vendorPoApplyOpen, setVendorPoApplyOpen] = useState(false);
   const [pendingVendorPo, setPendingVendorPo] = useState("");
+
+  // Notes editing
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState("");
 
   const update = useCallback(async (updates: Record<string, any>) => {
     if (!id) return;
     await updateOrder.mutateAsync({ id, ...updates } as any);
   }, [id, updateOrder]);
 
-  // Related orders (same Client PO)
   const relatedOrders = useMemo(() => {
     if (!order?.client_po) return [];
     return allOrders.filter(o => o.client_po === order.client_po && o.id !== order.id && !o.archived);
@@ -79,6 +132,13 @@ export default function OrderDetail() {
   const allChecked = checked === 6;
   const days = daysUntilDue(order.due_date);
   const daysInPreflight = daysSinceCreated(order.date_entered);
+
+  const saveField = (field: string, type?: string) => (val: string) => {
+    let parsed: any = val || null;
+    if (type === "number") parsed = val ? parseInt(val) : null;
+    update({ [field]: parsed });
+    toast.success("Updated successfully");
+  };
 
   const moveStage = async (newStage: string) => {
     const updates: Record<string, any> = { stage: newStage };
@@ -224,7 +284,6 @@ export default function OrderDetail() {
     }
   };
 
-  // BOL Generation - check for related orders first
   const initiateGenerateBol = () => {
     if (hasRelatedOrders) {
       setBolChoiceOpen(true);
@@ -244,7 +303,6 @@ export default function OrderDetail() {
     await supabase.storage.from("order-documents").upload(filePath, pdfFile);
     const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
 
-    // Save doc to this order
     await supabase.from("order_documents").insert({
       order_id: id,
       file_name: `BOL-${bolNum}.pdf`,
@@ -253,7 +311,6 @@ export default function OrderDetail() {
     });
     await update({ outgoing_bol: bolNum });
 
-    // If combined, attach to all related orders
     if (combined) {
       for (const ro of relatedOrders) {
         await supabase.from("order_documents").insert({
@@ -303,7 +360,6 @@ export default function OrderDetail() {
     toast.success("BOL regenerated successfully");
   };
 
-  // Vendor PO editing
   const startVendorPoEdit = () => {
     setVendorPoValue(order.vendor_po || "");
     setEditingVendorPo(true);
@@ -334,6 +390,20 @@ export default function OrderDetail() {
       toast.success("Vendor PO updated");
     }
     setVendorPoApplyOpen(false);
+  };
+
+  const startNotesEdit = () => {
+    setNotesValue(order.notes || "");
+    setEditingNotes(true);
+  };
+
+  const saveNotes = () => {
+    setEditingNotes(false);
+    const val = notesValue.trim() || null;
+    if (val !== (order.notes || null)) {
+      update({ notes: val });
+      toast.success("Updated successfully");
+    }
   };
 
   const previousStages = STAGES.slice(0, stageIndex);
@@ -482,14 +552,18 @@ export default function OrderDetail() {
           </div>
         </div>
 
-        {/* Order Details */}
+        {/* Order Details - editable */}
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-4">Order Details</h3>
           <div className="space-y-2 text-sm">
-            <Detail label="Container" value={[order.bottle_size, order.bottle_type, order.material, order.bottle_color].filter(Boolean).join(" · ")} />
-            <Detail label="Print" value={[order.num_colors ? `${order.num_colors} color(s)` : null, order.print_colors].filter(Boolean).join(" · ")} />
-            <Detail label="Quantity" value={order.quantity?.toLocaleString()} />
-            <Detail label="Packing" value={order.packing} />
+            <EditableField label="Container Type" value={order.bottle_type} onSave={saveField("bottle_type")} />
+            <EditableField label="Container Size" value={order.bottle_size} onSave={saveField("bottle_size")} />
+            <EditableField label="Material" value={order.material} onSave={saveField("material")} />
+            <EditableField label="Container Color" value={order.bottle_color} onSave={saveField("bottle_color")} />
+            <EditableField label="# Print Colors" value={order.num_colors} onSave={saveField("num_colors", "number")} type="number" />
+            <EditableField label="Print Colors" value={order.print_colors} onSave={saveField("print_colors")} />
+            <EditableField label="Quantity" value={order.quantity} onSave={saveField("quantity", "number")} type="number" />
+            <EditableField label="Packing" value={order.packing} onSave={saveField("packing")} />
             <Detail label="Date Entered" value={formatDateShort(order.date_entered)} />
 
             {showDaysInPreflight && (
@@ -529,7 +603,7 @@ export default function OrderDetail() {
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-4">PO & Invoice</h3>
           <div className="space-y-2 text-sm">
-            <Detail label="Client PO" value={order.client_po} />
+            <EditableField label="Client PO" value={order.client_po} onSave={saveField("client_po")} />
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Vendor PO</span>
               <div className="flex items-center gap-1">
@@ -654,13 +728,31 @@ export default function OrderDetail() {
         </div>
       </div>
 
-      {/* Notes */}
-      {order.notes && (
-        <div className="rounded-lg border-l-4 p-5" style={{ borderLeftColor: "#C2793D", backgroundColor: "#FBF0E5" }}>
-          <h3 className="font-semibold mb-2" style={{ color: "#C2793D" }}>Notes</h3>
-          <p className="text-sm whitespace-pre-wrap font-bold">{order.notes}</p>
+      {/* Notes - editable */}
+      <div className="rounded-lg border-l-4 p-5 group" style={{ borderLeftColor: "#C2793D", backgroundColor: "#FBF0E5" }}>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold" style={{ color: "#C2793D" }}>Notes</h3>
+          {!editingNotes && (
+            <button onClick={startNotesEdit} className="text-muted-foreground hover:text-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Pencil size={14} />
+            </button>
+          )}
         </div>
-      )}
+        {editingNotes ? (
+          <Textarea
+            value={notesValue}
+            onChange={e => setNotesValue(e.target.value)}
+            onBlur={saveNotes}
+            className="text-sm"
+            autoFocus
+            rows={4}
+          />
+        ) : (
+          <p className="text-sm whitespace-pre-wrap font-bold cursor-pointer" onClick={startNotesEdit}>
+            {order.notes || <span className="font-normal text-muted-foreground italic">Click to add notes...</span>}
+          </p>
+        )}
+      </div>
 
       {/* Client Info */}
       {order.clients && (

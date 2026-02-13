@@ -27,8 +27,8 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
     onSearchChange(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if (value.trim() && location.pathname !== "/" && location.pathname !== "/orders") {
-        navigate("/orders");
+      if (value.trim()) {
+        navigate("/search");
       }
     }, 300);
   };
@@ -36,9 +36,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && searchQuery.trim()) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (location.pathname !== "/" && location.pathname !== "/orders") {
-        navigate("/orders");
-      }
+      navigate("/search");
     }
   };
 
@@ -77,7 +75,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-sidebar-muted" />
               <Input
-                placeholder="Search orders..."
+                placeholder="Search everything..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
