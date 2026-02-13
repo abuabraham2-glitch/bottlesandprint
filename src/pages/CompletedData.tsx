@@ -9,6 +9,13 @@ import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
 
+const VALID_MONTHS = new Set([
+  "jan", "january", "feb", "february", "mar", "march",
+  "apr", "april", "may", "jun", "june", "jul", "july",
+  "aug", "august", "sep", "sept", "september",
+  "oct", "october", "nov", "november", "dec", "december",
+]);
+
 const MONTH_ORDER: Record<string, number> = {
   jan: 1, january: 1,
   feb: 2, february: 2,
@@ -29,6 +36,30 @@ function monthNum(m: string | null): number {
   return MONTH_ORDER[m.toLowerCase().trim()] ?? 99;
 }
 
+function isValidMonth(m: string | null): boolean {
+  if (!m) return false;
+  return VALID_MONTHS.has(m.toLowerCase().trim());
+}
+
+// Display-side fix for shifted columns: if month doesn't look like a month name,
+// shift columns one to the right (month becomes empty, client_company becomes month, etc.)
+function getDisplayRow(row: { month: string | null; client_company: string | null; description: string | null; size: string | null; quantity: number | null; pass: number | null; comments: string | null; date_completed: string | null }) {
+  if (row.month && !isValidMonth(row.month)) {
+    // Data is shifted left — shift it right
+    return {
+      month: "",
+      client_company: row.month,
+      description: row.client_company,
+      size: row.description,
+      quantity: row.size ? parseInt(row.size) || null : null,
+      pass: row.quantity,
+      comments: row.pass?.toString() || null,
+      date_completed: row.comments,
+    };
+  }
+  return row;
+}
+
 export default function CompletedData() {
   const { data: years = [], isLoading: yearsLoading } = useArchivedYears();
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -45,18 +76,20 @@ export default function CompletedData() {
 
   // Sort by calendar month order, then date_completed
   const sorted = [...archived].sort((a, b) => {
-    const ma = monthNum(a.month);
-    const mb = monthNum(b.month);
+    const dispA = getDisplayRow(a);
+    const dispB = getDisplayRow(b);
+    const ma = monthNum(dispA.month);
+    const mb = monthNum(dispB.month);
     if (ma !== mb) return ma - mb;
-    // secondary sort by date_completed as string
-    return (a.date_completed || "").localeCompare(b.date_completed || "");
+    return (dispA.date_completed || "").localeCompare(dispB.date_completed || "");
   });
 
   // Group by month preserving calendar order
   const monthOrder: string[] = [];
   const monthMap = new Map<string, typeof sorted>();
   for (const a of sorted) {
-    const m = a.month || "Unknown";
+    const disp = getDisplayRow(a);
+    const m = disp.month || "Unknown";
     if (!monthMap.has(m)) {
       monthOrder.push(m);
       monthMap.set(m, []);
@@ -78,7 +111,10 @@ export default function CompletedData() {
 
   const exportToExcel = () => {
     const headers = ["Month", "Customer", "Description", "Size", "Qty", "Pass", "Comments", "Date"];
-    const rows = sorted.map(a => [a.month, a.client_company, a.description, a.size, a.quantity, a.pass, a.comments, a.date_completed]);
+    const rows = sorted.map(a => {
+      const d = getDisplayRow(a);
+      return [d.month, d.client_company, d.description, d.size, d.quantity, d.pass, d.comments, d.date_completed];
+    });
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v || ""}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -149,23 +185,26 @@ export default function CompletedData() {
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((row) => (
-                <tr key={row.order.id} className={`border-b last:border-b-0 ${row.isFirst ? "bg-muted/20" : ""}`}>
-                  {row.isFirst && <td className="p-3 font-semibold" rowSpan={Math.min(row.groupSize, pageRows.filter(r => r.month === row.month).length)}>{row.month}</td>}
-                  <td className="p-3">{row.order.client_company}</td>
-                  <td className="p-3">{row.order.description}</td>
-                  <td className="p-3">{row.order.size}</td>
-                  <td className="p-3">{row.order.quantity?.toLocaleString()}</td>
-                  <td className="p-3">{row.order.pass}</td>
-                  <td className="p-3">{row.order.comments}</td>
-                  <td className="p-3">{row.order.date_completed || "—"}</td>
-                  <td className="p-3">
-                    <button onClick={() => setDeleteTarget(row.order.id)} className="text-destructive hover:text-destructive/80">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {pageRows.map((row) => {
+                const disp = getDisplayRow(row.order);
+                return (
+                  <tr key={row.order.id} className={`border-b last:border-b-0 ${row.isFirst ? "bg-muted/20" : ""}`}>
+                    {row.isFirst && <td className="p-3 font-semibold" rowSpan={Math.min(row.groupSize, pageRows.filter(r => r.month === row.month).length)}>{row.month}</td>}
+                    <td className="p-3">{disp.client_company}</td>
+                    <td className="p-3">{disp.description}</td>
+                    <td className="p-3">{disp.size}</td>
+                    <td className="p-3">{disp.quantity?.toLocaleString()}</td>
+                    <td className="p-3">{disp.pass}</td>
+                    <td className="p-3">{disp.comments}</td>
+                    <td className="p-3">{disp.date_completed || "—"}</td>
+                    <td className="p-3">
+                      <button onClick={() => setDeleteTarget(row.order.id)} className="text-destructive hover:text-destructive/80">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
