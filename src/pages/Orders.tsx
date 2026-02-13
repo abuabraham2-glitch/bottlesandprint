@@ -172,6 +172,57 @@ function SelectWithOther({ label, options, value, onChange }: { label: string; o
   );
 }
 
+// Searchable dropdown component
+function SearchableSelect({ label, options, value, onChange, placeholder }: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+
+  const filtered = filter
+    ? options.filter(o => o.label.toLowerCase().includes(filter.toLowerCase()))
+    : options;
+
+  const selectedLabel = options.find(o => o.value === value)?.label || "";
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="relative">
+        <Input
+          value={open ? filter : selectedLabel}
+          onChange={e => { setFilter(e.target.value); if (!open) setOpen(true); }}
+          onFocus={() => { setOpen(true); setFilter(""); }}
+          placeholder={placeholder}
+          className="w-full"
+        />
+        {open && (
+          <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[300px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-sm text-muted-foreground">No results</div>
+            ) : (
+              filtered.map(o => (
+                <div
+                  key={o.value}
+                  onClick={() => { onChange(o.value); setOpen(false); setFilter(""); }}
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${o.value === value ? "bg-accent/50" : ""}`}
+                >
+                  {o.label}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+        {open && <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setFilter(""); }} />}
+      </div>
+    </div>
+  );
+}
+
 function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
   const { data: clients = [] } = useClients();
   const createOrder = useCreateOrder();
@@ -264,28 +315,27 @@ function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
 
   const update = (key: string, val: string) => setForm(prev => ({ ...prev, [key]: val }));
 
+  const clientOptions = clients.map(c => ({ value: c.id, label: c.company }));
+  const catalogOptions = catalogItems.map(c => ({ value: c.id, label: `${c.product_name}${c.size ? ` — ${c.size}` : ""}` }));
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label>Client *</Label>
-        <Select value={clientId} onValueChange={(v) => { setClientId(v); setCatalogItemId(""); }}>
-          <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-          <SelectContent>
-            {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <SearchableSelect
+        label="Client *"
+        options={clientOptions}
+        value={clientId}
+        onChange={(v) => { setClientId(v); setCatalogItemId(""); }}
+        placeholder="Search clients..."
+      />
 
       {clientId && catalogItems.length > 0 && (
-        <div>
-          <Label>From Catalog (optional)</Label>
-          <Select value={catalogItemId} onValueChange={handleCatalogSelect}>
-            <SelectTrigger><SelectValue placeholder="Pick existing product or enter new" /></SelectTrigger>
-            <SelectContent>
-              {catalogItems.map(c => <SelectItem key={c.id} value={c.id}>{c.product_name}{c.size ? ` — ${c.size}` : ""}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableSelect
+          label="From Catalog (optional)"
+          options={catalogOptions}
+          value={catalogItemId}
+          onChange={handleCatalogSelect}
+          placeholder="Search catalog items..."
+        />
       )}
 
       <div>

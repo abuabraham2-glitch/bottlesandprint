@@ -9,6 +9,26 @@ import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
 
+const MONTH_ORDER: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+function monthNum(m: string | null): number {
+  if (!m) return 99;
+  return MONTH_ORDER[m.toLowerCase().trim()] ?? 99;
+}
+
 export default function CompletedData() {
   const { data: years = [], isLoading: yearsLoading } = useArchivedYears();
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -18,16 +38,24 @@ export default function CompletedData() {
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
-  // Reset page when year changes
   const handleYearChange = (y: string) => {
     setSelectedYear(y);
     setPage(0);
   };
 
-  // Group by month preserving original order from DB
+  // Sort by calendar month order, then date_completed
+  const sorted = [...archived].sort((a, b) => {
+    const ma = monthNum(a.month);
+    const mb = monthNum(b.month);
+    if (ma !== mb) return ma - mb;
+    // secondary sort by date_completed as string
+    return (a.date_completed || "").localeCompare(b.date_completed || "");
+  });
+
+  // Group by month preserving calendar order
   const monthOrder: string[] = [];
-  const monthMap = new Map<string, typeof archived>();
-  for (const a of archived) {
+  const monthMap = new Map<string, typeof sorted>();
+  for (const a of sorted) {
     const m = a.month || "Unknown";
     if (!monthMap.has(m)) {
       monthOrder.push(m);
@@ -38,7 +66,7 @@ export default function CompletedData() {
   const grouped = monthOrder.map(month => ({ month, orders: monthMap.get(month)! }));
 
   // Flatten for pagination
-  const flatRows: { month: string; order: typeof archived[0]; isFirst: boolean; groupSize: number }[] = [];
+  const flatRows: { month: string; order: typeof sorted[0]; isFirst: boolean; groupSize: number }[] = [];
   for (const g of grouped) {
     g.orders.forEach((order, i) => {
       flatRows.push({ month: g.month, order, isFirst: i === 0, groupSize: g.orders.length });
@@ -50,7 +78,7 @@ export default function CompletedData() {
 
   const exportToExcel = () => {
     const headers = ["Month", "Customer", "Description", "Size", "Qty", "Pass", "Comments", "Date"];
-    const rows = archived.map(a => [a.month, a.client_company, a.description, a.size, a.quantity, a.pass, a.comments, a.date_completed]);
+    const rows = sorted.map(a => [a.month, a.client_company, a.description, a.size, a.quantity, a.pass, a.comments, a.date_completed]);
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v || ""}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

@@ -12,12 +12,13 @@ import Clients from "@/pages/Clients";
 import ClientDetail from "@/pages/ClientDetail";
 import Catalog from "@/pages/Catalog";
 import CompletedData from "@/pages/CompletedData";
+import SearchResults from "@/pages/SearchResults";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30 seconds
+      staleTime: 1000 * 30,
       refetchOnWindowFocus: true,
     },
   },
@@ -41,6 +42,7 @@ const App = () => {
               <Route path="/clients/:id" element={<ClientDetail />} />
               <Route path="/catalog" element={<Catalog />} />
               <Route path="/completed" element={<CompletedData />} />
+              <Route path="/search" element={<SearchResults searchQuery={searchQuery} />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>
