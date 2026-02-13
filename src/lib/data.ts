@@ -461,7 +461,8 @@ export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: st
   if (existing && existing.length > 0) return;
 
   const now = new Date();
-  const monthYear = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthYear = `${months[now.getMonth()]} ${now.getFullYear()}`;
 
   await supabase.from("catalog").insert({
     client_id: clientId,
@@ -479,7 +480,8 @@ export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: st
 
 export async function updateCatalogLastRun(clientId: string, itemName: string) {
   const now = new Date();
-  const monthYear = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthYear = `${months[now.getMonth()]} ${now.getFullYear()}`;
 
   const { data: items } = await supabase
     .from("catalog")
