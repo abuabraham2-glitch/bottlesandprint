@@ -13,6 +13,7 @@ import Clients from "@/pages/Clients";
 import ClientDetail from "@/pages/ClientDetail";
 import Catalog from "@/pages/Catalog";
 import CompletedData from "@/pages/CompletedData";
+import ChangePassword from "@/pages/ChangePassword";
 import SearchResults from "@/pages/SearchResults";
 import Login from "@/pages/Login";
 import NotFound from "./pages/NotFound";
@@ -53,6 +54,7 @@ function ProtectedApp() {
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/completed" element={<CompletedData />} />
         <Route path="/search" element={<SearchResults searchQuery={searchQuery} />} />
+        <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

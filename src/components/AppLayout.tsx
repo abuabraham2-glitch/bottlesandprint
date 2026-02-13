@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight, LogOut, KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -109,8 +109,16 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
           })}
         </nav>
 
-        {/* Sign Out */}
-        <div className="px-2 pb-4 mt-auto">
+        {/* Bottom actions */}
+        <div className="px-2 pb-4 mt-auto space-y-1">
+          <Link
+            to="/change-password"
+            title={collapsed ? "Change Password" : undefined}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full ${collapsed ? "justify-center" : ""}`}
+          >
+            <KeyRound size={18} />
+            {!collapsed && <span>Change Password</span>}
+          </Link>
           <button
             onClick={signOut}
             title={collapsed ? "Sign Out" : undefined}
