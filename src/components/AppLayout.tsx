@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -20,6 +21,7 @@ interface AppLayoutProps {
 export default function AppLayout({ children, searchQuery, onSearchChange }: AppLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -106,6 +108,18 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
             );
           })}
         </nav>
+
+        {/* Sign Out */}
+        <div className="px-2 pb-4 mt-auto">
+          <button
+            onClick={signOut}
+            title={collapsed ? "Sign Out" : undefined}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full ${collapsed ? "justify-center" : ""}`}
+          >
+            <LogOut size={18} />
+            {!collapsed && <span>Sign Out</span>}
+          </button>
+        </div>
       </aside>
 
       {/* Main */}
