@@ -1,6 +1,24 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+// Helpers for storage paths
+export function extractStoragePath(fileUrl: string): string {
+  const urlParts = fileUrl.split("/order-documents/");
+  if (urlParts.length > 1) {
+    return decodeURIComponent(urlParts[1]);
+  }
+  return fileUrl;
+}
+
+export async function getSignedUrl(fileUrl: string): Promise<string> {
+  const storagePath = extractStoragePath(fileUrl);
+  const { data, error } = await supabase.storage
+    .from("order-documents")
+    .createSignedUrl(storagePath, 3600);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 // Types
 export interface Client {
   id: string;
@@ -375,12 +393,11 @@ export function useUploadDocument() {
       const filePath = `${orderId}/${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage.from("order-documents").upload(filePath, file);
       if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
       const { error: dbError } = await supabase.from("order_documents").insert({
         order_id: orderId,
         file_name: file.name,
         file_type: fileType,
-        file_url: urlData.publicUrl,
+        file_url: filePath,
       });
       if (dbError) throw dbError;
     },
@@ -404,9 +421,8 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, orderId, file_url }: { id: string; orderId: string; file_url: string }) => {
-      const urlParts = file_url.split("/order-documents/");
-      if (urlParts.length > 1) {
-        const storagePath = decodeURIComponent(urlParts[1]);
+      const storagePath = extractStoragePath(file_url);
+      if (storagePath) {
         await supabase.storage.from("order-documents").remove([storagePath]);
       }
       const { error } = await supabase.from("order_documents").delete().eq("id", id);

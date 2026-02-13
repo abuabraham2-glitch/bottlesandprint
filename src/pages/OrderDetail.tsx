@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useOrder, useOrders, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun } from "@/lib/data";
+import { useOrder, useOrders, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun, getSignedUrl, extractStoragePath } from "@/lib/data";
 import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, generateInvoiceNumber, DOC_TYPES, formatAddress, formatDateShort, getStageBadgeClass, getStageLabel } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -198,11 +198,8 @@ export default function OrderDetail() {
   const handleDeleteOrder = async () => {
     if (!id) return;
     for (const doc of documents) {
-      const urlParts = doc.file_url.split("/order-documents/");
-      if (urlParts.length > 1) {
-        const storagePath = decodeURIComponent(urlParts[1]);
-        await supabase.storage.from("order-documents").remove([storagePath]);
-      }
+      const storagePath = extractStoragePath(doc.file_url);
+      await supabase.storage.from("order-documents").remove([storagePath]);
     }
     await supabase.from("order_documents").delete().eq("order_id", id);
     const { error } = await supabase.from("orders").delete().eq("id", id);
@@ -267,8 +264,18 @@ export default function OrderDetail() {
     setDeleteTarget(null);
   };
 
-  const downloadFile = async (url: string, name: string) => {
+  const openPreview = async (fileUrl: string) => {
     try {
+      const url = await getSignedUrl(fileUrl);
+      setPreviewUrl(url);
+    } catch {
+      toast.error("Failed to load document");
+    }
+  };
+
+  const downloadFile = async (fileUrl: string, name: string) => {
+    try {
+      const url = await getSignedUrl(fileUrl);
       const response = await fetch(url);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -280,7 +287,7 @@ export default function OrderDetail() {
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(url, "_blank");
+      toast.error("Failed to download document");
     }
   };
 
@@ -301,13 +308,12 @@ export default function OrderDetail() {
     const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
     const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
     await supabase.storage.from("order-documents").upload(filePath, pdfFile);
-    const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
 
     await supabase.from("order_documents").insert({
       order_id: id,
       file_name: `BOL-${bolNum}.pdf`,
       file_type: "Signed BOL",
-      file_url: urlData.publicUrl,
+      file_url: filePath,
     });
     await update({ outgoing_bol: bolNum });
 
@@ -317,7 +323,7 @@ export default function OrderDetail() {
           order_id: ro.id,
           file_name: `BOL-${bolNum}.pdf`,
           file_type: "Signed BOL",
-          file_url: urlData.publicUrl,
+          file_url: filePath,
         });
         await updateOrder.mutateAsync({ id: ro.id, outgoing_bol: bolNum } as any);
       }
@@ -336,11 +342,8 @@ export default function OrderDetail() {
 
     const existingBols = documents.filter(d => d.file_name.startsWith("BOL-"));
     for (const doc of existingBols) {
-      const urlParts = doc.file_url.split("/order-documents/");
-      if (urlParts.length > 1) {
-        const storagePath = decodeURIComponent(urlParts[1]);
-        await supabase.storage.from("order-documents").remove([storagePath]);
-      }
+      const storagePath = extractStoragePath(doc.file_url);
+      await supabase.storage.from("order-documents").remove([storagePath]);
       await supabase.from("order_documents").delete().eq("id", doc.id);
     }
 
@@ -348,12 +351,11 @@ export default function OrderDetail() {
     const pdfFile = new File([pdfBlob], `BOL-${bolNum}.pdf`, { type: "application/pdf" });
     const filePath = `${id}/${Date.now()}_BOL-${bolNum}.pdf`;
     await supabase.storage.from("order-documents").upload(filePath, pdfFile);
-    const { data: urlData } = supabase.storage.from("order-documents").getPublicUrl(filePath);
     await supabase.from("order_documents").insert({
       order_id: id,
       file_name: `BOL-${bolNum}.pdf`,
       file_type: "Signed BOL",
-      file_url: urlData.publicUrl,
+      file_url: filePath,
     });
     queryClient.invalidateQueries({ queryKey: ["order_documents", id] });
     setBolRegenOpen(false);
@@ -494,7 +496,7 @@ export default function OrderDetail() {
                 {(() => {
                   const bolDoc = documents.find(d => d.file_name.startsWith("BOL-"));
                   return bolDoc ? (
-                    <Button variant="outline" onClick={() => setPreviewUrl(bolDoc.file_url)}>
+                    <Button variant="outline" onClick={() => openPreview(bolDoc.file_url)}>
                       <Eye size={14} className="mr-1" /> View/Download BOL
                     </Button>
                   ) : null;
@@ -692,7 +694,7 @@ export default function OrderDetail() {
                 )}
                 <span className="text-xs bg-muted px-2 py-0.5 rounded shrink-0">{doc.file_type}</span>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => setPreviewUrl(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
+                  <button onClick={() => openPreview(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
                     <Eye size={15} />
                   </button>
                   <button onClick={() => startRename(doc)} className="text-muted-foreground hover:text-foreground p-1" title="Rename">
