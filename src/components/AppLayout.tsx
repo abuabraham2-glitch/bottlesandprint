@@ -111,13 +111,12 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
         {/* Top banner */}
         <header className="flex items-center justify-between px-6 py-3 shrink-0">
           <div className="relative w-80">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="pl-10 bg-card border-0 shadow-sm rounded-xl h-9 text-sm"
+              className="bg-card border-0 shadow-sm rounded-xl h-9 text-sm"
             />
           </div>
 
