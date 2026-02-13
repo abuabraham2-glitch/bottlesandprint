@@ -2,7 +2,8 @@ import { useOrders } from "@/lib/data";
 import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { StickyNote } from "lucide-react";
+import { StickyNote, Link2 } from "lucide-react";
+import { useMemo } from "react";
 
 interface DashboardProps {
   searchQuery: string;
@@ -20,6 +21,26 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         o.vendor_po?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : orders;
+
+  // Build PO group counts
+  const poGroupCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of orders) {
+      if (o.client_po && !o.archived) {
+        map.set(o.client_po, (map.get(o.client_po) || 0) + 1);
+      }
+    }
+    return map;
+  }, [orders]);
+
+  const getPoPosition = (order: typeof orders[0]) => {
+    if (!order.client_po) return null;
+    const total = poGroupCounts.get(order.client_po) || 0;
+    if (total <= 1) return null;
+    const samePoOrders = orders.filter(o => o.client_po === order.client_po && !o.archived);
+    const idx = samePoOrders.findIndex(o => o.id === order.id);
+    return { index: idx + 1, total };
+  };
 
   const stageCounts = STAGES.map(s => ({
     ...s,
@@ -72,6 +93,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                     const checked = checklistCount(order);
                     const daysInPreflight = daysSinceCreated(order.date_entered);
                     const days = daysUntilDue(order.due_date);
+                    const poPos = getPoPosition(order);
 
                     return (
                       <div
@@ -84,6 +106,13 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                           {order.notes && <StickyNote size={12} className="text-amber-500 shrink-0" />}
                         </div>
                         <div className="text-xs text-muted-foreground">{order.clients?.company}</div>
+
+                        {poPos && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-primary">
+                            <Link2 size={10} />
+                            <span>{poPos.index} of {poPos.total}</span>
+                          </div>
+                        )}
 
                         {/* Status indicators */}
                         {stage.key === "preflight" && (
