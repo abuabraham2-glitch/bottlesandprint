@@ -119,6 +119,21 @@ function ArchivedOrderDetail({ order, onClose }: { order: any; onClose: () => vo
   );
 }
 
+function PaginationControls({ page, totalPages, setPage }: { page: number; totalPages: number; setPage: (fn: (p: number) => number) => void }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 p-3">
+      <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+        <ChevronLeft size={14} className="mr-1" /> Previous
+      </Button>
+      <span className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</span>
+      <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+        Next <ChevronRight size={14} className="ml-1" />
+      </Button>
+    </div>
+  );
+}
+
 export default function CompletedData() {
   const { data: years = [], isLoading: yearsLoading } = useArchivedYears();
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -134,7 +149,7 @@ export default function CompletedData() {
     setPage(0);
   };
 
-  // Sort by calendar month order, then date_completed
+  // Sort by calendar month order, then date_completed — simple stable sort, no grouping
   const sorted = [...archived].sort((a, b) => {
     const ma = monthNum(a.month);
     const mb = monthNum(b.month);
@@ -142,29 +157,8 @@ export default function CompletedData() {
     return (a.date_completed || "").localeCompare(b.date_completed || "");
   });
 
-  // Group by month preserving calendar order
-  const monthOrder: string[] = [];
-  const monthMap = new Map<string, typeof sorted>();
-  for (const a of sorted) {
-    const m = a.month || "Unknown";
-    if (!monthMap.has(m)) {
-      monthOrder.push(m);
-      monthMap.set(m, []);
-    }
-    monthMap.get(m)!.push(a);
-  }
-  const grouped = monthOrder.map(month => ({ month, orders: monthMap.get(month)! }));
-
-  // Flatten for pagination
-  const flatRows: { month: string; order: typeof sorted[0]; isFirst: boolean; groupSize: number }[] = [];
-  for (const g of grouped) {
-    g.orders.forEach((order, i) => {
-      flatRows.push({ month: g.month, order, isFirst: i === 0, groupSize: g.orders.length });
-    });
-  }
-
-  const totalPages = Math.ceil(flatRows.length / PAGE_SIZE);
-  const pageRows = flatRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageRows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const exportToExcel = () => {
     const headers = ["Month", "Customer", "Description", "Size", "Qty", "Pass", "Comments", "Date"];
@@ -214,7 +208,7 @@ export default function CompletedData() {
 
       {isLoading ? (
         <div className="text-muted-foreground py-8">Loading...</div>
-      ) : flatRows.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-muted-foreground py-8 text-center">No completed orders for {activeYear}</div>
       ) : (
         <div className="bg-card rounded-lg border overflow-hidden">
@@ -224,6 +218,10 @@ export default function CompletedData() {
               <span>Page {page + 1} of {totalPages}</span>
             )}
           </div>
+
+          {/* Top pagination */}
+          <PaginationControls page={page} totalPages={totalPages} setPage={setPage} />
+
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -241,28 +239,20 @@ export default function CompletedData() {
             <tbody>
               {pageRows.map((row) => (
                 <tr
-                  key={row.order.id}
-                  className={`border-b last:border-b-0 hover:bg-muted/30 cursor-pointer ${row.isFirst ? "bg-muted/20" : ""}`}
-                  onClick={() => setDetailOrder(row.order)}
+                  key={row.id}
+                  className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer"
+                  onClick={() => setDetailOrder(row)}
                 >
-                  {row.isFirst && (
-                    <td
-                      className="p-3 font-semibold"
-                      rowSpan={Math.min(row.groupSize, pageRows.filter(r => r.month === row.month).length)}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      {row.month}
-                    </td>
-                  )}
-                  <td className="p-3">{row.order.client_company}</td>
-                  <td className="p-3">{row.order.description}</td>
-                  <td className="p-3">{row.order.size}</td>
-                  <td className="p-3">{row.order.quantity?.toLocaleString()}</td>
-                  <td className="p-3">{row.order.pass}</td>
-                  <td className="p-3">{row.order.comments}</td>
-                  <td className="p-3">{row.order.date_completed || "—"}</td>
+                  <td className="p-3">{row.month || ""}</td>
+                  <td className="p-3">{row.client_company || ""}</td>
+                  <td className="p-3">{row.description || ""}</td>
+                  <td className="p-3">{row.size || ""}</td>
+                  <td className="p-3">{row.quantity?.toLocaleString() || ""}</td>
+                  <td className="p-3">{row.pass ?? ""}</td>
+                  <td className="p-3">{row.comments || ""}</td>
+                  <td className="p-3">{row.date_completed || ""}</td>
                   <td className="p-3" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => setDeleteTarget(row.order.id)} className="text-destructive hover:text-destructive/80">
+                    <button onClick={() => setDeleteTarget(row.id)} className="text-destructive hover:text-destructive/80">
                       <Trash2 size={14} />
                     </button>
                   </td>
@@ -271,15 +261,10 @@ export default function CompletedData() {
             </tbody>
           </table>
 
+          {/* Bottom pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 p-3 border-t">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-                <ChevronLeft size={14} className="mr-1" /> Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-                Next <ChevronRight size={14} className="ml-1" />
-              </Button>
+            <div className="border-t">
+              <PaginationControls page={page} totalPages={totalPages} setPage={setPage} />
             </div>
           )}
         </div>
