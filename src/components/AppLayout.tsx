@@ -1,8 +1,15 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, ChevronLeft, ChevronRight, LogOut, KeyRound } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, LogOut, KeyRound, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -22,7 +29,6 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const handleSearchChange = (value: string) => {
@@ -49,91 +55,97 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   return (
     <div className="flex min-h-screen w-full">
       {/* Sidebar */}
-      <aside className={`${collapsed ? "w-16" : "w-64"} bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-200 shrink-0 relative`}>
+      <aside className="w-52 bg-sidebar text-sidebar-foreground flex flex-col shrink-0 rounded-3xl m-3 mr-0 overflow-hidden">
         {/* Logo */}
-        <div className="p-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-amber-600 flex items-center justify-center text-primary-foreground font-bold text-lg shrink-0">
+        <div className="p-5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0">
             B
           </div>
-          {!collapsed && (
-            <div className="overflow-hidden">
-              <div className="font-bold text-sm leading-tight">Bottles & Print</div>
-              <div className="text-xs text-sidebar-muted leading-tight">Order Manager</div>
-            </div>
-          )}
+          <div className="overflow-hidden">
+            <div className="font-sans font-semibold text-sm leading-tight">Bottles & Print</div>
+          </div>
         </div>
 
-        {/* Collapse Toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-7 z-10 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
-
-        {/* Search */}
-        {!collapsed && (
-          <div className="px-3 mb-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-sidebar-muted" />
-              <Input
-                placeholder="Search everything..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-muted h-9 text-sm"
-              />
-            </div>
-          </div>
-        )}
-
         {/* Nav */}
-        <nav className="flex-1 px-2 space-y-1">
+        <nav className="flex-1 px-3 space-y-0.5 mt-2">
           {navItems.map((item) => {
             const active = location.pathname === item.to;
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                title={collapsed ? item.label : undefined}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
                   active
                     ? "bg-sidebar-accent text-sidebar-primary font-medium"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                } ${collapsed ? "justify-center" : ""}`}
+                }`}
               >
-                <item.icon size={18} />
-                {!collapsed && <span>{item.label}</span>}
+                <item.icon size={17} />
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
         {/* Bottom actions */}
-        <div className="px-2 pb-4 mt-auto space-y-1">
+        <div className="px-3 pb-5 mt-auto space-y-0.5">
           <Link
             to="/change-password"
-            title={collapsed ? "Change Password" : undefined}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full ${collapsed ? "justify-center" : ""}`}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full"
           >
-            <KeyRound size={18} />
-            {!collapsed && <span>Change Password</span>}
+            <KeyRound size={17} />
+            <span>Change Password</span>
           </Link>
           <button
             onClick={signOut}
-            title={collapsed ? "Sign Out" : undefined}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full ${collapsed ? "justify-center" : ""}`}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full"
           >
-            <LogOut size={18} />
-            {!collapsed && <span>Sign Out</span>}
+            <LogOut size={17} />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      {/* Main area */}
+      <div className="flex-1 flex flex-col overflow-auto">
+        {/* Top banner */}
+        <header className="flex items-center justify-between px-6 py-3 shrink-0">
+          <div className="relative w-80">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="pl-10 bg-card border-0 shadow-sm rounded-xl h-9 text-sm"
+            />
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="rounded-xl gap-1.5 font-sans">
+                <Plus size={15} />
+                Quick Create
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => navigate("/orders", { state: { openNew: true } })}>
+                <Package size={15} className="mr-2" />
+                New Order
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/clients", { state: { openNew: true } })}>
+                <Users size={15} className="mr-2" />
+                New Client
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
