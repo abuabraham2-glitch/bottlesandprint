@@ -2,7 +2,7 @@ import { useOrders } from "@/lib/data";
 import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { StickyNote, Link2 } from "lucide-react";
+import { StickyNote, Link2, ClipboardList } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -249,18 +249,50 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           )}
         </div>
 
-        {/* Right: Calendar */}
-        <div className="floating-card h-fit">
-          <h3 className="text-base font-serif mb-3">Calendar</h3>
-          <p className="text-sm text-muted-foreground font-sans mb-2">
-            {format(calDate || new Date(), "MMMM yyyy")}
-          </p>
-          <Calendar
-            mode="single"
-            selected={calDate}
-            onSelect={setCalDate}
-            className="p-0 pointer-events-auto"
-          />
+        {/* Right: QB Review + Calendar */}
+        <div className="space-y-5">
+          {/* QuickBooks Review */}
+          {(() => {
+            const invoicesToReview = filtered.filter(o => o.invoice_num && !(o as any).invoice_reviewed).length;
+            const vendorPosToReview = filtered.filter(o => o.vendor_po && !(o as any).vendor_po_reviewed).length;
+            return (
+              <div className="floating-card">
+                <h3 className="text-base font-serif mb-3 flex items-center gap-2">
+                  <ClipboardList size={16} className="text-primary" />
+                  QuickBooks Review
+                </h3>
+                {invoicesToReview === 0 && vendorPosToReview === 0 ? (
+                  <p className="text-sm text-success font-medium">All caught up! ✓</p>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    {invoicesToReview > 0 && (
+                      <button onClick={() => navigate("/orders")} className="flex items-center gap-2 hover:text-primary transition-colors w-full text-left">
+                        <span className="font-medium">{invoicesToReview} invoice{invoicesToReview !== 1 ? "s" : ""} to review</span>
+                      </button>
+                    )}
+                    {vendorPosToReview > 0 && (
+                      <button onClick={() => navigate("/orders")} className="flex items-center gap-2 hover:text-primary transition-colors w-full text-left">
+                        <span className="font-medium">{vendorPosToReview} vendor PO{vendorPosToReview !== 1 ? "s" : ""} to review</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <div className="floating-card h-fit">
+            <h3 className="text-base font-serif mb-3">Calendar</h3>
+            <p className="text-sm text-muted-foreground font-sans mb-2">
+              {format(calDate || new Date(), "MMMM yyyy")}
+            </p>
+            <Calendar
+              mode="single"
+              selected={calDate}
+              onSelect={setCalDate}
+              className="p-0 pointer-events-auto"
+            />
+          </div>
         </div>
       </div>
     </div>

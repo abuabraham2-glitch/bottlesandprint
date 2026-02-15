@@ -11,6 +11,7 @@ import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw } from "lucide-r
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
+import { syncClientToQB } from "@/lib/quickbooks";
 
 export default function Clients() {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
@@ -227,6 +228,8 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
   const createClient = useCreateClient();
   const updateClient = useUpdateClient();
   const isEdit = !!initialData;
+  const [syncPromptOpen, setSyncPromptOpen] = useState(false);
+  const [savedClient, setSavedClient] = useState<any>(null);
   const [form, setForm] = useState({
     company: initialData?.company || "",
     contact_name: initialData?.contact_name || "",
@@ -251,51 +254,77 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
     } else {
       await createClient.mutateAsync(form);
     }
+    setSavedClient(form);
+    setSyncPromptOpen(true);
+  };
+
+  const handleSyncResponse = async (sync: boolean) => {
+    setSyncPromptOpen(false);
+    if (sync && savedClient) {
+      await syncClientToQB(savedClient);
+    }
     onSuccess();
   };
 
   const updateField = (key: string, val: string | boolean) => setForm(p => ({ ...p, [key]: val }));
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div><Label>Company *</Label><Input value={form.company} onChange={e => updateField("company", e.target.value)} required /></div>
-      <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => updateField("contact_name", e.target.value)} /></div>
-      <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => updateField("email", e.target.value)} /></div>
-      <div><Label>Phone</Label><Input value={form.phone} onChange={e => updateField("phone", e.target.value)} /></div>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div><Label>Company *</Label><Input value={form.company} onChange={e => updateField("company", e.target.value)} required /></div>
+        <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => updateField("contact_name", e.target.value)} /></div>
+        <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => updateField("email", e.target.value)} /></div>
+        <div><Label>Phone</Label><Input value={form.phone} onChange={e => updateField("phone", e.target.value)} /></div>
 
-      <AddressFields
-        label="Mailing Address"
-        street={form.street_address}
-        city={form.city}
-        state={form.state}
-        zip={form.zip}
-        onChange={(f, v) => updateField(f, v)}
-        streetField="street_address"
-        cityField="city"
-        stateField="state"
-        zipField="zip"
-      />
+        <AddressFields
+          label="Mailing Address"
+          street={form.street_address}
+          city={form.city}
+          state={form.state}
+          zip={form.zip}
+          onChange={(f, v) => updateField(f, v)}
+          streetField="street_address"
+          cityField="city"
+          stateField="state"
+          zipField="zip"
+        />
 
-      <AddressFields
-        label="Billing Address"
-        street={form.billing_street}
-        city={form.billing_city}
-        state={form.billing_state}
-        zip={form.billing_zip}
-        onChange={(f, v) => updateField(f, v)}
-        streetField="billing_street"
-        cityField="billing_city"
-        stateField="billing_state"
-        zipField="billing_zip"
-      />
+        <AddressFields
+          label="Billing Address"
+          street={form.billing_street}
+          city={form.billing_city}
+          state={form.billing_state}
+          zip={form.billing_zip}
+          onChange={(f, v) => updateField(f, v)}
+          streetField="billing_street"
+          cityField="billing_city"
+          stateField="billing_state"
+          zipField="billing_zip"
+        />
 
-      <label className="flex items-center gap-2">
-        <Checkbox checked={form.form_signed} onCheckedChange={v => updateField("form_signed", !!v)} />
-        <span className="text-sm">Form Signed</span>
-      </label>
-      <Button type="submit" disabled={createClient.isPending || updateClient.isPending} className="w-full">
-        {isEdit ? "Save Changes" : (createClient.isPending ? "Creating..." : "Add Client")}
-      </Button>
-    </form>
+        <label className="flex items-center gap-2">
+          <Checkbox checked={form.form_signed} onCheckedChange={v => updateField("form_signed", !!v)} />
+          <span className="text-sm">Form Signed</span>
+        </label>
+        <Button type="submit" disabled={createClient.isPending || updateClient.isPending} className="w-full">
+          {isEdit ? "Save Changes" : (createClient.isPending ? "Creating..." : "Add Client")}
+        </Button>
+      </form>
+
+      <AlertDialog open={syncPromptOpen} onOpenChange={setSyncPromptOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sync to QuickBooks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to sync this client to QuickBooks?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleSyncResponse(false)}>No</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleSyncResponse(true)}>Yes</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

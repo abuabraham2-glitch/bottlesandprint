@@ -224,6 +224,7 @@ export type Database = {
           due_date: string | null
           id: string
           invoice_num: string | null
+          invoice_reviewed: boolean
           invoiced: boolean
           item_name: string
           material: string | null
@@ -241,6 +242,7 @@ export type Database = {
           shipped: boolean
           stage: string
           vendor_po: string | null
+          vendor_po_reviewed: boolean
         }
         Insert: {
           archived?: boolean
@@ -261,6 +263,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           invoice_num?: string | null
+          invoice_reviewed?: boolean
           invoiced?: boolean
           item_name: string
           material?: string | null
@@ -278,6 +281,7 @@ export type Database = {
           shipped?: boolean
           stage?: string
           vendor_po?: string | null
+          vendor_po_reviewed?: boolean
         }
         Update: {
           archived?: boolean
@@ -298,6 +302,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           invoice_num?: string | null
+          invoice_reviewed?: boolean
           invoiced?: boolean
           item_name?: string
           material?: string | null
@@ -315,6 +320,7 @@ export type Database = {
           shipped?: boolean
           stage?: string
           vendor_po?: string | null
+          vendor_po_reviewed?: boolean
         }
         Relationships: [
           {
