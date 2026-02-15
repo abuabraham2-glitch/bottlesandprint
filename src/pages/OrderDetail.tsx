@@ -655,7 +655,7 @@ export default function OrderDetail() {
                 )}
               </div>
             </div>
-            {(order.vendor_po || order.stage === "wip") && (
+            {(
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Push Vendor PO</span>
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
