@@ -101,9 +101,9 @@ export function buildOrderDescription(order: {
   bottle_type?: string | null;
   num_colors?: number | null;
 }) {
-  const parts = [order.item_name];
-  const details = [order.bottle_size, order.material, order.bottle_type].filter(Boolean).join(" ");
-  if (details) parts.push(details);
-  if (order.num_colors) parts.push(`${order.num_colors} color print`);
-  return parts.join(" - ");
+  const line1 = order.item_name;
+  const detailParts = [order.bottle_size, order.material, order.bottle_type].filter(Boolean).join(" ");
+  const colorPart = order.num_colors ? `${order.num_colors} color` : null;
+  const line2Parts = [detailParts || null, colorPart].filter(Boolean).join(" - ");
+  return line2Parts ? `${line1}\n${line2Parts}` : line1;
 }
