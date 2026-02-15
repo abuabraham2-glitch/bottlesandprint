@@ -82,6 +82,7 @@ export default function Orders({ searchQuery }: OrdersProps) {
                 <th className="text-left p-3 font-medium">Size</th>
                 <th className="text-left p-3 font-medium">Qty</th>
                 <th className="text-left p-3 font-medium">Due</th>
+                <th className="text-left p-3 font-medium">Paid</th>
                 <th className="text-left p-3 font-medium">Stage</th>
               </tr>
             </thead>
@@ -116,6 +117,11 @@ export default function Orders({ searchQuery }: OrdersProps) {
                     <td className="p-3">{order.quantity?.toLocaleString()}</td>
                     <td className="p-3">{formatDateShort(order.due_date)}</td>
                     <td className="p-3">
+                      <span className={order.paid ? "text-green-600 font-medium" : "text-destructive font-medium"}>
+                        {order.paid ? "Yes" : "No"}
+                      </span>
+                    </td>
+                    <td className="p-3">
                       <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(order.stage)}`}>
                         {getStageLabel(order.stage)}
                       </Badge>
@@ -124,7 +130,7 @@ export default function Orders({ searchQuery }: OrdersProps) {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">
                   {searchQuery ? `No orders found for "${searchQuery}"` : "No orders found"}
                 </td></tr>
               )}

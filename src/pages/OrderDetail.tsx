@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useOrder, useOrders, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun, getSignedUrl, extractStoragePath } from "@/lib/data";
-import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, generateInvoiceNumber, DOC_TYPES, formatAddress, formatDateShort, getStageBadgeClass, getStageLabel } from "@/lib/constants";
+import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, DOC_TYPES, formatAddress, formatDateShort, getStageBadgeClass, getStageLabel } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -144,6 +144,16 @@ export default function OrderDetail() {
   };
 
   const moveStage = async (newStage: string) => {
+    // Guard: require vendor_po_reviewed before WIP
+    if (newStage === "wip" && !order.vendor_po_reviewed) {
+      toast.error("Vendor PO must be reviewed in QuickBooks before moving to WIP.");
+      return;
+    }
+    // Guard: require invoice_reviewed before Ship (to_ship)
+    if (newStage === "to_ship" && !order.invoice_reviewed) {
+      toast.error("Invoice must be reviewed in QuickBooks before shipping.");
+      return;
+    }
     const updates: Record<string, any> = { stage: newStage };
     if (newStage === "wip") {
       updates.due_date = format(addWeeks(new Date(), 4), "yyyy-MM-dd");
@@ -156,24 +166,30 @@ export default function OrderDetail() {
     toast.success(`Order moved to ${STAGES.find(s => s.key === newStage)?.label}`);
   };
 
+  // Check if this order shares its Client PO with others
+  const isSharedPo = hasRelatedOrders;
+  const allRelatedShipped = isSharedPo && relatedOrders.every(o => o.shipped);
+  const allGroupShipped = isSharedPo && order.shipped && allRelatedShipped;
+
   const createInvoice = async () => {
-    if (hasRelatedOrders) {
-      setInvoiceChoiceOpen(true);
+    // For shared PO orders, don't allow individual invoice creation
+    if (isSharedPo) {
+      toast.error("Multiple orders share this PO — invoice will be generated when all orders are complete.");
       return;
     }
     await doCreateInvoice(false);
   };
 
   const doCreateInvoice = async (combined: boolean) => {
-    const num = generateInvoiceNumber();
-    await update({ invoiced: true, invoice_num: num });
+    // No longer generating invoice number in-app; QB will auto-assign
+    await update({ invoiced: true });
     if (combined) {
       for (const ro of relatedOrders) {
-        await updateOrder.mutateAsync({ id: ro.id, invoiced: true, invoice_num: num } as any);
+        await updateOrder.mutateAsync({ id: ro.id, invoiced: true } as any);
       }
-      toast.success(`Invoice ${num} created for ${relatedOrders.length + 1} items under PO ${order.client_po}`);
+      toast.success(`Invoice created for ${relatedOrders.length + 1} items under PO ${order.client_po}`);
     } else {
-      toast.success(`Invoice ${num} created`);
+      toast.success("Invoice created");
     }
     setInvoiceChoiceOpen(false);
   };
@@ -487,7 +503,11 @@ export default function OrderDetail() {
         {order.stage === "completed" && (
           <>
             {!order.invoiced ? (
-              <Button onClick={createInvoice}>Create Invoice</Button>
+              isSharedPo ? (
+                <span className="text-sm text-muted-foreground">Multiple orders share this PO — invoice will be generated when all orders are complete.</span>
+              ) : (
+                <Button onClick={createInvoice}>Create Invoice</Button>
+              )
             ) : (
               <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>
             )}
@@ -535,7 +555,7 @@ export default function OrderDetail() {
             )}
           </>
         )}
-        {(order.stage === "preflight" || order.stage === "wip") && !order.invoiced && (
+        {(order.stage === "preflight" || order.stage === "wip") && !order.invoiced && !isSharedPo && (
           <Button variant="outline" onClick={createInvoice} className="ml-auto">Invoice Early</Button>
         )}
       </div>
@@ -658,28 +678,67 @@ export default function OrderDetail() {
                 </Button>
               </div>
             )}
-            <Detail label="Invoiced" value={order.invoiced ? `Yes — ${order.invoice_num}` : "No"} />
-            {order.invoice_num && (
+            <Detail label="Invoiced" value={order.invoiced ? (order.invoice_num ? `Yes — ${order.invoice_num}` : "Yes") : "No"} />
+            {isSharedPo && !allGroupShipped && !order.invoiced && (
+              <p className="text-xs text-amber-600">Multiple orders share this PO — invoice will be generated when all orders are complete.</p>
+            )}
+            {isSharedPo && allGroupShipped && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Combined Invoice</span>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                  const { utils, writeFile } = await import("xlsx");
+                  const rows = [order, ...relatedOrders].map(o => ({
+                    "Client PO": o.client_po || "",
+                    "Product Name": o.item_name,
+                    "Size": o.bottle_size || "",
+                    "Material": o.material || "",
+                    "Component": o.bottle_type || "",
+                    "Quantity": o.quantity || 0,
+                    "Description": buildOrderDescription(o),
+                  }));
+                  const ws = utils.json_to_sheet(rows);
+                  utils.sheet_add_aoa(ws, [
+                    [`${order.clients?.company || ""}`],
+                    [`PO: ${order.client_po || ""}`],
+                  ], { origin: "A1" });
+                  const wb = utils.book_new();
+                  utils.book_append_sheet(wb, ws, "Invoice Summary");
+                  writeFile(wb, `Invoice-Summary-${order.client_po || "PO"}.xlsx`);
+                  toast.success("Invoice summary downloaded");
+                }}>
+                  Generate Combined Invoice Summary
+                </Button>
+              </div>
+            )}
+            {!isSharedPo && order.invoiced && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Push Invoice</span>
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
-                  const desc = hasRelatedOrders
-                    ? [order, ...relatedOrders].map(o => buildOrderDescription(o)).join("\n")
-                    : buildOrderDescription(order);
-                  const qty = hasRelatedOrders ? 1 : (order.quantity || 1);
-                  const ok = await pushInvoiceToQB({
+                  const desc = buildOrderDescription(order);
+                  const qty = order.quantity || 1;
+                  const result = await pushInvoiceToQB({
                     company: order.clients?.company || "",
-                    invoice_num: order.invoice_num!,
                     description: desc,
                     quantity: qty,
+                    client_po: order.client_po || "",
                   });
-                  if (ok) await update({ invoice_reviewed: false });
+                  if (result.ok) {
+                    const updates: Record<string, any> = { invoice_reviewed: false };
+                    if (result.docNumber) updates.invoice_num = result.docNumber;
+                    await update(updates);
+                  }
                 }}>
                   <RefreshCw size={10} className="mr-1" /> Push to QB
                 </Button>
               </div>
             )}
-            <Detail label="Paid" value={order.paid ? `${order.pay_method} on ${formatDateShort(order.pay_date)}` : "No"} />
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Paid</span>
+              <span className={order.paid ? "text-green-600 font-medium" : "text-destructive font-medium"}>
+                {order.paid ? `Yes` : "No"}
+                {order.pay_method && order.paid ? ` — ${order.pay_method} on ${formatDateShort(order.pay_date)}` : ""}
+              </span>
+            </div>
             {/* QB Review Checkboxes */}
             {order.invoice_num && (
               <label className="flex items-center justify-between cursor-pointer">
@@ -1041,7 +1100,7 @@ export default function OrderDetail() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setQbPaymentPromptOpen(false)}>No</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => { setQbPaymentPromptOpen(false); await recordPaymentInQB(pendingPaymentMethod); }}>Yes</AlertDialogAction>
+            <AlertDialogAction onClick={async () => { setQbPaymentPromptOpen(false); await recordPaymentInQB({ invoice_num: order.invoice_num || "", company: order.clients?.company || "" }); }}>Yes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
