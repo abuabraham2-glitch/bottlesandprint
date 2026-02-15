@@ -643,12 +643,16 @@ export default function OrderDetail() {
                     ? [order, ...relatedOrders].map(o => `${o.clients?.company || ""} - ${buildOrderDescription(o)}`).join("\n")
                     : `${order.clients?.company || ""} - ${buildOrderDescription(order)}`;
                   const qty = hasRelatedOrders ? 1 : (order.quantity || 1);
-                  const ok = await pushVendorPoToQB({
+                  const result = await pushVendorPoToQB({
                     description: desc,
                     quantity: qty,
-                    memo: `Client PO: ${order.client_po || ""} | Vendor PO: ${order.vendor_po || ""}`,
+                    memo: desc,
                   });
-                  if (ok) await update({ vendor_po_reviewed: false });
+                  if (result.ok) {
+                    const updates: Record<string, any> = { vendor_po_reviewed: false };
+                    if (result.docNumber) updates.vendor_po = result.docNumber;
+                    await update(updates);
+                  }
                 }}>
                   <RefreshCw size={10} className="mr-1" /> Push Vendor PO to QuickBooks
                 </Button>
