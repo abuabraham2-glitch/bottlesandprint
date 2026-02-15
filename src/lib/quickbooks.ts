@@ -105,5 +105,5 @@ export function buildOrderDescription(order: {
   const detailParts = [order.bottle_size, order.material, order.bottle_type].filter(Boolean).join(" ");
   const colorPart = order.num_colors ? `${order.num_colors} color` : null;
   const line2Parts = [detailParts || null, colorPart].filter(Boolean).join(" - ");
-  return line2Parts ? `${line1}\n${line2Parts}` : line1;
+  return line2Parts ? `${line1} | ${line2Parts}` : line1;
 }
