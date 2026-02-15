@@ -169,11 +169,12 @@ export function useOrder(id: string) {
   });
 }
 
-export function useCatalog(clientId?: string) {
+export function useCatalog(clientId?: string, includeArchived = false) {
   return useQuery({
-    queryKey: ["catalog", clientId],
+    queryKey: ["catalog", clientId, includeArchived],
     queryFn: async () => {
-      let query = supabase.from("catalog").select("*, clients(*)").eq("archived", false).order("product_name");
+      let query = supabase.from("catalog").select("*, clients(*)").order("product_name");
+      if (!includeArchived) query = query.eq("archived", false);
       if (clientId) query = query.eq("client_id", clientId);
       const { data, error } = await query;
       if (error) throw error;
