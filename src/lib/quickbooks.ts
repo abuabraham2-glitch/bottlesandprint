@@ -67,18 +67,39 @@ export async function pushVendorPoToQB(params: {
   description: string;
   quantity: number;
   memo: string;
-}) {
-  const ok = await postToWebhook({
-    action: "create_vendor_po",
-    description: params.description,
-    quantity: params.quantity,
-    unit_price: 0,
-    amount: 0,
-    memo: params.memo,
-  });
-  if (ok) toast.success("Vendor PO draft created in QuickBooks.");
-  else toast.error("Failed to create Vendor PO in QuickBooks.");
-  return ok;
+}): Promise<{ ok: boolean; docNumber?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_vendor_po",
+        description: params.description,
+        quantity: params.quantity,
+        unit_price: 0,
+        amount: 0,
+        memo: params.memo,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      toast.error("Failed to create Vendor PO in QuickBooks.");
+      return { ok: false };
+    }
+    let docNumber: string | undefined;
+    try {
+      const json = await res.json();
+      docNumber = json?.PurchaseOrder?.DocNumber;
+    } catch { /* ignore parse errors */ }
+    toast.success("Vendor PO draft created in QuickBooks.");
+    return { ok: true, docNumber };
+  } catch {
+    toast.error("Failed to create Vendor PO in QuickBooks.");
+    return { ok: false };
+  }
 }
 
 export async function recordPaymentInQB(paymentMethod: string) {
@@ -105,5 +126,5 @@ export function buildOrderDescription(order: {
   const detailParts = [order.bottle_size, order.material, order.bottle_type].filter(Boolean).join(" ");
   const colorPart = order.num_colors ? `${order.num_colors} color` : null;
   const line2Parts = [detailParts || null, colorPart].filter(Boolean).join(" - ");
-  return line2Parts ? `${line1} | ${line2Parts}` : line1;
+  return line2Parts ? `${line1} ${line2Parts}` : line1;
 }
