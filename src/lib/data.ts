@@ -437,13 +437,9 @@ export function useDeleteDocument() {
 }
 
 export async function getNextBolNumber(): Promise<string> {
-  // Use the settings table for atomic BOL numbering
-  const { data, error } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "next_bol_number")
-    .single();
-
+  // Use atomic PostgreSQL function with row-level locking
+  const { data, error } = await supabase.rpc('get_next_bol_number');
+  
   if (error || !data) {
     // Fallback: scan orders table
     const { data: orders } = await supabase
@@ -459,14 +455,7 @@ export async function getNextBolNumber(): Promise<string> {
     return (maxNum + 1).toString();
   }
 
-  const currentNum = parseInt(data.value, 10);
-  // Increment the sequence
-  await supabase
-    .from("settings")
-    .update({ value: (currentNum + 1).toString() })
-    .eq("key", "next_bol_number");
-
-  return currentNum.toString();
+  return data as string;
 }
 
 export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: string) {
