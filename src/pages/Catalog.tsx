@@ -1,20 +1,17 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCatalog, useUpdateCatalogItem, useDeleteCatalogItem, CatalogItem } from "@/lib/data";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Archive, Trash2 } from "lucide-react";
+import { Archive, Trash2, RotateCcw, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
 // Convert "2022-03" format to "Mar 2022" for display
 function formatLastRun(val: string | null): string {
   if (!val) return "—";
-  // Already in "Mon YYYY" or "Month YYYY" format
   if (/^[A-Za-z]/.test(val)) return val;
-  // "YYYY-MM" format
   const match = val.match(/^(\d{4})-(\d{2})$/);
   if (match) {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -24,20 +21,77 @@ function formatLastRun(val: string | null): string {
   return val;
 }
 
+// Parse "Mon YYYY" or "YYYY-MM" to a sortable number (YYYYMM)
+function parseRunDate(val: string | null): number {
+  if (!val) return 0;
+  const monthMap: Record<string, number> = {
+    jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12
+  };
+  // "Mon YYYY"
+  const m1 = val.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m1) {
+    const mo = monthMap[m1[1].toLowerCase().slice(0, 3)] || 0;
+    return parseInt(m1[2]) * 100 + mo;
+  }
+  // "YYYY-MM"
+  const m2 = val.match(/^(\d{4})-(\d{2})$/);
+  if (m2) return parseInt(m2[1]) * 100 + parseInt(m2[2]);
+  return 0;
+}
+
+type SortKey = "client" | "first_run" | "last_run";
+type SortDir = "asc" | "desc";
+
 export default function Catalog() {
-  const [showArchived, setShowArchived] = useState(false);
-  const { data: items = [], isLoading } = useCatalog();
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
+  const { data: allItems = [], isLoading } = useCatalog(undefined, true); // fetch all
   const updateItem = useUpdateCatalogItem();
   const deleteItem = useDeleteCatalogItem();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
   const [editItem, setEditItem] = useState<CatalogItem | null>(null);
   const [editForm, setEditForm] = useState({
     product_name: "", size: "", component: "", material: "",
     container_color: "", num_colors: "", print_colors: "",
     first_run: "", last_run: "",
   });
+  const [sortKey, setSortKey] = useState<SortKey>("client");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const filtered = showArchived ? items : items.filter(i => !i.archived);
+  const activeItems = allItems.filter(i => !i.archived);
+  const archivedItems = allItems.filter(i => i.archived);
+  const tabItems = activeTab === "active" ? activeItems : archivedItems;
+
+  const sorted = useMemo(() => {
+    const items = [...tabItems];
+    items.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "client") {
+        cmp = (a.clients?.company || "").toLowerCase().localeCompare((b.clients?.company || "").toLowerCase());
+        if (cmp === 0) cmp = a.product_name.toLowerCase().localeCompare(b.product_name.toLowerCase());
+      } else if (sortKey === "first_run") {
+        cmp = parseRunDate(a.first_run) - parseRunDate(b.first_run);
+      } else if (sortKey === "last_run") {
+        cmp = parseRunDate(a.last_run) - parseRunDate(b.last_run);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return items;
+  }, [tabItems, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir(key === "client" ? "asc" : "desc"); // dates default newest first
+    }
+  };
+
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return null;
+    return sortDir === "asc" ? <ArrowUp size={12} className="inline ml-1" /> : <ArrowDown size={12} className="inline ml-1" />;
+  };
 
   const openEdit = (item: CatalogItem) => {
     setEditItem(item);
@@ -72,11 +126,22 @@ export default function Catalog() {
     setEditItem(null);
   };
 
-  const archiveItem = async (id: string, e: React.MouseEvent) => {
+  const handleArchiveClick = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Archive this catalog item?")) return;
-    await updateItem.mutateAsync({ id, archived: true });
-    toast.success("Item archived");
+    setArchiveTarget({ id, name });
+  };
+
+  const confirmArchive = async () => {
+    if (!archiveTarget) return;
+    await updateItem.mutateAsync({ id: archiveTarget.id, archived: true });
+    toast.success("Product archived");
+    setArchiveTarget(null);
+  };
+
+  const restoreItem = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await updateItem.mutateAsync({ id, archived: false });
+    toast.success("Product restored");
   };
 
   const confirmDeleteItem = async () => {
@@ -88,7 +153,7 @@ export default function Catalog() {
 
   const exportToExcel = () => {
     const headers = ["Client", "Product", "Size", "Component", "Material", "Container Color", "# Colors", "PMS Colors", "First Run", "Last Run"];
-    const rows = filtered.map(i => [
+    const rows = sorted.map(i => [
       i.clients?.company, i.product_name, i.size, i.component, i.material, i.container_color, i.num_colors, i.print_colors, i.first_run, formatLastRun(i.last_run)
     ]);
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v || ""}"`).join(","))].join("\n");
@@ -106,20 +171,40 @@ export default function Catalog() {
     <div className="p-6 space-y-4 max-w-[1600px]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Product Catalog</h1>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <Switch checked={showArchived} onCheckedChange={setShowArchived} />
-            Show Archived
-          </label>
-          <Button variant="outline" onClick={exportToExcel}>Export to Excel</Button>
-        </div>
+        <Button variant="outline" onClick={exportToExcel}>Export to Excel</Button>
+      </div>
+
+      {/* Active / Archived tabs */}
+      <div className="flex flex-wrap gap-1">
+        <button
+          onClick={() => setActiveTab("active")}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            activeTab === "active"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          Active ({activeItems.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("archived")}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            activeTab === "archived"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          Archived ({archivedItems.length})
+        </button>
       </div>
 
       <div className="bg-card rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="text-left p-3 font-medium">Client</th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort("client")}>
+                Client<SortIcon col="client" />
+              </th>
               <th className="text-left p-3 font-medium">Product</th>
               <th className="text-left p-3 font-medium">Size</th>
               <th className="text-left p-3 font-medium">Component</th>
@@ -127,13 +212,17 @@ export default function Catalog() {
               <th className="text-left p-3 font-medium">Color</th>
               <th className="text-left p-3 font-medium"># Colors</th>
               <th className="text-left p-3 font-medium">PMS Colors</th>
-              <th className="text-left p-3 font-medium">First Run</th>
-              <th className="text-left p-3 font-medium">Last Run</th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort("first_run")}>
+                First Run<SortIcon col="first_run" />
+              </th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort("last_run")}>
+                Last Run<SortIcon col="last_run" />
+              </th>
               <th className="text-left p-3 font-medium"></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(item => (
+            {sorted.map(item => (
               <tr key={item.id} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer" onClick={() => openEdit(item)}>
                 <td className="p-3">{item.clients?.company}</td>
                 <td className="p-3 font-medium">{item.product_name}</td>
@@ -147,9 +236,14 @@ export default function Catalog() {
                 <td className="p-3">{formatLastRun(item.last_run)}</td>
                 <td className="p-3" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
-                    {!item.archived && (
-                      <button onClick={(e) => archiveItem(item.id, e)} className="text-muted-foreground hover:text-foreground" title="Archive">
+                    {activeTab === "active" && (
+                      <button onClick={(e) => handleArchiveClick(item.id, item.product_name, e)} className="text-muted-foreground hover:text-foreground" title="Archive">
                         <Archive size={14} />
+                      </button>
+                    )}
+                    {activeTab === "archived" && (
+                      <button onClick={(e) => restoreItem(item.id, e)} className="text-muted-foreground hover:text-foreground" title="Restore">
+                        <RotateCcw size={14} />
                       </button>
                     )}
                     <button onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: item.id, name: item.product_name }); }} className="text-muted-foreground hover:text-destructive" title="Delete">
@@ -159,7 +253,7 @@ export default function Catalog() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {sorted.length === 0 && (
               <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No catalog items</td></tr>
             )}
           </tbody>
@@ -218,6 +312,22 @@ export default function Catalog() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Archive Confirmation */}
+      <AlertDialog open={!!archiveTarget} onOpenChange={(open) => !open && setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Archive "{archiveTarget?.name}"? It will be moved to the Archived tab.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Catalog Item Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

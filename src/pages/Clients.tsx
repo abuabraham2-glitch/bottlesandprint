@@ -7,30 +7,55 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { Plus, Archive, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
 
 export default function Clients() {
-  const [showArchived, setShowArchived] = useState(false);
-  const { data: clients = [], isLoading } = useClients(showArchived);
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
+  const { data: allClients = [], isLoading } = useClients(true); // fetch all
   const { data: orders = [] } = useOrders();
   const updateClient = useUpdateClient();
   const deleteClient = useDeleteClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; company: string } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; company: string } | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const archiveClient = async (id: string) => {
-    if (!confirm("Archive this client?")) return;
-    await updateClient.mutateAsync({ id, archived: true });
-    toast.success("Client archived");
+  const activeClients = allClients.filter(c => !c.archived);
+  const archivedClients = allClients.filter(c => c.archived);
+  const clients = activeTab === "active" ? activeClients : archivedClients;
+
+  const handleArchiveClick = (id: string, company: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const activeOrders = orders.filter(o => o.client_id === id && !o.archived);
+    if (activeOrders.length > 0) {
+      setArchiveError("This client has active orders and cannot be archived. Archive the orders first.");
+      setArchiveTarget({ id, company });
+    } else {
+      setArchiveError(null);
+      setArchiveTarget({ id, company });
+    }
   };
 
-  const handleDeleteClick = (id: string, company: string) => {
+  const confirmArchive = async () => {
+    if (!archiveTarget || archiveError) { setArchiveTarget(null); setArchiveError(null); return; }
+    await updateClient.mutateAsync({ id: archiveTarget.id, archived: true });
+    toast.success("Client archived");
+    setArchiveTarget(null);
+  };
+
+  const restoreClient = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await updateClient.mutateAsync({ id, archived: false });
+    toast.success("Client restored");
+  };
+
+  const handleDeleteClick = (id: string, company: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     const activeOrders = orders.filter(o => o.client_id === id && !o.archived);
     if (activeOrders.length > 0) {
       setDeleteError("This client has active orders and cannot be deleted. Archive them first.");
@@ -70,10 +95,6 @@ export default function Clients() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Clients</h1>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <Switch checked={showArchived} onCheckedChange={setShowArchived} />
-            Show Archived
-          </label>
           <Button variant="outline" onClick={exportClients}>Export to Excel</Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -87,6 +108,30 @@ export default function Clients() {
         </div>
       </div>
 
+      {/* Active / Archived tabs */}
+      <div className="flex flex-wrap gap-1">
+        <button
+          onClick={() => setActiveTab("active")}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            activeTab === "active"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          Active ({activeClients.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("archived")}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            activeTab === "archived"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          Archived ({archivedClients.length})
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {clients.map(client => {
           const activeOrders = orders.filter(o => o.client_id === client.id && !o.archived).length;
@@ -94,7 +139,7 @@ export default function Clients() {
           return (
             <div
               key={client.id}
-              className={`bg-card rounded-lg border p-5 cursor-pointer hover:shadow-md transition-shadow ${client.archived ? "opacity-60" : ""}`}
+              className="bg-card rounded-lg border p-5 cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => navigate(`/clients/${client.id}`)}
             >
               <div className="flex items-start justify-between mb-3">
@@ -103,12 +148,17 @@ export default function Clients() {
                   {client.contact_name && <p className="text-sm text-muted-foreground">{client.contact_name}</p>}
                 </div>
                 <div className="flex items-center gap-1">
-                  {!client.archived && (
-                    <button onClick={e => { e.stopPropagation(); archiveClient(client.id); }} className="text-muted-foreground hover:text-foreground p-1" title="Archive">
+                  {activeTab === "active" && (
+                    <button onClick={e => handleArchiveClick(client.id, client.company, e)} className="text-muted-foreground hover:text-foreground p-1" title="Archive">
                       <Archive size={16} />
                     </button>
                   )}
-                  <button onClick={e => { e.stopPropagation(); handleDeleteClick(client.id, client.company); }} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
+                  {activeTab === "archived" && (
+                    <button onClick={e => restoreClient(client.id, e)} className="text-muted-foreground hover:text-foreground p-1" title="Restore">
+                      <RotateCcw size={16} />
+                    </button>
+                  )}
+                  <button onClick={e => handleDeleteClick(client.id, client.company, e)} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -133,6 +183,24 @@ export default function Clients() {
           <div className="col-span-full text-center text-muted-foreground py-12">No clients found</div>
         )}
       </div>
+
+      {/* Archive Client Confirmation */}
+      <AlertDialog open={!!archiveTarget} onOpenChange={(open) => { if (!open) { setArchiveTarget(null); setArchiveError(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{archiveError ? "Cannot Archive Client" : "Archive Client"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {archiveError || `Archive "${archiveTarget?.company}"? They will be moved to the Archived tab.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {!archiveError && (
+              <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Client Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}>
