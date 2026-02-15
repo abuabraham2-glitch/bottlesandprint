@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClientForm } from "./Clients";
+import { syncClientToQB } from "@/lib/quickbooks";
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -53,6 +54,7 @@ export default function ClientDetail() {
         <h1 className="text-2xl font-bold">{client.company}</h1>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil size={14} className="mr-1" /> Edit</Button>
         <Button variant="outline" size="sm" onClick={handleDeleteClick} className="text-destructive hover:text-destructive"><Trash2 size={14} className="mr-1" /> Delete</Button>
+        <Button variant="outline" size="sm" onClick={() => syncClientToQB(client)}><RefreshCw size={14} className="mr-1" /> Sync to QuickBooks</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-6">

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw } from "lucide-react";
+import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, recordPaymentInQB, buildOrderDescription } from "@/lib/quickbooks";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
 import { format, addWeeks } from "date-fns";
@@ -100,6 +101,8 @@ export default function OrderDetail() {
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
   const [bolRegenOpen, setBolRegenOpen] = useState(false);
   const [deleteOrderOpen, setDeleteOrderOpen] = useState(false);
+  const [qbPaymentPromptOpen, setQbPaymentPromptOpen] = useState(false);
+  const [pendingPaymentMethod, setPendingPaymentMethod] = useState("");
 
   const [bolChoiceOpen, setBolChoiceOpen] = useState(false);
   const [invoiceChoiceOpen, setInvoiceChoiceOpen] = useState(false);
@@ -179,6 +182,8 @@ export default function OrderDetail() {
     await update({ paid: true, pay_method: "ACH", pay_date: achDate });
     setAchDialogOpen(false);
     toast.success("ACH payment recorded");
+    setPendingPaymentMethod("ACH");
+    setQbPaymentPromptOpen(true);
   };
 
   const handleCheckPayment = async () => {
@@ -186,6 +191,8 @@ export default function OrderDetail() {
     await update({ paid: true, pay_method: method, pay_date: checkDate });
     setCheckDialogOpen(false);
     toast.success("Check payment recorded");
+    setPendingPaymentMethod("Check");
+    setQbPaymentPromptOpen(true);
   };
 
   const handleArchive = async () => {
@@ -626,13 +633,62 @@ export default function OrderDetail() {
                     </button>
                   </>
                 )}
-                <Button variant="outline" size="sm" className="h-7 text-xs ml-1" onClick={() => toast.info("QuickBooks integration coming soon — enter the Vendor PO manually for now.")}>
-                  <RefreshCw size={10} className="mr-1" /> Create in QuickBooks
-                </Button>
               </div>
             </div>
+            {order.vendor_po && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Push Vendor PO</span>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                  const desc = hasRelatedOrders
+                    ? [order, ...relatedOrders].map(o => `${o.clients?.company || ""} - ${buildOrderDescription(o)}`).join("\n")
+                    : `${order.clients?.company || ""} - ${buildOrderDescription(order)}`;
+                  const qty = hasRelatedOrders ? 1 : (order.quantity || 1);
+                  const ok = await pushVendorPoToQB({
+                    description: desc,
+                    quantity: qty,
+                    memo: `Client PO: ${order.client_po || ""} | Vendor PO: ${order.vendor_po || ""}`,
+                  });
+                  if (ok) await update({ vendor_po_reviewed: false });
+                }}>
+                  <RefreshCw size={10} className="mr-1" /> Push to QB
+                </Button>
+              </div>
+            )}
             <Detail label="Invoiced" value={order.invoiced ? `Yes — ${order.invoice_num}` : "No"} />
+            {order.invoice_num && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Push Invoice</span>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                  const desc = hasRelatedOrders
+                    ? [order, ...relatedOrders].map(o => buildOrderDescription(o)).join("\n")
+                    : buildOrderDescription(order);
+                  const qty = hasRelatedOrders ? 1 : (order.quantity || 1);
+                  const ok = await pushInvoiceToQB({
+                    company: order.clients?.company || "",
+                    invoice_num: order.invoice_num!,
+                    description: desc,
+                    quantity: qty,
+                  });
+                  if (ok) await update({ invoice_reviewed: false });
+                }}>
+                  <RefreshCw size={10} className="mr-1" /> Push to QB
+                </Button>
+              </div>
+            )}
             <Detail label="Paid" value={order.paid ? `${order.pay_method} on ${formatDateShort(order.pay_date)}` : "No"} />
+            {/* QB Review Checkboxes */}
+            {order.invoice_num && (
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-muted-foreground">Invoice reviewed in QB</span>
+                <Checkbox checked={(order as any).invoice_reviewed || false} onCheckedChange={v => update({ invoice_reviewed: !!v })} />
+              </label>
+            )}
+            {order.vendor_po && (
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-muted-foreground">Vendor PO reviewed in QB</span>
+                <Checkbox checked={(order as any).vendor_po_reviewed || false} onCheckedChange={v => update({ vendor_po_reviewed: !!v })} />
+              </label>
+            )}
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
@@ -968,6 +1024,20 @@ export default function OrderDetail() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteOrder} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* QB Payment Prompt */}
+      <AlertDialog open={qbPaymentPromptOpen} onOpenChange={setQbPaymentPromptOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Record Payment in QuickBooks?</AlertDialogTitle>
+            <AlertDialogDescription>Would you like to record this payment in QuickBooks?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setQbPaymentPromptOpen(false)}>No</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => { setQbPaymentPromptOpen(false); await recordPaymentInQB(pendingPaymentMethod); }}>Yes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

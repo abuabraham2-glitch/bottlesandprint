@@ -75,6 +75,8 @@ export interface Order {
   notes: string | null;
   archived: boolean;
   created_at: string;
+  invoice_reviewed: boolean;
+  vendor_po_reviewed: boolean;
   clients?: Client;
 }
 
