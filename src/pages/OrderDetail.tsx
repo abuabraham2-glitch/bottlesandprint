@@ -646,7 +646,7 @@ export default function OrderDetail() {
                   const result = await pushVendorPoToQB({
                     description: desc,
                     quantity: qty,
-                    memo: desc,
+                    memo: [order.item_name, order.bottle_size].filter(Boolean).join(" "),
                   });
                   if (result.ok) {
                     const updates: Record<string, any> = { vendor_po_reviewed: false };
