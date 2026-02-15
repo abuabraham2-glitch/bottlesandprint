@@ -74,7 +74,7 @@ export async function pushInvoiceToQB(params: {
     let docNumber: string | undefined;
     try {
       const json = await res.json();
-      docNumber = json?.Invoice?.DocNumber;
+      docNumber = json?.DocNumber || json?.Invoice?.DocNumber;
     } catch { /* ignore parse errors */ }
     toast.success("Invoice draft created in QuickBooks.");
     return { ok: true, docNumber };
