@@ -119,20 +119,10 @@ export function generateBolPdf({ bolNumber, carrier, order, combinedOrders }: Bo
       pdf.text("UNIT D", mx + 6, y + 52);
       pdf.text("PACOIMA, CA 91331", mx + 6, y + 64);
 
-      // Top-Right: DELIVER TO
+      // Top-Right: DELIVER TO (left blank for manual entry)
       rect(mx + halfW, y, halfW, boxH);
       pdf.setFontSize(8);
       bold("DELIVER TO:", mx + halfW + 6, y + 14);
-      if (client) {
-        pdf.setFontSize(11);
-        bold(client.company.toUpperCase(), mx + halfW + 6, y + 28);
-        pdf.setFontSize(10);
-        let cy = y + 40;
-        if (client.street_address) { pdf.text(client.street_address.toUpperCase(), mx + halfW + 6, cy); cy += 12; }
-        const cityLine = [client.city, client.state].filter(Boolean).join(", ");
-        const fullLine = [cityLine, client.zip].filter(Boolean).join(" ").toUpperCase();
-        if (fullLine) { pdf.text(fullLine, mx + halfW + 6, cy); }
-      }
       y += boxH;
 
       // Bottom-Left: CONSIGNEE (SOLD TO)

@@ -45,22 +45,43 @@ export async function syncClientToQB(client: {
 
 export async function pushInvoiceToQB(params: {
   company: string;
-  invoice_num: string;
   description: string;
   quantity: number;
-}) {
-  const ok = await postToWebhook({
-    action: "create_invoice",
-    company: params.company,
-    invoice_num: params.invoice_num,
-    description: params.description,
-    quantity: params.quantity,
-    unit_price: 0,
-    amount: 0,
-  });
-  if (ok) toast.success("Invoice draft created in QuickBooks.");
-  else toast.error("Failed to push invoice to QuickBooks.");
-  return ok;
+  client_po: string;
+}): Promise<{ ok: boolean; docNumber?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_invoice",
+        company: params.company,
+        description: params.description,
+        quantity: params.quantity,
+        client_po: params.client_po,
+        unit_price: 0,
+        amount: 0,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      toast.error("Failed to push invoice to QuickBooks.");
+      return { ok: false };
+    }
+    let docNumber: string | undefined;
+    try {
+      const json = await res.json();
+      docNumber = json?.Invoice?.DocNumber;
+    } catch { /* ignore parse errors */ }
+    toast.success("Invoice draft created in QuickBooks.");
+    return { ok: true, docNumber };
+  } catch {
+    toast.error("Failed to push invoice to QuickBooks.");
+    return { ok: false };
+  }
 }
 
 export async function pushVendorPoToQB(params: {
@@ -102,15 +123,16 @@ export async function pushVendorPoToQB(params: {
   }
 }
 
-export async function recordPaymentInQB(paymentMethod: string) {
+export async function recordPaymentInQB(params: {
+  invoice_num: string;
+  company: string;
+}) {
   const ok = await postToWebhook({
     action: "record_payment",
-    customer_id: "",
-    invoice_id: "",
-    amount: 0,
-    payment_method: paymentMethod,
+    invoice_num: params.invoice_num,
+    company: params.company,
   });
-  if (ok) toast.success("Payment recorded in QuickBooks.");
+  if (ok) toast.success("Payment recorded — check QuickBooks to confirm.");
   else toast.error("Failed to record payment.");
   return ok;
 }
