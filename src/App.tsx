@@ -17,6 +17,8 @@ import ChangePassword from "@/pages/ChangePassword";
 import SearchResults from "@/pages/SearchResults";
 import Login from "@/pages/Login";
 import NotFound from "./pages/NotFound";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,11 +71,11 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/*" element={<ProtectedApp />} />
-            </Routes>
-          </AuthProvider>
+          <Routes>
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/*" element={<AuthProvider><ProtectedApp /></AuthProvider>} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
