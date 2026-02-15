@@ -740,7 +740,7 @@ export default function OrderDetail() {
               </span>
             </div>
             {/* QB Review Checkboxes */}
-            {order.invoice_num && (
+            {(order.invoiced || order.invoice_num) && (
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="text-muted-foreground">Invoice reviewed in QB</span>
                 <Checkbox checked={(order as any).invoice_reviewed || false} onCheckedChange={v => update({ invoice_reviewed: !!v })} />
