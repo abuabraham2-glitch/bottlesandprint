@@ -635,7 +635,7 @@ export default function OrderDetail() {
                 )}
               </div>
             </div>
-            {order.vendor_po && (
+            {(order.vendor_po || order.stage === "wip") && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Push Vendor PO</span>
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
@@ -650,7 +650,7 @@ export default function OrderDetail() {
                   });
                   if (ok) await update({ vendor_po_reviewed: false });
                 }}>
-                  <RefreshCw size={10} className="mr-1" /> Push to QB
+                  <RefreshCw size={10} className="mr-1" /> Push Vendor PO to QuickBooks
                 </Button>
               </div>
             )}
