@@ -59,9 +59,8 @@ export async function syncClientToQB(client: {
 
 export async function pushInvoiceToQB(params: {
   company: string;
-  description: string;
-  quantity: number;
   client_po: string;
+  items: { description: string; quantity: number }[];
 }): Promise<{ ok: boolean; docNumber?: string }> {
   try {
     const docNum = await getNextSequenceNumber('invoice');
@@ -70,11 +69,8 @@ export async function pushInvoiceToQB(params: {
     const payload: Record<string, any> = {
       action: "create_invoice",
       company: params.company,
-      description: params.description,
-      quantity: params.quantity,
       client_po: params.client_po,
-      unit_price: 0,
-      amount: 0,
+      items: params.items,
     };
     if (docNum !== null) payload.doc_number = docNum.toString();
     const res = await fetch(WEBHOOK_URL, {
@@ -102,21 +98,17 @@ export async function pushInvoiceToQB(params: {
 }
 
 export async function pushVendorPoToQB(params: {
-  description: string;
-  quantity: number;
-  memo: string;
+  items: { description: string; quantity: number; memo: string }[];
 }): Promise<{ ok: boolean; docNumber?: string }> {
   try {
     const docNum = await getNextSequenceNumber('vendor_po');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
+    const combinedMemo = params.items.map(i => i.memo).join(" | ");
     const payload: Record<string, any> = {
       action: "create_vendor_po",
-      description: params.description,
-      quantity: params.quantity,
-      unit_price: 0,
-      amount: 0,
-      memo: params.memo,
+      items: params.items,
+      memo: combinedMemo,
     };
     if (docNum !== null) payload.doc_number = docNum.toString();
     const res = await fetch(WEBHOOK_URL, {
