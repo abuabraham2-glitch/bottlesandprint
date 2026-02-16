@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useOrders, useClients, useCatalog, useCreateOrder, autoCreateCatalogEntry } from "@/lib/data";
+import { useOrders, useClients, useCatalog, useCreateOrder, useCreateOrderItems, autoCreateCatalogEntry } from "@/lib/data";
 import { getStageBadgeClass, getStageLabel, BOTTLE_TYPES, MATERIALS, COLORS, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, StickyNote, Link2 } from "lucide-react";
+import { Plus, StickyNote, Link2, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -229,188 +229,255 @@ function SearchableSelect({ label, options, value, onChange, placeholder }: {
   );
 }
 
-function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
-  const { data: clients = [] } = useClients();
-  const createOrder = useCreateOrder();
-  const queryClient = useQueryClient();
-  const [clientId, setClientId] = useState("");
-  const { data: catalogItems = [] } = useCatalog(clientId || undefined);
-  const [catalogItemId, setCatalogItemId] = useState("");
+interface ItemFormData {
+  item_name: string;
+  bottle_type: string;
+  bottle_size: string;
+  material: string;
+  bottle_color: string;
+  num_colors: string;
+  pms_colors: string[];
+  quantity: string;
+  packing: string;
+  catalogItemId: string;
+}
 
-  const today = format(new Date(), "yyyy-MM-dd");
-
-  const [form, setForm] = useState({
+function createEmptyItem(): ItemFormData {
+  return {
     item_name: "",
     bottle_type: "",
     bottle_size: "",
     material: "",
     bottle_color: "",
     num_colors: "",
-    pms_colors: [""] as string[],
+    pms_colors: [""],
     quantity: "",
     packing: "",
-    client_po: "",
-    notes: "",
-    date_entered: today,
-  });
+    catalogItemId: "",
+  };
+}
 
-  const handleCatalogSelect = (itemId: string) => {
-    setCatalogItemId(itemId);
-    const item = catalogItems.find(c => c.id === itemId);
-    if (item) {
-      const colors = item.print_colors ? item.print_colors.split(",").map(s => s.trim()) : [""];
-      setForm(prev => ({
-        ...prev,
-        item_name: item.product_name,
-        bottle_type: item.component || "",
-        bottle_size: item.size || "",
-        material: item.material || "",
-        bottle_color: item.container_color || "",
-        num_colors: item.num_colors?.toString() || "",
+function NewOrderForm({ onSuccess }: { onSuccess: () => void }) {
+  const { data: clients = [] } = useClients();
+  const createOrder = useCreateOrder();
+  const createOrderItems = useCreateOrderItems();
+  const queryClient = useQueryClient();
+  const [clientId, setClientId] = useState("");
+  const { data: catalogItems = [] } = useCatalog(clientId || undefined);
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const [clientPo, setClientPo] = useState("");
+  const [notes, setNotes] = useState("");
+  const [dateEntered, setDateEntered] = useState(today);
+  const [items, setItems] = useState<ItemFormData[]>([createEmptyItem()]);
+
+  const handleCatalogSelect = (index: number, itemId: string) => {
+    const cat = catalogItems.find(c => c.id === itemId);
+    if (cat) {
+      const colors = cat.print_colors ? cat.print_colors.split(",").map(s => s.trim()) : [""];
+      setItems(prev => prev.map((item, i) => i === index ? {
+        ...item,
+        catalogItemId: itemId,
+        item_name: cat.product_name,
+        bottle_type: cat.component || "",
+        bottle_size: cat.size || "",
+        material: cat.material || "",
+        bottle_color: cat.container_color || "",
+        num_colors: cat.num_colors?.toString() || "",
         pms_colors: colors.length > 0 ? colors : [""],
-      }));
+      } : item));
     }
   };
 
-  const numColorsInt = parseInt(form.num_colors) || 0;
+  const updateItem = (index: number, key: string, val: string) => {
+    setItems(prev => prev.map((item, i) => i === index ? { ...item, [key]: val } : item));
+  };
 
-  const handleNumColorsChange = (val: string) => {
+  const handleNumColorsChange = (index: number, val: string) => {
     const n = parseInt(val) || 0;
     const clamped = Math.min(Math.max(n, 0), 8);
-    const newColors = Array.from({ length: Math.max(clamped, 1) }, (_, i) => form.pms_colors[i] || "");
-    setForm(prev => ({ ...prev, num_colors: val, pms_colors: newColors }));
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const newColors = Array.from({ length: Math.max(clamped, 1) }, (_, j) => item.pms_colors[j] || "");
+      return { ...item, num_colors: val, pms_colors: newColors };
+    }));
   };
 
-  const updatePmsColor = (index: number, val: string) => {
-    setForm(prev => {
-      const copy = [...prev.pms_colors];
-      copy[index] = val;
-      return { ...prev, pms_colors: copy };
-    });
+  const updatePmsColor = (itemIndex: number, colorIndex: number, val: string) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== itemIndex) return item;
+      const copy = [...item.pms_colors];
+      copy[colorIndex] = val;
+      return { ...item, pms_colors: copy };
+    }));
   };
+
+  const addItem = () => setItems(prev => [...prev, createEmptyItem()]);
+  const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !form.item_name) return;
+    if (!clientId || !items[0]?.item_name) return;
 
-    const printColors = form.pms_colors.filter(c => c.trim()).join(", ");
+    // Create the order (use first item's name for the order-level item_name)
     const orderData: any = {
       client_id: clientId,
-      item_name: form.item_name,
-      bottle_type: form.bottle_type || null,
-      bottle_size: form.bottle_size || null,
-      material: form.material || null,
-      bottle_color: form.bottle_color || null,
-      num_colors: form.num_colors ? parseInt(form.num_colors) : null,
-      print_colors: printColors || null,
-      quantity: form.quantity ? parseInt(form.quantity) : null,
-      packing: form.packing || null,
-      client_po: form.client_po || null,
-      notes: form.notes || null,
-      date_entered: form.date_entered,
+      item_name: items.length === 1 ? items[0].item_name : items.map(i => i.item_name).join(", "),
+      bottle_type: items[0].bottle_type || null,
+      bottle_size: items[0].bottle_size || null,
+      material: items[0].material || null,
+      bottle_color: items[0].bottle_color || null,
+      num_colors: items[0].num_colors ? parseInt(items[0].num_colors) : null,
+      print_colors: items[0].pms_colors.filter(c => c.trim()).join(", ") || null,
+      quantity: items[0].quantity ? parseInt(items[0].quantity) : null,
+      packing: items[0].packing || null,
+      client_po: clientPo || null,
+      notes: notes || null,
+      date_entered: dateEntered,
       due_date: null,
       stage: "preflight",
     };
 
-    await createOrder.mutateAsync(orderData);
-    await autoCreateCatalogEntry(orderData, clientId);
+    const createdOrder = await createOrder.mutateAsync(orderData);
+
+    // Create order items
+    const orderItemsData = items.map(item => ({
+      order_id: createdOrder.id,
+      item_name: item.item_name,
+      bottle_type: item.bottle_type || null,
+      bottle_size: item.bottle_size || null,
+      material: item.material || null,
+      bottle_color: item.bottle_color || null,
+      num_colors: item.num_colors ? parseInt(item.num_colors) : null,
+      print_colors: item.pms_colors.filter(c => c.trim()).join(", ") || null,
+      quantity: item.quantity ? parseInt(item.quantity) : null,
+      packing: item.packing || null,
+    }));
+    await createOrderItems.mutateAsync(orderItemsData);
+
+    // Auto-create catalog entries for each item
+    for (const item of items) {
+      await autoCreateCatalogEntry({
+        item_name: item.item_name,
+        bottle_type: item.bottle_type || null,
+        bottle_size: item.bottle_size || null,
+        material: item.material || null,
+        bottle_color: item.bottle_color || null,
+        num_colors: item.num_colors ? parseInt(item.num_colors) : null,
+        print_colors: item.pms_colors.filter(c => c.trim()).join(", ") || null,
+      }, clientId);
+    }
     queryClient.invalidateQueries({ queryKey: ["catalog"] });
 
     onSuccess();
   };
-
-  const update = (key: string, val: string) => setForm(prev => ({ ...prev, [key]: val }));
 
   const clientOptions = clients.map(c => ({ value: c.id, label: c.company }));
   const catalogOptions = catalogItems.map(c => ({ value: c.id, label: `${c.product_name}${c.size ? ` — ${c.size}` : ""}` }));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Order-level fields */}
       <SearchableSelect
         label="Client *"
         options={clientOptions}
         value={clientId}
-        onChange={(v) => { setClientId(v); setCatalogItemId(""); }}
+        onChange={(v) => { setClientId(v); setItems([createEmptyItem()]); }}
         placeholder="Search clients..."
       />
 
-      {clientId && catalogItems.length > 0 && (
-        <SearchableSelect
-          label="From Catalog (optional)"
-          options={catalogOptions}
-          value={catalogItemId}
-          onChange={handleCatalogSelect}
-          placeholder="Search catalog items..."
-        />
-      )}
-
-      <div>
-        <Label>Item Name *</Label>
-        <Input value={form.item_name} onChange={e => update("item_name", e.target.value)} required />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
-        <SelectWithOther label="Container Type" options={BOTTLE_TYPES} value={form.bottle_type} onChange={v => update("bottle_type", v)} />
         <div>
-          <Label>Size</Label>
-          <Input value={form.bottle_size} onChange={e => update("bottle_size", e.target.value)} placeholder="e.g. 2oz, 10ml" />
-        </div>
-        <SelectWithOther label="Material" options={MATERIALS} value={form.material} onChange={v => update("material", v)} />
-        <SelectWithOther label="Color" options={COLORS} value={form.bottle_color} onChange={v => update("bottle_color", v)} />
-        <div>
-          <Label># Print Colors</Label>
-          <Input
-            type="number"
-            min="0"
-            max="8"
-            value={form.num_colors}
-            onChange={e => handleNumColorsChange(e.target.value)}
-          />
+          <Label>Client PO #</Label>
+          <Input value={clientPo} onChange={e => setClientPo(e.target.value)} />
         </div>
         <div>
-          <Label>Quantity</Label>
-          <Input type="number" value={form.quantity} onChange={e => update("quantity", e.target.value)} />
+          <Label>Date Entered</Label>
+          <Input type="date" value={dateEntered} onChange={e => setDateEntered(e.target.value)} />
         </div>
       </div>
 
-      {numColorsInt > 0 && (
-        <div className="space-y-2">
-          <Label>PMS Colors</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {form.pms_colors.slice(0, Math.min(numColorsInt, 8)).map((color, i) => (
-              <Input
-                key={i}
-                placeholder={numColorsInt === 1 ? "PMS Color" : `PMS Color ${i + 1}`}
-                value={color}
-                onChange={e => updatePmsColor(i, e.target.value)}
-              />
-            ))}
+      {/* Item-level fields */}
+      {items.map((item, idx) => (
+        <div key={idx} className="relative border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-muted-foreground">
+              {items.length > 1 ? `Item ${idx + 1}` : "Item Details"}
+            </h4>
+            {items.length > 1 && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive">
+                <X size={14} />
+              </Button>
+            )}
+          </div>
+
+          {clientId && catalogItems.length > 0 && (
+            <SearchableSelect
+              label="From Catalog (optional)"
+              options={catalogOptions}
+              value={item.catalogItemId}
+              onChange={(v) => handleCatalogSelect(idx, v)}
+              placeholder="Search catalog items..."
+            />
+          )}
+
+          <div>
+            <Label>Item Name *</Label>
+            <Input value={item.item_name} onChange={e => updateItem(idx, "item_name", e.target.value)} required />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <SelectWithOther label="Container Type" options={BOTTLE_TYPES} value={item.bottle_type} onChange={v => updateItem(idx, "bottle_type", v)} />
+            <div>
+              <Label>Size</Label>
+              <Input value={item.bottle_size} onChange={e => updateItem(idx, "bottle_size", e.target.value)} placeholder="e.g. 2oz, 10ml" />
+            </div>
+            <SelectWithOther label="Material" options={MATERIALS} value={item.material} onChange={v => updateItem(idx, "material", v)} />
+            <SelectWithOther label="Color" options={COLORS} value={item.bottle_color} onChange={v => updateItem(idx, "bottle_color", v)} />
+            <div>
+              <Label># Print Colors</Label>
+              <Input type="number" min="0" max="8" value={item.num_colors} onChange={e => handleNumColorsChange(idx, e.target.value)} />
+            </div>
+            <div>
+              <Label>Quantity</Label>
+              <Input type="number" value={item.quantity} onChange={e => updateItem(idx, "quantity", e.target.value)} />
+            </div>
+          </div>
+
+          {(parseInt(item.num_colors) || 0) > 0 && (
+            <div className="space-y-2">
+              <Label>PMS Colors</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {item.pms_colors.slice(0, Math.min(parseInt(item.num_colors) || 0, 8)).map((color, ci) => (
+                  <Input
+                    key={ci}
+                    placeholder={parseInt(item.num_colors) === 1 ? "PMS Color" : `PMS Color ${ci + 1}`}
+                    value={color}
+                    onChange={e => updatePmsColor(idx, ci, e.target.value)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label>Packing</Label>
+            <Input value={item.packing} onChange={e => updateItem(idx, "packing", e.target.value)} placeholder="e.g. 8 cases @ 130/case" />
           </div>
         </div>
-      )}
+      ))}
 
-      <div>
-        <Label>Packing</Label>
-        <Input value={form.packing} onChange={e => update("packing", e.target.value)} placeholder="e.g. 8 cases @ 130/case" />
-      </div>
-
-      <div>
-        <Label>Client PO #</Label>
-        <Input value={form.client_po} onChange={e => update("client_po", e.target.value)} />
-      </div>
-
-      <div>
-        <Label>Date Entered</Label>
-        <Input type="date" value={form.date_entered} onChange={e => update("date_entered", e.target.value)} />
-      </div>
+      <Button type="button" variant="outline" onClick={addItem} className="w-full">
+        <Plus size={14} className="mr-2" /> Add Another Item
+      </Button>
 
       <div>
         <Label>Notes</Label>
-        <Textarea value={form.notes} onChange={e => update("notes", e.target.value)} />
+        <Textarea value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
 
       <Button type="submit" disabled={createOrder.isPending} className="w-full">
-        {createOrder.isPending ? "Creating..." : "Create Order"}
+        {createOrder.isPending ? "Creating..." : `Create Order${items.length > 1 ? ` (${items.length} items)` : ""}`}
       </Button>
     </form>
   );

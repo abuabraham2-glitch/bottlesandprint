@@ -80,6 +80,21 @@ export interface Order {
   clients?: Client;
 }
 
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  item_name: string;
+  bottle_type: string | null;
+  bottle_size: string | null;
+  material: string | null;
+  bottle_color: string | null;
+  num_colors: number | null;
+  print_colors: string | null;
+  quantity: number | null;
+  packing: string | null;
+  created_at: string;
+}
+
 export interface CatalogItem {
   id: string;
   client_id: string;
@@ -189,6 +204,18 @@ export function useCatalog(clientId?: string, includeArchived = false) {
       });
       return sorted;
     },
+  });
+}
+
+export function useOrderItems(orderId: string) {
+  return useQuery({
+    queryKey: ["order_items", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("order_items").select("*").eq("order_id", orderId).order("created_at");
+      if (error) throw error;
+      return data as unknown as OrderItem[];
+    },
+    enabled: !!orderId,
   });
 }
 
@@ -306,6 +333,50 @@ export function useCreateOrder() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+export function useCreateOrderItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: Partial<OrderItem>[]) => {
+      const { data, error } = await supabase.from("order_items").insert(items as any).select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, items) => {
+      if (items.length > 0) {
+        qc.invalidateQueries({ queryKey: ["order_items", items[0].order_id] });
+      }
+    },
+  });
+}
+
+export function useUpdateOrderItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<OrderItem> & { id: string }) => {
+      const { data, error } = await supabase.from("order_items").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data as unknown as OrderItem;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["order_items", data.order_id] });
+    },
+  });
+}
+
+export function useDeleteOrderItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, orderId }: { id: string; orderId: string }) => {
+      const { error } = await supabase.from("order_items").delete().eq("id", id);
+      if (error) throw error;
+      return orderId;
+    },
+    onSuccess: (orderId) => {
+      qc.invalidateQueries({ queryKey: ["order_items", orderId] });
+    },
   });
 }
 

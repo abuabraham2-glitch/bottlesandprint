@@ -204,6 +204,59 @@ export type Database = {
           },
         ]
       }
+      order_items: {
+        Row: {
+          bottle_color: string | null
+          bottle_size: string | null
+          bottle_type: string | null
+          created_at: string
+          id: string
+          item_name: string
+          material: string | null
+          num_colors: number | null
+          order_id: string
+          packing: string | null
+          print_colors: string | null
+          quantity: number | null
+        }
+        Insert: {
+          bottle_color?: string | null
+          bottle_size?: string | null
+          bottle_type?: string | null
+          created_at?: string
+          id?: string
+          item_name: string
+          material?: string | null
+          num_colors?: number | null
+          order_id: string
+          packing?: string | null
+          print_colors?: string | null
+          quantity?: number | null
+        }
+        Update: {
+          bottle_color?: string | null
+          bottle_size?: string | null
+          bottle_type?: string | null
+          created_at?: string
+          id?: string
+          item_name?: string
+          material?: string | null
+          num_colors?: number | null
+          order_id?: string
+          packing?: string | null
+          print_colors?: string | null
+          quantity?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           archived: boolean
