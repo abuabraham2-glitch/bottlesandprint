@@ -273,7 +273,7 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div><Label>Company *</Label><Input value={form.company} onChange={e => updateField("company", e.target.value)} required /></div>
         <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => updateField("contact_name", e.target.value)} /></div>
-        <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => updateField("email", e.target.value)} /></div>
+        <div><Label>Email</Label><Input type="text" value={form.email} onChange={e => updateField("email", e.target.value)} placeholder="e.g. john@co.com, jane@co.com" className="w-full" /></div>
         <div><Label>Phone</Label><Input value={form.phone} onChange={e => updateField("phone", e.target.value)} /></div>
 
         <AddressFields
