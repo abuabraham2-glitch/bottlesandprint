@@ -332,6 +332,24 @@ export type Database = {
           },
         ]
       }
+      sequence_counters: {
+        Row: {
+          counter_name: string
+          id: string
+          next_number: number
+        }
+        Insert: {
+          counter_name: string
+          id?: string
+          next_number?: number
+        }
+        Update: {
+          counter_name?: string
+          id?: string
+          next_number?: number
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           key: string
@@ -371,6 +389,10 @@ export type Database = {
     }
     Functions: {
       get_next_bol_number: { Args: never; Returns: string }
+      get_next_sequence_number: {
+        Args: { p_counter_name: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
