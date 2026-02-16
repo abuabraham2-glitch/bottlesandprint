@@ -145,14 +145,9 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                             )}
 
                             {stage.key === "preflight" && (
-                              <>
-                                <div className={`text-xs mt-1.5 font-medium font-sans ${checked === 6 ? "text-success" : "text-destructive"}`}>
-                                  {checked === 6 ? "✓ 6/6 Ready" : `${checked}/6 items`}
-                                </div>
-                                <div className={`text-xs mt-0.5 font-medium font-sans ${daysInPreflight > 14 ? "text-destructive" : daysInPreflight > 7 ? "text-warning" : "text-muted-foreground"}`}>
-                                  {daysInPreflight} day{daysInPreflight !== 1 ? "s" : ""} in Pre-Flight
-                                </div>
-                              </>
+                              <div className={`text-xs mt-1.5 font-medium font-sans ${daysInPreflight > 14 ? "text-destructive" : daysInPreflight > 7 ? "text-warning" : "text-muted-foreground"}`}>
+                                {daysInPreflight} day{daysInPreflight !== 1 ? "s" : ""} in New Order
+                              </div>
                             )}
                             {stage.key === "wip" && days !== null && (
                               <div className={`text-xs mt-1.5 font-medium font-sans ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
@@ -160,25 +155,18 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                               </div>
                             )}
                             {stage.key === "completed" && (
-                              <>
-                                <div className={`text-xs mt-1.5 font-medium font-sans ${order.invoiced ? "text-success" : "text-destructive"}`}>
-                                  {order.invoiced ? "✓ Invoiced" : "Needs Invoice"}
-                                </div>
-                                {days !== null && (
-                                  <div className={`text-xs mt-0.5 font-medium font-sans ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
-                                    {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
-                                  </div>
-                                )}
-                              </>
+                              <div className={`text-xs mt-1.5 font-medium font-sans ${order.paid ? "text-success" : "text-destructive"}`}>
+                                {order.paid ? "✓ Paid" : "Awaiting Payment"}
+                              </div>
                             )}
                             {stage.key === "to_ship" && (
                               <div className={`text-xs mt-1.5 font-medium font-sans ${order.outgoing_bol ? "text-success" : "text-destructive"}`}>
-                                {order.outgoing_bol ? "✓ Ready" : "BOL Needed"}
+                                {order.outgoing_bol ? "✓ BOL Ready" : "BOL Needed"}
                               </div>
                             )}
                             {stage.key === "close" && (
-                              <div className={`text-xs mt-1.5 font-medium font-sans ${order.paid ? "text-success" : "text-destructive"}`}>
-                                {order.paid ? "✓ Payment Received" : "Awaiting Payment"}
+                              <div className={`text-xs mt-1.5 font-medium font-sans text-success`}>
+                                Ready to Archive
                               </div>
                             )}
                           </div>

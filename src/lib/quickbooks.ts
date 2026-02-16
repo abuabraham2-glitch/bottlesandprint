@@ -168,15 +168,24 @@ export async function checkPaymentStatusInQB(params: {
       return { ok: false };
     }
     let balance: number | undefined;
+    let totalAmt: number | undefined;
     try {
       const json = await res.json();
-      balance = json?.Balance ?? json?.Invoice?.Balance;
+      const invoice = json?.QueryResponse?.Invoice?.[0];
+      if (invoice) {
+        balance = invoice.Balance;
+        totalAmt = invoice.TotalAmt;
+      } else {
+        // Fallback to flat structure
+        balance = json?.Balance ?? json?.Invoice?.Balance;
+        totalAmt = json?.TotalAmt ?? json?.Invoice?.TotalAmt;
+      }
     } catch { /* ignore parse errors */ }
     if (balance !== undefined && balance === 0) {
-      toast.success("Invoice is paid in full.");
+      toast.success(`Paid in full — $${totalAmt !== undefined ? totalAmt.toFixed(2) : "N/A"}`);
       return { ok: true, balance: 0 };
     } else if (balance !== undefined && balance > 0) {
-      toast.error(`Invoice unpaid — balance: $${balance.toFixed(2)}`);
+      toast.error(`Unpaid — balance: $${balance.toFixed(2)} of $${totalAmt !== undefined ? totalAmt.toFixed(2) : "N/A"}`);
       return { ok: true, balance };
     } else {
       toast.error("Could not read payment status from response.");

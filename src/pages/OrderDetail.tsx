@@ -92,17 +92,10 @@ export default function OrderDetail() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; file_url: string } | null>(null);
   const [moveBackOpen, setMoveBackOpen] = useState(false);
   const [moveBackTarget, setMoveBackTarget] = useState("");
-  const [achDialogOpen, setAchDialogOpen] = useState(false);
-  const [achDate, setAchDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [checkDialogOpen, setCheckDialogOpen] = useState(false);
-  const [checkNumber, setCheckNumber] = useState("");
-  const [checkDate, setCheckDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [bolDialogOpen, setBolDialogOpen] = useState(false);
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
   const [bolRegenOpen, setBolRegenOpen] = useState(false);
   const [deleteOrderOpen, setDeleteOrderOpen] = useState(false);
-  const [qbPaymentPromptOpen, setQbPaymentPromptOpen] = useState(false);
-  const [pendingPaymentMethod, setPendingPaymentMethod] = useState("");
 
   const [bolChoiceOpen, setBolChoiceOpen] = useState(false);
   const [invoiceChoiceOpen, setInvoiceChoiceOpen] = useState(false);
@@ -149,9 +142,14 @@ export default function OrderDetail() {
       toast.error("Vendor PO must be reviewed in QuickBooks before moving to WIP.");
       return;
     }
-    // Guard: require invoice_reviewed before Ship (to_ship)
-    if (newStage === "to_ship" && !order.invoice_reviewed) {
-      toast.error("Invoice must be reviewed in QuickBooks before shipping.");
+    // Guard: require invoice_reviewed before Completed
+    if (newStage === "completed" && !order.invoice_reviewed) {
+      toast.error("Invoice must be reviewed in QuickBooks before moving to Completed.");
+      return;
+    }
+    // Guard: require paid before Ship
+    if (newStage === "to_ship" && !order.paid) {
+      toast.error("Payment must be confirmed before shipping.");
       return;
     }
     const updates: Record<string, any> = { stage: newStage };
@@ -194,22 +192,6 @@ export default function OrderDetail() {
     setInvoiceChoiceOpen(false);
   };
 
-  const handleAchPayment = async () => {
-    await update({ paid: true, pay_method: "ACH", pay_date: achDate });
-    setAchDialogOpen(false);
-    toast.success("ACH payment recorded");
-    setPendingPaymentMethod("ACH");
-    setQbPaymentPromptOpen(true);
-  };
-
-  const handleCheckPayment = async () => {
-    const method = checkNumber ? `Check #${checkNumber}` : "Check";
-    await update({ paid: true, pay_method: method, pay_date: checkDate });
-    setCheckDialogOpen(false);
-    toast.success("Check payment recorded");
-    setPendingPaymentMethod("Check");
-    setQbPaymentPromptOpen(true);
-  };
 
   const handleArchive = async () => {
     if (!confirm("Archive this order? It will be moved to completed data.")) return;
@@ -442,7 +424,7 @@ export default function OrderDetail() {
     { key: "checklist_art_order_logged", label: "New Art / Order Logged" },
   ];
 
-  const showDueDate = order.stage === "wip" || order.stage === "completed";
+  const showDueDate = order.stage === "wip";
   const showDaysInPreflight = order.stage === "preflight";
 
   return (
@@ -489,27 +471,27 @@ export default function OrderDetail() {
           </Button>
         )}
         {order.stage === "preflight" && (
-          <>
-            {allChecked ? (
-              <Button onClick={() => moveStage("wip")}>Move to W.I.P.</Button>
-            ) : (
-              <span className="text-sm text-muted-foreground">Complete all 6 checklist items to proceed ({checked}/6 done)</span>
-            )}
-          </>
+          <Button onClick={() => moveStage("wip")}>Move to WIP</Button>
         )}
         {order.stage === "wip" && (
           <Button onClick={() => moveStage("completed")}>Mark Completed</Button>
         )}
         {order.stage === "completed" && (
           <>
-            {!order.invoiced ? (
-              isSharedPo ? (
-                <span className="text-sm text-muted-foreground">Multiple orders share this PO — invoice will be generated when all orders are complete.</span>
-              ) : (
-                <Button onClick={createInvoice}>Create Invoice</Button>
-              )
-            ) : (
+            {order.invoice_num && !order.paid && (
+              <Button variant="outline" onClick={async () => {
+                const result = await checkPaymentStatusInQB({ invoice_num: order.invoice_num || "" });
+                if (result.ok && result.balance === 0) {
+                  await update({ paid: true });
+                }
+              }}>
+                Check Payment Status
+              </Button>
+            )}
+            {order.paid ? (
               <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>
+            ) : (
+              <span className="text-sm text-muted-foreground">Payment must be confirmed before shipping.</span>
             )}
           </>
         )}
@@ -544,16 +526,7 @@ export default function OrderDetail() {
           </>
         )}
         {order.stage === "close" && (
-          <>
-            {!order.paid ? (
-              <>
-                <Button onClick={() => setAchDialogOpen(true)}>Payment: ACH</Button>
-                <Button variant="outline" onClick={() => setCheckDialogOpen(true)}>Payment: Check</Button>
-              </>
-            ) : (
-              <Button onClick={handleArchive}>Archive & Close Order</Button>
-            )}
-          </>
+          <Button onClick={handleArchive}>Archive & Close Order</Button>
         )}
         {(order.stage === "preflight" || order.stage === "wip") && !order.invoiced && !isSharedPo && (
           <Button variant="outline" onClick={createInvoice} className="ml-auto">Invoice Early</Button>
@@ -766,8 +739,7 @@ export default function OrderDetail() {
               <span className="text-muted-foreground">Paid</span>
               <div className="flex items-center gap-2">
                 <span className={order.paid ? "text-green-600 font-medium" : "text-destructive font-medium"}>
-                  {order.paid ? `Yes` : "No"}
-                  {order.pay_method && order.paid ? ` — ${order.pay_method} on ${formatDateShort(order.pay_date)}` : ""}
+                  {order.paid ? "Yes" : "No"}
                 </span>
                 {order.invoice_num && (
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
@@ -987,43 +959,6 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* ACH Payment Dialog */}
-      <Dialog open={achDialogOpen} onOpenChange={setAchDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Record ACH Payment</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Date Received</Label>
-              <Input type="date" value={achDate} onChange={e => setAchDate(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAchDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleAchPayment}>Record Payment</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Check Payment Dialog */}
-      <Dialog open={checkDialogOpen} onOpenChange={setCheckDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Record Check Payment</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Check Number</Label>
-              <Input value={checkNumber} onChange={e => setCheckNumber(e.target.value)} placeholder="Enter check number" />
-            </div>
-            <div>
-              <Label>Date Received</Label>
-              <Input type="date" value={checkDate} onChange={e => setCheckDate(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCheckDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCheckPayment}>Record Payment</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* BOL Choice Dialog (for grouped orders) */}
       <Dialog open={bolChoiceOpen} onOpenChange={setBolChoiceOpen}>
@@ -1133,25 +1068,6 @@ export default function OrderDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* QB Payment Prompt */}
-      <AlertDialog open={qbPaymentPromptOpen} onOpenChange={setQbPaymentPromptOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Check Payment Status in QuickBooks?</AlertDialogTitle>
-            <AlertDialogDescription>Would you like to check the payment status of this invoice in QuickBooks?</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setQbPaymentPromptOpen(false)}>No</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              setQbPaymentPromptOpen(false);
-              const result = await checkPaymentStatusInQB({ invoice_num: order.invoice_num || "" });
-              if (result.ok && result.balance === 0) {
-                await update({ paid: true });
-              }
-            }}>Yes</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Delete Order Link */}
       <div className="flex justify-end pt-2 pb-8">

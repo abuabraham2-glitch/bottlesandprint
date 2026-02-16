@@ -1,9 +1,9 @@
 export const STAGES = [
-  { key: "preflight", label: "Pre-Flight", description: "Checking off requirements", color: "bg-blue-500" },
-  { key: "wip", label: "W.I.P.", description: "Work in progress at vendor", color: "bg-amber-500" },
-  { key: "completed", label: "Completed", description: "Done — awaiting invoice", color: "bg-green-500" },
-  { key: "to_ship", label: "To Ship", description: "Invoiced — ready to ship", color: "bg-purple-500" },
-  { key: "close", label: "Close", description: "Shipped — awaiting payment", color: "bg-stone-500" },
+  { key: "preflight", label: "New Order", description: "Order created — push Vendor PO", color: "bg-blue-500" },
+  { key: "wip", label: "WIP", description: "In production at vendor", color: "bg-amber-500" },
+  { key: "completed", label: "Completed", description: "Awaiting payment confirmation", color: "bg-green-500" },
+  { key: "to_ship", label: "Ship", description: "Ready to ship — create BOL", color: "bg-purple-500" },
+  { key: "close", label: "Close", description: "Final review — archive", color: "bg-stone-500" },
 ] as const;
 
 export const STAGE_KEYS = STAGES.map(s => s.key);
