@@ -564,7 +564,39 @@ export default function OrderDetail() {
       <div className="grid grid-cols-2 gap-6">
         {/* Checklist */}
         <div className="bg-card rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">Pre-Flight Checklist</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Pre-Flight Checklist</h3>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => update({
+                  checklist_new_client_form: true,
+                  checklist_artwork_in: true,
+                  checklist_proof_approved: true,
+                  checklist_purchase_order: true,
+                  checklist_bottles: true,
+                  checklist_art_order_logged: true,
+                })}
+              >
+                Check All
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => update({
+                  checklist_new_client_form: false,
+                  checklist_artwork_in: false,
+                  checklist_proof_approved: false,
+                  checklist_purchase_order: false,
+                  checklist_bottles: false,
+                  checklist_art_order_logged: false,
+                })}
+              >
+                Uncheck All
+              </Button>
+            </div>
+          </div>
           <div className="space-y-3">
             {checklistItems.map(item => (
               <label key={item.key} className="flex items-center gap-3 cursor-pointer">

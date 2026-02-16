@@ -135,9 +135,9 @@ export function generateBolPdf({ bolNumber, carrier, order, combinedOrders }: Bo
         pdf.setFontSize(10);
         let cy = y + 40;
         if (client.street_address) { pdf.text(client.street_address.toUpperCase(), mx + 6, cy); cy += 12; }
-        const cityLine = [client.city, client.state].filter(Boolean).join(", ");
-        const fullLine = [cityLine, client.zip].filter(Boolean).join(" ").toUpperCase();
-        if (fullLine) { pdf.text(fullLine, mx + 6, cy); }
+        const cityState = [client.city, client.state].filter(Boolean).join(", ");
+        const cityStateZip = [cityState, client.zip].filter(Boolean).join(" ").toUpperCase();
+        if (cityStateZip) { pdf.text(cityStateZip, mx + 6, cy); }
       }
 
       // Bottom-Right: PRO #
