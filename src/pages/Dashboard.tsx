@@ -4,7 +4,8 @@ import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { StickyNote, Link2, ClipboardList, Mail, PhoneCall, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 
@@ -25,6 +26,36 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: inboxCounts } = useInboxCounts();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
+  
+  // Dismissable card state
+  const [dismissedNotifs, setDismissedNotifs] = useState(false);
+  const [dismissedQb, setDismissedQb] = useState(false);
+  const [fadingNotifs, setFadingNotifs] = useState(false);
+  const [fadingQb, setFadingQb] = useState(false);
+  const prevCountsRef = useRef<{ actionNeeded: number; autoHandledToday: number; newCalls: number } | null>(null);
+
+  // Re-show cards when new activity comes in
+  useEffect(() => {
+    if (!inboxCounts || !prevCountsRef.current) {
+      if (inboxCounts) prevCountsRef.current = { ...inboxCounts };
+      return;
+    }
+    const prev = prevCountsRef.current;
+    if (inboxCounts.actionNeeded > prev.actionNeeded || inboxCounts.autoHandledToday > prev.autoHandledToday || inboxCounts.newCalls > prev.newCalls) {
+      setDismissedNotifs(false);
+    }
+    prevCountsRef.current = { ...inboxCounts };
+  }, [inboxCounts]);
+
+  const dismissCard = (card: "notifs" | "qb") => {
+    if (card === "notifs") {
+      setFadingNotifs(true);
+      setTimeout(() => { setDismissedNotifs(true); setFadingNotifs(false); }, 300);
+    } else {
+      setFadingQb(true);
+      setTimeout(() => { setDismissedQb(true); setFadingQb(false); }, 300);
+    }
+  };
 
   const filtered = searchQuery
     ? orders.filter(o =>
@@ -242,8 +273,11 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         {/* Right: QB Review + Calendar */}
         <div className="space-y-5">
           {/* Inbox & Calls Notifications */}
-          {inboxCounts && (inboxCounts.actionNeeded > 0 || inboxCounts.autoHandledToday > 0 || inboxCounts.newCalls > 0) && (
-            <div className="floating-card space-y-2">
+          {!dismissedNotifs && inboxCounts && (inboxCounts.actionNeeded > 0 || inboxCounts.autoHandledToday > 0 || inboxCounts.newCalls > 0) && (
+            <div className={`floating-card space-y-2 relative transition-opacity duration-300 ${fadingNotifs ? "opacity-0" : "opacity-100"}`}>
+              <button onClick={() => dismissCard("notifs")} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors">
+                <X size={14} />
+              </button>
               <h3 className="text-base font-serif mb-2">Notifications</h3>
               {inboxCounts.actionNeeded > 0 && (
                 <button onClick={() => navigate("/inbox")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
@@ -266,11 +300,14 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             </div>
           )}
           {/* QuickBooks Review */}
-          {(() => {
+          {!dismissedQb && (() => {
             const invoicesToReview = filtered.filter(o => o.invoice_num && !(o as any).invoice_reviewed).length;
             const vendorPosToReview = filtered.filter(o => o.vendor_po && !(o as any).vendor_po_reviewed).length;
             return (
-              <div className="floating-card">
+              <div className={`floating-card relative transition-opacity duration-300 ${fadingQb ? "opacity-0" : "opacity-100"}`}>
+                <button onClick={() => dismissCard("qb")} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors">
+                  <X size={14} />
+                </button>
                 <h3 className="text-base font-serif mb-3 flex items-center gap-2">
                   <ClipboardList size={16} className="text-primary" />
                   QuickBooks Review

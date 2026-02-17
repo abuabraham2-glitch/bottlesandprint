@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -416,21 +417,21 @@ export default function Inbox() {
         </>
       )}
 
-      {/* Email Detail Dialog */}
-      <Dialog open={!!detailEmail} onOpenChange={() => setDetailEmail(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+      {/* Email Detail Sheet */}
+      <Sheet open={!!detailEmail} onOpenChange={() => setDetailEmail(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
           {detailEmail && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="font-serif">{detailEmail.subject}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <SheetHeader className="p-6 pb-4 border-b">
+                <SheetTitle className="font-serif text-lg">{detailEmail.subject}</SheetTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans">
                   <span>{detailEmail.from_name}</span>
                   <span>&lt;{detailEmail.from_email}&gt;</span>
                   <span>•</span>
                   <span>{formatTime(detailEmail.created_at)}</span>
                 </div>
-              </DialogHeader>
-              <div className="space-y-4">
+              </SheetHeader>
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Client info */}
                 {(() => {
                   const client = clients.find(c => c.email === detailEmail.from_email);
@@ -452,25 +453,89 @@ export default function Inbox() {
                   </div>
                 )}
 
-                {/* Email body */}
-                <div className="text-sm font-sans whitespace-pre-wrap border rounded-xl p-4">
-                  {detailEmail.body}
+                {/* Email body (rendered HTML) */}
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Email Body</span>
+                  <div
+                    className="text-sm font-sans border rounded-xl p-4 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: detailEmail.body || "" }}
+                  />
                 </div>
 
-                {/* Draft response */}
+                {/* Draft response (rendered HTML, editable) */}
                 {detailEmail.draft_response && (
                   <div>
-                    <span className="text-xs font-medium text-muted-foreground font-sans">Draft Response</span>
-                    <div className="bg-muted/30 rounded-xl p-3 text-sm font-sans whitespace-pre-wrap mt-1">
-                      {detailEmail.draft_response}
-                    </div>
+                    <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
+                    {editDraftId === detailEmail.id ? (
+                      <Textarea
+                        value={editDraftText}
+                        onChange={e => setEditDraftText(e.target.value)}
+                        rows={8}
+                        className="text-sm font-sans rounded-xl"
+                      />
+                    ) : (
+                      <div
+                        className="bg-muted/30 rounded-xl p-4 text-sm font-sans prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{ __html: detailEmail.draft_response }}
+                      />
+                    )}
                   </div>
                 )}
               </div>
-            </>
+
+              {/* Action buttons at bottom */}
+              <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background">
+                <Button
+                  size="sm"
+                  className="rounded-xl gap-1 text-xs"
+                  onClick={() => handleSendDraft(detailEmail)}
+                  disabled={sending === detailEmail.id || !detailEmail.draft_response}
+                >
+                  <Send size={12} /> Send
+                </Button>
+                {editDraftId === detailEmail.id ? (
+                  <>
+                    <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail.id, detailEmail.from_email || "", detailEmail.subject || "")} disabled={sending === detailEmail.id}>
+                      <Send size={12} /> Send Edited
+                    </Button>
+                    <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl gap-1 text-xs"
+                    onClick={() => { setEditDraftId(detailEmail.id); setEditDraftText(detailEmail.draft_response || ""); }}
+                  >
+                    <Edit size={12} /> Edit & Send
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl gap-1 text-xs"
+                  onClick={() => {
+                    setComposeOpen(true);
+                    setComposeTo(detailEmail.from_email || "");
+                    setComposeSubject(`Re: ${detailEmail.subject || ""}`);
+                    setDetailEmail(null);
+                  }}
+                >
+                  <MessageSquare size={12} /> Reply Custom
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-xl gap-1 text-xs text-muted-foreground"
+                  onClick={() => { handleDismiss(detailEmail.id); setDetailEmail(null); }}
+                >
+                  <X size={12} /> Dismiss
+                </Button>
+              </div>
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Feedback Dialog */}
       <Dialog open={!!feedbackEmailId} onOpenChange={() => setFeedbackEmailId(null)}>
