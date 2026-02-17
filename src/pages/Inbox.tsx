@@ -244,19 +244,28 @@ export default function Inbox() {
 
         {/* Preview of draft for action needed */}
         {showActions && email.draft_response && (
-          <div className="mt-2 text-xs text-muted-foreground font-sans line-clamp-2 bg-muted/30 rounded-lg p-2">
-            {email.draft_response}
-          </div>
+          <div
+            className="mt-2 text-xs text-muted-foreground font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: email.draft_response }}
+          />
         )}
 
         {/* Expanded auto-handled content */}
         {!showActions && isExpanded && (
           <div className="mt-3 text-sm font-sans border-t pt-3 space-y-2">
-            {email.body && <div className="text-muted-foreground whitespace-pre-wrap">{email.body.slice(0, 300)}...</div>}
+            {email.body && (
+              <div
+                className="text-muted-foreground prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: email.body }}
+              />
+            )}
             {email.draft_response && (
               <div>
                 <span className="text-xs font-medium text-muted-foreground">Response sent:</span>
-                <div className="bg-muted/30 rounded-lg p-2 mt-1 text-xs whitespace-pre-wrap">{email.draft_response}</div>
+                <div
+                  className="bg-muted/30 rounded-lg p-2 mt-1 text-xs prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: email.draft_response }}
+                />
               </div>
             )}
           </div>
@@ -461,7 +470,7 @@ export default function Inbox() {
 
       {/* Email Detail Sheet */}
       <Sheet open={!!detailEmail} onOpenChange={() => setDetailEmail(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
+        <SheetContent side="right" className="w-full sm:max-w-[50vw] overflow-y-auto p-0">
           {detailEmail && (
             <div className="flex flex-col h-full">
               <SheetHeader className="p-6 pb-4 border-b">
@@ -529,7 +538,7 @@ export default function Inbox() {
               <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background">
                 <Button
                   size="sm"
-                  className="rounded-xl gap-1 text-xs"
+                  className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={() => handleSendDraft(detailEmail)}
                   disabled={sending === detailEmail.id || !detailEmail.draft_response}
                 >
@@ -572,6 +581,14 @@ export default function Inbox() {
                   onClick={() => { handleDismiss(detailEmail.id); setDetailEmail(null); }}
                 >
                   <X size={12} /> Dismiss
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-xl gap-1 text-xs text-muted-foreground"
+                  onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}
+                >
+                  <ThumbsDown size={12} />
                 </Button>
               </div>
             </div>
