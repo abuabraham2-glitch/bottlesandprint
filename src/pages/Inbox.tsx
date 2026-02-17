@@ -472,26 +472,49 @@ export default function Inbox() {
                 })()}
 
                 {/* Draft response first */}
-                {detailEmail.draft_response && (
-                  <div>
-                    <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
-                    {editDraftId === detailEmail.id ? (
-                      <Textarea
-                        value={editDraftText}
-                        onChange={e => setEditDraftText(e.target.value)}
-                        rows={8}
-                        className="text-sm font-sans rounded-xl"
-                      />
-                    ) : (
-                      <div
-                        className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
-                        dangerouslySetInnerHTML={{ __html: detailEmail.draft_response }}
-                      />
-                    )}
-                  </div>
-                )}
+                {detailEmail.draft_response && (() => {
+                  const hrIndex = detailEmail.draft_response.indexOf('<hr');
+                  const draftPart = hrIndex !== -1 ? detailEmail.draft_response.substring(0, hrIndex) : detailEmail.draft_response;
+                  const quotedPart = hrIndex !== -1 ? detailEmail.draft_response.substring(hrIndex) : null;
 
-                {/* Original email in collapsible accordion */}
+                  return (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
+                      {editDraftId === detailEmail.id ? (
+                        <Textarea
+                          value={editDraftText}
+                          onChange={e => setEditDraftText(e.target.value)}
+                          rows={8}
+                          className="text-sm font-sans rounded-xl"
+                        />
+                      ) : (
+                        <div
+                          className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none email-signature-block"
+                          dangerouslySetInnerHTML={{ __html: draftPart }}
+                        />
+                      )}
+
+                      {/* Quoted/original content from draft_response after <hr> */}
+                      {quotedPart && (
+                        <Accordion type="single" collapsible className="w-full mt-3">
+                          <AccordionItem value="quoted-email" className="border rounded-xl">
+                            <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">
+                              Original Email
+                            </AccordionTrigger>
+                            <AccordionContent className="px-4 pb-4">
+                              <div
+                                className="text-sm font-sans email-html-content max-w-none email-quoted-content"
+                                dangerouslySetInnerHTML={{ __html: quotedPart }}
+                              />
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Original email body in collapsible accordion (fallback if no quoted content in draft) */}
                 {detailEmail.body && (
                   <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="original-email" className="border rounded-xl">
