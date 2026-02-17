@@ -15,6 +15,8 @@ import Catalog from "@/pages/Catalog";
 import CompletedData from "@/pages/CompletedData";
 import ChangePassword from "@/pages/ChangePassword";
 import SearchResults from "@/pages/SearchResults";
+import Inbox from "@/pages/Inbox";
+import CallsPage from "@/pages/Calls";
 import Login from "@/pages/Login";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
@@ -51,6 +53,8 @@ function ProtectedApp() {
         <Route path="/" element={<Dashboard searchQuery={searchQuery} />} />
         <Route path="/orders" element={<Orders searchQuery={searchQuery} />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/inbox" element={<Inbox />} />
+        <Route path="/calls" element={<CallsPage />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/clients/:id" element={<ClientDetail />} />
         <Route path="/catalog" element={<Catalog />} />

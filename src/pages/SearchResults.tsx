@@ -35,29 +35,38 @@ interface ClientResult {
   email: string | null;
 }
 
-const PREVIEW_LIMIT = 10;
+interface EmailResult {
+  id: string;
+  from_name: string | null;
+  from_email: string | null;
+  subject: string | null;
+  category: string | null;
+  created_at: string | null;
+}
+
+interface CallResult {
+  id: string;
+  caller_name: string | null;
+  company_name: string | null;
+  phone_number: string | null;
+  call_reason: string | null;
+  created_at: string | null;
+}
+
+const PREVIEW_LIMIT = 5;
 
 export default function SearchResults({ searchQuery }: SearchResultsProps) {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderResult[]>([]);
   const [archived, setArchived] = useState<ArchivedResult[]>([]);
   const [clients, setClients] = useState<ClientResult[]>([]);
-  const [ordersTotal, setOrdersTotal] = useState(0);
-  const [archivedTotal, setArchivedTotal] = useState(0);
-  const [clientsTotal, setClientsTotal] = useState(0);
+  const [emails, setEmails] = useState<EmailResult[]>([]);
+  const [calls, setCalls] = useState<CallResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showAllOrders, setShowAllOrders] = useState(false);
-  const [showAllArchived, setShowAllArchived] = useState(false);
-  const [showAllClients, setShowAllClients] = useState(false);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setOrders([]);
-      setArchived([]);
-      setClients([]);
-      setOrdersTotal(0);
-      setArchivedTotal(0);
-      setClientsTotal(0);
+      setOrders([]); setArchived([]); setClients([]); setEmails([]); setCalls([]);
       return;
     }
 
@@ -65,189 +74,167 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setLoading(true);
       const term = `%${searchQuery.trim()}%`;
 
-      // Search active orders - search item_name, client_po, vendor_po directly
-      // and also filter by client company via a separate approach
-      const { data: orderData, count: oCount } = await supabase
-        .from("orders")
-        .select("id, item_name, client_po, vendor_po, stage, clients!inner(company)", { count: "exact" })
-        .eq("archived", false)
-        .or(`item_name.ilike.${term},client_po.ilike.${term},vendor_po.ilike.${term},clients.company.ilike.${term}`)
-        .limit(showAllOrders ? 100 : PREVIEW_LIMIT);
-      
-      // Also search orders where client company matches but other fields don't
-      const { data: orderByClient } = await supabase
-        .from("orders")
-        .select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
-        .eq("archived", false)
-        .ilike("clients.company" as any, term)
-        .limit(showAllOrders ? 100 : PREVIEW_LIMIT);
+      const [orderRes, orderByClient, archRes, clientRes, emailRes, callRes] = await Promise.all([
+        supabase.from("orders").select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
+          .eq("archived", false)
+          .or(`item_name.ilike.${term},client_po.ilike.${term},vendor_po.ilike.${term},invoice_num.ilike.${term},clients.company.ilike.${term}`)
+          .limit(PREVIEW_LIMIT),
+        supabase.from("orders").select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
+          .eq("archived", false).ilike("clients.company" as any, term).limit(PREVIEW_LIMIT),
+        supabase.from("archived_orders").select("id, year, month, client_company, description, size, quantity")
+          .or(`client_company.ilike.${term},description.ilike.${term}`).limit(PREVIEW_LIMIT),
+        supabase.from("clients").select("id, company, contact_name, email")
+          .or(`company.ilike.${term},contact_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`).limit(PREVIEW_LIMIT),
+        supabase.from("emails").select("id, from_name, from_email, subject, category, created_at")
+          .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term}`).limit(PREVIEW_LIMIT),
+        supabase.from("calls").select("id, caller_name, company_name, phone_number, call_reason, created_at")
+          .or(`caller_name.ilike.${term},company_name.ilike.${term},phone_number.ilike.${term},call_reason.ilike.${term}`).limit(PREVIEW_LIMIT),
+      ]);
 
-      // Merge and deduplicate
-      const allOrders = [...(orderData || []), ...(orderByClient || [])];
-      const uniqueOrders = Array.from(new Map(allOrders.map(o => [o.id, o])).values());
-      
-      setOrders(uniqueOrders.slice(0, showAllOrders ? 100 : PREVIEW_LIMIT) as unknown as OrderResult[]);
-      setOrdersTotal(Math.max(oCount || 0, uniqueOrders.length));
-
-      // Search archived orders
-      const { data: archData, count: aCount } = await supabase
-        .from("archived_orders")
-        .select("id, year, month, client_company, description, size, quantity", { count: "exact" })
-        .or(`client_company.ilike.${term},description.ilike.${term}`)
-        .limit(showAllArchived ? 100 : PREVIEW_LIMIT);
-
-      setArchived((archData || []) as ArchivedResult[]);
-      setArchivedTotal(aCount || 0);
-
-      // Search clients
-      const { data: clientData, count: cCount } = await supabase
-        .from("clients")
-        .select("id, company, contact_name, email", { count: "exact" })
-        .or(`company.ilike.${term},contact_name.ilike.${term},email.ilike.${term}`)
-        .limit(showAllClients ? 100 : PREVIEW_LIMIT);
-
-      setClients((clientData || []) as ClientResult[]);
-      setClientsTotal(cCount || 0);
-
+      const allOrders = [...(orderRes.data || []), ...(orderByClient.data || [])];
+      const uniqueOrders = Array.from(new Map(allOrders.map(o => [o.id, o])).values()).slice(0, PREVIEW_LIMIT);
+      setOrders(uniqueOrders as unknown as OrderResult[]);
+      setArchived((archRes.data || []) as ArchivedResult[]);
+      setClients((clientRes.data || []) as ClientResult[]);
+      setEmails((emailRes.data || []) as EmailResult[]);
+      setCalls((callRes.data || []) as CallResult[]);
       setLoading(false);
     };
 
     doSearch();
-  }, [searchQuery, showAllOrders, showAllArchived, showAllClients]);
+  }, [searchQuery]);
 
-  const noResults = !loading && orders.length === 0 && archived.length === 0 && clients.length === 0;
+  const noResults = !loading && orders.length === 0 && archived.length === 0 && clients.length === 0 && emails.length === 0 && calls.length === 0;
 
   if (!searchQuery.trim()) {
     return (
       <div className="p-6 max-w-[1400px]">
-        <h1 className="text-2xl font-bold mb-4">Search</h1>
-        <p className="text-muted-foreground">Type in the sidebar search to find orders, clients, and completed data.</p>
+        <h1 className="text-2xl font-serif mb-4">Search</h1>
+        <p className="text-muted-foreground font-sans">Type in the search bar to find orders, clients, emails, calls, and more.</p>
       </div>
     );
   }
+
+  const renderSection = (title: string, count: number, children: React.ReactNode) => count > 0 ? (
+    <div>
+      <h2 className="text-lg font-serif mb-2">{title} ({count})</h2>
+      {children}
+    </div>
+  ) : null;
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
       <div className="flex items-center gap-2">
         <Search size={20} className="text-muted-foreground" />
-        <h1 className="text-2xl font-bold">Results for "{searchQuery}"</h1>
+        <h1 className="text-2xl font-serif">Results for "{searchQuery}"</h1>
       </div>
 
-      {loading && <div className="text-muted-foreground">Searching...</div>}
-
-      {noResults && (
-        <div className="text-muted-foreground py-8 text-center">No results found for "{searchQuery}"</div>
-      )}
-
-      {/* Active Orders */}
-      {orders.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Active Orders ({ordersTotal})</h2>
-          <div className="bg-card rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">Item</th>
-                  <th className="text-left p-3 font-medium">Client</th>
-                  <th className="text-left p-3 font-medium">Client PO</th>
-                  <th className="text-left p-3 font-medium">Vendor PO</th>
-                  <th className="text-left p-3 font-medium">Stage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map(o => (
-                  <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
-                    <td className="p-3 font-medium">{o.item_name}</td>
-                    <td className="p-3">{o.clients?.company}</td>
-                    <td className="p-3 text-muted-foreground">{o.client_po || "—"}</td>
-                    <td className="p-3 text-muted-foreground">{o.vendor_po || "—"}</td>
-                    <td className="p-3">
-                      <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(o.stage)}`}>
-                        {getStageLabel(o.stage)}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {ordersTotal > PREVIEW_LIMIT && !showAllOrders && (
-              <button onClick={() => setShowAllOrders(true)} className="w-full p-3 text-sm text-primary hover:bg-muted/30 border-t">
-                Show all {ordersTotal} results
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Archived Orders */}
-      {archived.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Completed / Archived Orders ({archivedTotal})</h2>
-          <div className="bg-card rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">Year</th>
-                  <th className="text-left p-3 font-medium">Month</th>
-                  <th className="text-left p-3 font-medium">Client</th>
-                  <th className="text-left p-3 font-medium">Description</th>
-                  <th className="text-left p-3 font-medium">Size</th>
-                  <th className="text-left p-3 font-medium">Qty</th>
-                </tr>
-              </thead>
-              <tbody>
-                {archived.map(a => (
-                  <tr key={a.id} className="border-b last:border-b-0">
-                    <td className="p-3">{a.year}</td>
-                    <td className="p-3">{a.month}</td>
-                    <td className="p-3">{a.client_company}</td>
-                    <td className="p-3">{a.description}</td>
-                    <td className="p-3">{a.size}</td>
-                    <td className="p-3">{a.quantity?.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {archivedTotal > PREVIEW_LIMIT && !showAllArchived && (
-              <button onClick={() => setShowAllArchived(true)} className="w-full p-3 text-sm text-primary hover:bg-muted/30 border-t">
-                Show all {archivedTotal} results
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {loading && <div className="text-muted-foreground font-sans">Searching...</div>}
+      {noResults && <div className="text-muted-foreground py-8 text-center font-sans">No results found for "{searchQuery}"</div>}
 
       {/* Clients */}
-      {clients.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Clients ({clientsTotal})</h2>
-          <div className="bg-card rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium">Company</th>
-                  <th className="text-left p-3 font-medium">Contact</th>
-                  <th className="text-left p-3 font-medium">Email</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map(c => (
-                  <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
-                    <td className="p-3 font-medium">{c.company}</td>
-                    <td className="p-3">{c.contact_name || "—"}</td>
-                    <td className="p-3 text-muted-foreground">{c.email || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {clientsTotal > PREVIEW_LIMIT && !showAllClients && (
-              <button onClick={() => setShowAllClients(true)} className="w-full p-3 text-sm text-primary hover:bg-muted/30 border-t">
-                Show all {clientsTotal} results
-              </button>
-            )}
-          </div>
+      {renderSection("Clients", clients.length, (
+        <div className="bg-card rounded-2xl border overflow-hidden">
+          <table className="w-full text-sm font-sans">
+            <thead><tr className="border-b bg-muted/40">
+              <th className="text-left p-3 font-medium text-muted-foreground">Company</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Contact</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Email</th>
+            </tr></thead>
+            <tbody>{clients.map(c => (
+              <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+                <td className="p-3 font-medium">{c.company}</td>
+                <td className="p-3">{c.contact_name || "—"}</td>
+                <td className="p-3 text-muted-foreground">{c.email || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
         </div>
-      )}
+      ))}
+
+      {/* Active Orders */}
+      {renderSection("Active Orders", orders.length, (
+        <div className="bg-card rounded-2xl border overflow-hidden">
+          <table className="w-full text-sm font-sans">
+            <thead><tr className="border-b bg-muted/40">
+              <th className="text-left p-3 font-medium text-muted-foreground">Item</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Client PO</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Stage</th>
+            </tr></thead>
+            <tbody>{orders.map(o => (
+              <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+                <td className="p-3 font-medium">{o.item_name}</td>
+                <td className="p-3">{o.clients?.company}</td>
+                <td className="p-3 text-muted-foreground">{o.client_po || "—"}</td>
+                <td className="p-3"><Badge variant="secondary" className={`text-xs ${getStageBadgeClass(o.stage)}`}>{getStageLabel(o.stage)}</Badge></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ))}
+
+      {/* Emails */}
+      {renderSection("Emails", emails.length, (
+        <div className="bg-card rounded-2xl border overflow-hidden">
+          <table className="w-full text-sm font-sans">
+            <thead><tr className="border-b bg-muted/40">
+              <th className="text-left p-3 font-medium text-muted-foreground">From</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Subject</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+            </tr></thead>
+            <tbody>{emails.map(e => (
+              <tr key={e.id} onClick={() => navigate("/inbox")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+                <td className="p-3 font-medium">{e.from_name || e.from_email}</td>
+                <td className="p-3">{e.subject}</td>
+                <td className="p-3 text-muted-foreground">{e.category || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ))}
+
+      {/* Calls */}
+      {renderSection("Calls", calls.length, (
+        <div className="bg-card rounded-2xl border overflow-hidden">
+          <table className="w-full text-sm font-sans">
+            <thead><tr className="border-b bg-muted/40">
+              <th className="text-left p-3 font-medium text-muted-foreground">Caller</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Company</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Reason</th>
+            </tr></thead>
+            <tbody>{calls.map(c => (
+              <tr key={c.id} onClick={() => navigate("/calls")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+                <td className="p-3 font-medium">{c.caller_name || "Unknown"}</td>
+                <td className="p-3">{c.company_name || "—"}</td>
+                <td className="p-3 text-muted-foreground truncate max-w-xs">{c.call_reason || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ))}
+
+      {/* Archived Orders */}
+      {renderSection("Archived Orders", archived.length, (
+        <div className="bg-card rounded-2xl border overflow-hidden">
+          <table className="w-full text-sm font-sans">
+            <thead><tr className="border-b bg-muted/40">
+              <th className="text-left p-3 font-medium text-muted-foreground">Year</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Description</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Qty</th>
+            </tr></thead>
+            <tbody>{archived.map(a => (
+              <tr key={a.id} className="border-b last:border-b-0">
+                <td className="p-3">{a.year}</td>
+                <td className="p-3">{a.client_company}</td>
+                <td className="p-3">{a.description}</td>
+                <td className="p-3">{a.quantity?.toLocaleString()}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ))}
     </div>
   );
 }
