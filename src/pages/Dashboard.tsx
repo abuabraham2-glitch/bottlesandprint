@@ -4,7 +4,7 @@ import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { StickyNote, Link2, ClipboardList, Mail, PhoneCall, Zap } from "lucide-react";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -21,30 +21,38 @@ const stageCardColors: Record<string, string> = {
   close: "bg-stone-200 text-stone-700",
 };
 
+const SESSION_KEY_NOTIFS = "dashboard_dismissed_notifs";
+const SESSION_KEY_QB = "dashboard_dismissed_qb";
+const SESSION_KEY_NOTIFS_COUNTS = "dashboard_notifs_counts";
+
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   
-  // Dismissable card state
-  const [dismissedNotifs, setDismissedNotifs] = useState(false);
-  const [dismissedQb, setDismissedQb] = useState(false);
+  // Dismissable card state — persisted in sessionStorage
+  const [dismissedNotifs, setDismissedNotifs] = useState(() => sessionStorage.getItem(SESSION_KEY_NOTIFS) === "true");
+  const [dismissedQb, setDismissedQb] = useState(() => sessionStorage.getItem(SESSION_KEY_QB) === "true");
   const [fadingNotifs, setFadingNotifs] = useState(false);
   const [fadingQb, setFadingQb] = useState(false);
-  const prevCountsRef = useRef<{ actionNeeded: number; autoHandledToday: number; newCalls: number } | null>(null);
+
+  // Persist dismissed state
+  useEffect(() => { sessionStorage.setItem(SESSION_KEY_NOTIFS, String(dismissedNotifs)); }, [dismissedNotifs]);
+  useEffect(() => { sessionStorage.setItem(SESSION_KEY_QB, String(dismissedQb)); }, [dismissedQb]);
 
   // Re-show cards when new activity comes in
   useEffect(() => {
-    if (!inboxCounts || !prevCountsRef.current) {
-      if (inboxCounts) prevCountsRef.current = { ...inboxCounts };
-      return;
+    if (!inboxCounts) return;
+    const prev = sessionStorage.getItem(SESSION_KEY_NOTIFS_COUNTS);
+    const prevCounts = prev ? JSON.parse(prev) : null;
+    
+    if (prevCounts) {
+      if (inboxCounts.actionNeeded > prevCounts.actionNeeded || inboxCounts.autoHandledToday > prevCounts.autoHandledToday || inboxCounts.newCalls > prevCounts.newCalls) {
+        setDismissedNotifs(false);
+      }
     }
-    const prev = prevCountsRef.current;
-    if (inboxCounts.actionNeeded > prev.actionNeeded || inboxCounts.autoHandledToday > prev.autoHandledToday || inboxCounts.newCalls > prev.newCalls) {
-      setDismissedNotifs(false);
-    }
-    prevCountsRef.current = { ...inboxCounts };
+    sessionStorage.setItem(SESSION_KEY_NOTIFS_COUNTS, JSON.stringify(inboxCounts));
   }, [inboxCounts]);
 
   const dismissCard = (card: "notifs" | "qb") => {
