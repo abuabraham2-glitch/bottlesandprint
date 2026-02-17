@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -470,10 +471,10 @@ export default function Inbox() {
 
       {/* Email Detail Sheet */}
       <Sheet open={!!detailEmail} onOpenChange={() => setDetailEmail(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-[50vw] overflow-y-auto p-0">
+        <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
           {detailEmail && (
-            <div className="flex flex-col h-full">
-              <SheetHeader className="p-6 pb-4 border-b">
+            <>
+              <SheetHeader className="p-6 pb-4 border-b shrink-0">
                 <SheetTitle className="font-serif text-lg">{detailEmail.subject}</SheetTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans">
                   <span>{detailEmail.from_name}</span>
@@ -496,24 +497,7 @@ export default function Inbox() {
                   );
                 })()}
 
-                {/* Quote data */}
-                {detailEmail.quote_data && (
-                  <div className="bg-muted/30 rounded-xl p-3 text-sm font-sans">
-                    <span className="font-medium text-xs text-muted-foreground mb-1 block">Quote Details</span>
-                    <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(detailEmail.quote_data, null, 2)}</pre>
-                  </div>
-                )}
-
-                {/* Email body (rendered HTML) */}
-                <div>
-                  <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Email Body</span>
-                  <div
-                    className="text-sm font-sans border rounded-xl p-4 email-html-content max-w-none"
-                    dangerouslySetInnerHTML={{ __html: detailEmail.body || "" }}
-                  />
-                </div>
-
-                {/* Draft response (rendered HTML, editable) */}
+                {/* Draft response first */}
                 {detailEmail.draft_response && (
                   <div>
                     <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
@@ -532,10 +516,27 @@ export default function Inbox() {
                     )}
                   </div>
                 )}
+
+                {/* Original email in collapsible accordion */}
+                {detailEmail.body && (
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="original-email" className="border rounded-xl">
+                      <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">
+                        Original Email
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-4">
+                        <div
+                          className="text-sm font-sans email-html-content max-w-none"
+                          dangerouslySetInnerHTML={{ __html: detailEmail.body }}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </div>
 
-              {/* Action buttons at bottom */}
-              <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background">
+              {/* Sticky action buttons */}
+              <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
                 <Button
                   size="sm"
                   className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -591,7 +592,7 @@ export default function Inbox() {
                   <ThumbsDown size={12} />
                 </Button>
               </div>
-            </div>
+            </>
           )}
         </SheetContent>
       </Sheet>
