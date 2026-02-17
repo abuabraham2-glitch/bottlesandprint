@@ -56,6 +56,48 @@ export type Database = {
         }
         Relationships: []
       }
+      calls: {
+        Row: {
+          archived_at: string | null
+          call_reason: string | null
+          caller_name: string | null
+          company_name: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          phone_number: string | null
+          quote_details: string | null
+          returned_at: string | null
+          status: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          call_reason?: string | null
+          caller_name?: string | null
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          phone_number?: string | null
+          quote_details?: string | null
+          returned_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          call_reason?: string | null
+          caller_name?: string | null
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          phone_number?: string | null
+          quote_details?: string | null
+          returned_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       catalog: {
         Row: {
           archived: boolean
@@ -168,6 +210,127 @@ export type Database = {
           zip?: string | null
         }
         Relationships: []
+      }
+      emails: {
+        Row: {
+          acknowledged: boolean | null
+          auto_sent_at: string | null
+          body: string | null
+          category: string | null
+          client_id: string | null
+          created_at: string | null
+          draft_response: string | null
+          from_email: string | null
+          from_name: string | null
+          gmail_id: string | null
+          holding_sent_at: string | null
+          id: string
+          quote_data: Json | null
+          resolved_at: string | null
+          status: string | null
+          subject: string | null
+          thread_id: string | null
+          tier: string | null
+        }
+        Insert: {
+          acknowledged?: boolean | null
+          auto_sent_at?: string | null
+          body?: string | null
+          category?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          draft_response?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_id?: string | null
+          holding_sent_at?: string | null
+          id?: string
+          quote_data?: Json | null
+          resolved_at?: string | null
+          status?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          tier?: string | null
+        }
+        Update: {
+          acknowledged?: boolean | null
+          auto_sent_at?: string | null
+          body?: string | null
+          category?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          draft_response?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_id?: string | null
+          holding_sent_at?: string | null
+          id?: string
+          quote_data?: Json | null
+          resolved_at?: string | null
+          status?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          tier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_ups: {
+        Row: {
+          cancelled: boolean | null
+          client_email: string | null
+          client_name: string | null
+          created_at: string | null
+          email_id: string | null
+          follow_up_number: number | null
+          id: string
+          scheduled_for: string | null
+          sent: boolean | null
+          sent_at: string | null
+          subject: string | null
+        }
+        Insert: {
+          cancelled?: boolean | null
+          client_email?: string | null
+          client_name?: string | null
+          created_at?: string | null
+          email_id?: string | null
+          follow_up_number?: number | null
+          id?: string
+          scheduled_for?: string | null
+          sent?: boolean | null
+          sent_at?: string | null
+          subject?: string | null
+        }
+        Update: {
+          cancelled?: boolean | null
+          client_email?: string | null
+          client_name?: string | null
+          created_at?: string | null
+          email_id?: string | null
+          follow_up_number?: number | null
+          id?: string
+          scheduled_for?: string | null
+          sent?: boolean | null
+          sent_at?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_ups_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_documents: {
         Row: {
@@ -417,6 +580,38 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      triage_feedback: {
+        Row: {
+          created_at: string | null
+          email_id: string | null
+          feedback_type: string | null
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_id?: string | null
+          feedback_type?: string | null
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_id?: string | null
+          feedback_type?: string | null
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "triage_feedback_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
