@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useActionNeededEmails, useAutoHandledEmails, useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, useFollowUps, Email } from "@/lib/emailData";
 import { useClients } from "@/lib/data";
 import { Badge } from "@/components/ui/badge";
@@ -111,10 +111,52 @@ export default function Inbox() {
     setSending(null);
   };
 
-  const handleDismiss = async (id: string) => {
-    await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
-    toast.success("Dismissed");
+  const pendingDismissals = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const handleDismiss = (id: string) => {
+    // Optimistically hide from UI by setting a local dismissed state
+    updateEmail.mutate({ id, status: "pending_dismiss" as any });
+
+    const timeoutId = setTimeout(async () => {
+      pendingDismissals.current.delete(id);
+      try {
+        await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
+      } catch {
+        // silently fail
+      }
+    }, 8000);
+
+    pendingDismissals.current.set(id, timeoutId);
+
+    toast("Email dismissed", {
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const tid = pendingDismissals.current.get(id);
+          if (tid) {
+            clearTimeout(tid);
+            pendingDismissals.current.delete(id);
+          }
+          updateEmail.mutate({ id, status: "needs_response" as any });
+          toast.success("Email restored");
+        },
+      },
+    });
   };
+
+  // Flush pending dismissals on unmount / navigation
+  React.useEffect(() => {
+    return () => {
+      pendingDismissals.current.forEach(async (tid, id) => {
+        clearTimeout(tid);
+        try {
+          await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
+        } catch {}
+      });
+      pendingDismissals.current.clear();
+    };
+  }, []);
 
   const handleFeedbackSubmit = async () => {
     if (!feedbackEmailId || !feedbackType) return;
