@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useActionNeededEmails, useAutoHandledEmails, useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, useFollowUps, Email } from "@/lib/emailData";
 import { useClients } from "@/lib/data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,9 +35,20 @@ const EMAIL_TEMPLATES: Record<string, string> = {
 
 type Tab = "action" | "auto" | "all";
 
+/** Split draft_response at the FIRST <hr> only */
+function splitDraftAtHr(html: string): { draftPart: string; quotedPart: string | null } {
+  const hrIndex = html.search(/<hr[\s/>]/i);
+  if (hrIndex === -1) return { draftPart: html, quotedPart: null };
+  return {
+    draftPart: html.substring(0, hrIndex),
+    quotedPart: html.substring(hrIndex),
+  };
+}
+
 export default function Inbox() {
   const [tab, setTab] = useState<Tab>("action");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [actionCategoryFilter, setActionCategoryFilter] = useState<string>("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
   const [editDraftText, setEditDraftText] = useState("");
@@ -53,10 +64,12 @@ export default function Inbox() {
   const [sending, setSending] = useState<string | null>(null);
   const [detailEmail, setDetailEmail] = useState<Email | null>(null);
   const [showFollowUps, setShowFollowUps] = useState(false);
+  const [confirmSend, setConfirmSend] = useState<{ action: () => Promise<void> } | null>(null);
+  const editRef = useRef<HTMLDivElement>(null);
 
   const { data: actionEmails = [], isLoading: loadingAction } = useActionNeededEmails();
   const { data: autoEmails = [] } = useAutoHandledEmails();
-  const { data: allEmails = [] } = useAllEmails(categoryFilter || undefined);
+  const { data: allEmails = [] } = useAllEmails(categoryFilter && categoryFilter !== "all" ? categoryFilter : undefined);
   const { data: clients = [] } = useClients();
   const { data: followUps = [] } = useFollowUps();
   const updateEmail = useUpdateEmail();
@@ -78,7 +91,7 @@ export default function Inbox() {
     });
   };
 
-  const handleSendDraft = async (email: Email) => {
+  const doSendDraft = async (email: Email) => {
     if (!email.from_email || !email.draft_response) return;
     setSending(email.id);
     try {
@@ -95,15 +108,20 @@ export default function Inbox() {
     setSending(null);
   };
 
-  const handleSendEdited = async (emailId: string, toEmail: string, subject: string) => {
+  const handleSendDraft = (email: Email) => {
+    setConfirmSend({ action: () => doSendDraft(email) });
+  };
+
+  const doSendEdited = async (emailId: string, toEmail: string, subject: string) => {
+    const html = editRef.current?.innerHTML || editDraftText;
     setSending(emailId);
     try {
       await sendEmailViaWebhook({
         to_email: toEmail,
         subject: `Re: ${subject || ""}`,
-        body_html: editDraftText,
+        body_html: html,
       });
-      await updateEmail.mutateAsync({ id: emailId, status: "approved_sent" as any, draft_response: editDraftText });
+      await updateEmail.mutateAsync({ id: emailId, status: "approved_sent" as any, draft_response: html });
       toast.success("Email sent");
       setEditDraftId(null);
     } catch {
@@ -112,19 +130,20 @@ export default function Inbox() {
     setSending(null);
   };
 
+  const handleSendEdited = (emailId: string, toEmail: string, subject: string) => {
+    setConfirmSend({ action: () => doSendEdited(emailId, toEmail, subject) });
+  };
+
   const pendingDismissals = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const handleDismiss = (id: string) => {
-    // Optimistically hide from UI by setting a local dismissed state
     updateEmail.mutate({ id, status: "pending_dismiss" as any });
 
     const timeoutId = setTimeout(async () => {
       pendingDismissals.current.delete(id);
       try {
         await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
-      } catch {
-        // silently fail
-      }
+      } catch {}
     }, 8000);
 
     pendingDismissals.current.set(id, timeoutId);
@@ -146,7 +165,6 @@ export default function Inbox() {
     });
   };
 
-  // Flush pending dismissals on unmount / navigation
   React.useEffect(() => {
     return () => {
       pendingDismissals.current.forEach(async (tid, id) => {
@@ -209,9 +227,6 @@ export default function Inbox() {
   };
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
-    const isExpanded = expandedIds.has(email.id);
-    const isTier3 = email.tier === "TIER_3";
-
     return (
       <div key={email.id} className="floating-card mb-3">
         <div className="flex items-start justify-between gap-3">
@@ -223,7 +238,7 @@ export default function Inbox() {
                   {email.category}
                 </span>
               )}
-              {isTier3 && (
+              {email.tier === "TIER_3" && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-sans font-medium">
                   Holding Sent
                 </span>
@@ -235,10 +250,8 @@ export default function Inbox() {
             <div className="text-sm font-sans truncate">{email.subject}</div>
             <div className="text-xs text-muted-foreground font-sans mt-0.5">{formatTime(email.created_at)}</div>
           </div>
-
         </div>
 
-        {/* Preview of draft for action needed */}
         {showActions && email.draft_response && (
           <div
             className="mt-2 text-xs font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
@@ -246,64 +259,35 @@ export default function Inbox() {
           />
         )}
 
-        {/* Action buttons */}
         {showActions && (
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <Button
-              size="sm"
-              className="rounded-xl gap-1 text-xs"
-              onClick={() => handleSendDraft(email)}
-              disabled={sending === email.id || !email.draft_response}
-            >
+            <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendDraft(email)} disabled={sending === email.id || !email.draft_response}>
               <Send size={12} /> Send
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl gap-1 text-xs"
-              onClick={() => { setEditDraftId(email.id); setEditDraftText(email.draft_response || ""); }}
-            >
+            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setEditDraftId(email.id); setEditDraftText(email.draft_response || ""); }}>
               <Edit size={12} /> Edit & Send
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl gap-1 text-xs"
-              onClick={() => {
-                setComposeOpen(true);
-                setComposeTo(email.from_email || "");
-                setComposeSubject(`Re: ${email.subject || ""}`);
-              }}
-            >
+            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setComposeOpen(true); setComposeTo(email.from_email || ""); setComposeSubject(`Re: ${email.subject || ""}`); }}>
               <MessageSquare size={12} /> Reply Custom
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="rounded-xl gap-1 text-xs text-muted-foreground"
-              onClick={() => handleDismiss(email.id)}
-            >
+            <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => handleDismiss(email.id)}>
               <X size={12} /> Dismiss
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="rounded-xl gap-1 text-xs text-muted-foreground"
-              onClick={() => { setFeedbackEmailId(email.id); }}
-            >
+            <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => { setFeedbackEmailId(email.id); }}>
               <ThumbsDown size={12} />
             </Button>
           </div>
         )}
 
-        {/* Edit draft inline */}
+        {/* Rich text edit inline */}
         {editDraftId === email.id && (
           <div className="mt-3 space-y-2 border-t pt-3">
-            <Textarea
-              value={editDraftText}
-              onChange={e => setEditDraftText(e.target.value)}
-              rows={5}
-              className="text-sm font-sans"
+            <div
+              ref={editRef}
+              contentEditable
+              suppressContentEditableWarning
+              className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
+              dangerouslySetInnerHTML={{ __html: editDraftText }}
             />
             <div className="flex gap-2">
               <Button size="sm" className="rounded-xl text-xs" onClick={() => handleSendEdited(email.id, email.from_email || "", email.subject || "")} disabled={sending === email.id}>
@@ -319,7 +303,12 @@ export default function Inbox() {
     );
   };
 
-  const emails = tab === "action" ? actionEmails : tab === "auto" ? autoEmails : allEmails;
+  // Apply category filter for action tab
+  let emails = tab === "action" ? actionEmails : tab === "auto" ? autoEmails : allEmails;
+  if (tab === "action" && actionCategoryFilter && actionCategoryFilter !== "all") {
+    emails = emails.filter(e => e.category === actionCategoryFilter.toUpperCase());
+  }
+
   const loading = loadingAction;
 
   return (
@@ -404,10 +393,27 @@ export default function Inbox() {
             ))}
           </div>
 
+          {/* Category filter for Action Needed tab */}
+          {tab === "action" && (
+            <div className="flex gap-1">
+              {["all", "sales", "support"].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActionCategoryFilter(cat)}
+                  className={`px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors ${
+                    actionCategoryFilter === cat ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {cat === "all" ? "All" : cat === "sales" ? "Sales" : "Support"}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Category filter for All tab */}
           {tab === "all" && (
             <div className="flex gap-2">
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={categoryFilter || "all"} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
                 <SelectTrigger className="w-40 rounded-xl h-8 text-xs">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
@@ -473,19 +479,18 @@ export default function Inbox() {
 
                 {/* Draft response first */}
                 {detailEmail.draft_response && (() => {
-                  const hrIndex = detailEmail.draft_response.indexOf('<hr');
-                  const draftPart = hrIndex !== -1 ? detailEmail.draft_response.substring(0, hrIndex) : detailEmail.draft_response;
-                  const quotedPart = hrIndex !== -1 ? detailEmail.draft_response.substring(hrIndex) : null;
+                  const { draftPart, quotedPart } = splitDraftAtHr(detailEmail.draft_response);
 
                   return (
                     <div>
                       <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
                       {editDraftId === detailEmail.id ? (
-                        <Textarea
-                          value={editDraftText}
-                          onChange={e => setEditDraftText(e.target.value)}
-                          rows={8}
-                          className="text-sm font-sans rounded-xl"
+                        <div
+                          ref={editRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
+                          dangerouslySetInnerHTML={{ __html: editDraftText }}
                         />
                       ) : (
                         <div
@@ -494,7 +499,7 @@ export default function Inbox() {
                         />
                       )}
 
-                      {/* Quoted/original content from draft_response after <hr> */}
+                      {/* Quoted/original content from draft_response after <hr> — only ONE accordion */}
                       {quotedPart && (
                         <Accordion type="single" collapsible className="w-full mt-3">
                           <AccordionItem value="quoted-email" className="border rounded-xl">
@@ -515,22 +520,26 @@ export default function Inbox() {
                   );
                 })()}
 
-                {/* Original email body in collapsible accordion (fallback if no quoted content in draft) */}
-                {detailEmail.body && (
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="original-email" className="border rounded-xl">
-                      <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">
-                        Original Email
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4">
-                        <div
-                          className="text-sm font-sans email-html-content max-w-none"
-                          dangerouslySetInnerHTML={{ __html: detailEmail.body }}
-                        />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                )}
+                {/* Original email body — only show if there's NO quoted content from draft_response */}
+                {detailEmail.body && (() => {
+                  const hasQuotedInDraft = detailEmail.draft_response ? splitDraftAtHr(detailEmail.draft_response).quotedPart !== null : false;
+                  if (hasQuotedInDraft) return null;
+                  return (
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="original-email" className="border rounded-xl">
+                        <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">
+                          Original Email
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4 pb-4">
+                          <div
+                            className="text-sm font-sans email-html-content max-w-none"
+                            dangerouslySetInnerHTML={{ __html: detailEmail.body }}
+                          />
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  );
+                })()}
               </div>
 
               {/* Sticky action buttons */}
@@ -608,6 +617,29 @@ export default function Inbox() {
         </SheetContent>
       </Sheet>
 
+      {/* Send Confirmation Dialog */}
+      <Dialog open={!!confirmSend} onOpenChange={() => setConfirmSend(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Confirm Send</DialogTitle>
+            <DialogDescription className="text-sm font-sans">
+              Are you sure you want to send this email?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" className="rounded-xl" onClick={() => setConfirmSend(null)}>Cancel</Button>
+            <Button className="rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={async () => {
+              if (confirmSend) {
+                await confirmSend.action();
+                setConfirmSend(null);
+              }
+            }}>
+              <Send size={14} /> Yes, Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Feedback Dialog */}
       <Dialog open={!!feedbackEmailId} onOpenChange={() => setFeedbackEmailId(null)}>
         <DialogContent className="max-w-sm">
@@ -644,12 +676,7 @@ export default function Inbox() {
           <div className="space-y-3">
             <div>
               <label className="text-xs font-sans text-muted-foreground">To</label>
-              <Input
-                value={composeTo}
-                onChange={e => setComposeTo(e.target.value)}
-                placeholder="email@example.com"
-                className="rounded-xl"
-              />
+              <Input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="email@example.com" className="rounded-xl" />
             </div>
             <div>
               <label className="text-xs font-sans text-muted-foreground">CC</label>
