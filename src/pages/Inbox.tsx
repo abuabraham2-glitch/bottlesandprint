@@ -69,7 +69,7 @@ export default function Inbox() {
 
   const { data: actionEmails = [], isLoading: loadingAction } = useActionNeededEmails();
   const { data: autoEmails = [] } = useAutoHandledEmails();
-  const { data: allEmails = [] } = useAllEmails(categoryFilter && categoryFilter !== "all" ? categoryFilter : undefined);
+  const { data: allEmails = [] } = useAllEmails(categoryFilter && categoryFilter !== "all" && categoryFilter !== "SENT" ? categoryFilter : undefined);
   const { data: clients = [] } = useClients();
   const { data: followUps = [] } = useFollowUps();
   const updateEmail = useUpdateEmail();
@@ -246,6 +246,11 @@ export default function Inbox() {
               {email.status === "auto_sent" && (
                 <Check size={14} className="text-success shrink-0" />
               )}
+              {email.status === "approved_sent" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">
+                  Sent
+                </span>
+              )}
             </div>
             <div className="text-sm font-sans truncate">{email.subject}</div>
             <div className="text-xs text-muted-foreground font-sans mt-0.5">{formatTime(email.created_at)}</div>
@@ -307,6 +312,10 @@ export default function Inbox() {
   let emails = tab === "action" ? actionEmails : tab === "auto" ? autoEmails : allEmails;
   if (tab === "action" && actionCategoryFilter && actionCategoryFilter !== "all") {
     emails = emails.filter(e => e.category === actionCategoryFilter.toUpperCase());
+  }
+  // Apply "Sent" status filter in All tab
+  if (tab === "all" && categoryFilter === "SENT") {
+    emails = emails.filter(e => e.status === "approved_sent");
   }
 
   const loading = loadingAction;
@@ -421,6 +430,7 @@ export default function Inbox() {
                   <SelectItem value="all">All categories</SelectItem>
                   <SelectItem value="SALES">Sales</SelectItem>
                   <SelectItem value="SUPPORT">Support</SelectItem>
+                  <SelectItem value="SENT">Sent</SelectItem>
                   <SelectItem value="SPAM">Spam</SelectItem>
                   <SelectItem value="ORDER_UPDATE">Order Update</SelectItem>
                 </SelectContent>
