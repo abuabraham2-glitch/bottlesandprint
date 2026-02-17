@@ -22,8 +22,8 @@ export interface Email {
   resolved_at: string | null;
   auto_sent_at: string | null;
   holding_sent_at: string | null;
+  attachments: any[] | null;
 }
-
 export interface Call {
   id: string;
   caller_name: string | null;
