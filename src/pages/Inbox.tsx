@@ -489,7 +489,7 @@ export default function Inbox() {
                         />
                       ) : (
                         <div
-                          className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none email-signature-block"
+                          className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
                           dangerouslySetInnerHTML={{ __html: draftPart }}
                         />
                       )}
@@ -503,7 +503,8 @@ export default function Inbox() {
                             </AccordionTrigger>
                             <AccordionContent className="px-4 pb-4">
                               <div
-                                className="text-sm font-sans email-html-content max-w-none email-quoted-content"
+                                className="text-sm font-sans email-html-content max-w-none"
+                                style={{ color: '#000000' }}
                                 dangerouslySetInnerHTML={{ __html: quotedPart }}
                               />
                             </AccordionContent>

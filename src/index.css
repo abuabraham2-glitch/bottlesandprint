@@ -112,17 +112,4 @@
     margin: 0.25em 0;
   }
 
-  /* Email signature block: navy color */
-  .email-signature-block {
-    color: #263652;
-  }
-
-  /* Quoted/original email after hr - force black */
-  .email-quoted-content,
-  .email-quoted-content * {
-    color: #000000 !important;
-  }
-  .email-quoted-content a {
-    color: #0563C1 !important;
-  }
 }
