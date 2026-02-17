@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus } from "lucide-react";
+import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -251,6 +251,11 @@ export default function Inbox() {
                   Sent
                 </span>
               )}
+              {Array.isArray(email.attachments) && (email.attachments as any[]).length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-sans font-medium inline-flex items-center gap-0.5">
+                  📎 {(email.attachments as any[]).length} attachment{(email.attachments as any[]).length > 1 ? "s" : ""}
+                </span>
+              )}
             </div>
             <div className="text-sm font-sans truncate">{email.subject}</div>
             <div className="text-xs text-muted-foreground font-sans mt-0.5">{formatTime(email.created_at)}</div>
@@ -486,6 +491,29 @@ export default function Inbox() {
                     </div>
                   );
                 })()}
+
+                {/* Attachments */}
+                {Array.isArray(detailEmail.attachments) && detailEmail.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {detailEmail.attachments.map((att: any, i: number) => {
+                      const sizeStr = att.size ? (att.size < 1024 ? `${att.size} B` : att.size < 1048576 ? `${(att.size / 1024).toFixed(0)} KB` : `${(att.size / 1048576).toFixed(1)} MB`) : "";
+                      const url = `https://bottlesandprint.app.n8n.cloud/webhook/get-attachment?messageId=${encodeURIComponent(detailEmail.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
+                      return (
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border"
+                        >
+                          <Paperclip size={12} className="text-muted-foreground" />
+                          <span className="truncate max-w-[160px]">{att.name}</span>
+                          {sizeStr && <span className="text-muted-foreground">({sizeStr})</span>}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Draft response first */}
                 {detailEmail.draft_response && (() => {
