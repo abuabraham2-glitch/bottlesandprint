@@ -245,7 +245,7 @@ export default function Inbox() {
         {/* Preview of draft for action needed */}
         {showActions && email.draft_response && (
           <div
-            className="mt-2 text-xs text-muted-foreground font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 prose prose-sm max-w-none"
+            className="mt-2 text-xs text-muted-foreground font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
             dangerouslySetInnerHTML={{ __html: email.draft_response }}
           />
         )}
@@ -255,7 +255,7 @@ export default function Inbox() {
           <div className="mt-3 text-sm font-sans border-t pt-3 space-y-2">
             {email.body && (
               <div
-                className="text-muted-foreground prose prose-sm max-w-none"
+                className="text-muted-foreground email-html-content max-w-none"
                 dangerouslySetInnerHTML={{ __html: email.body }}
               />
             )}
@@ -263,7 +263,7 @@ export default function Inbox() {
               <div>
                 <span className="text-xs font-medium text-muted-foreground">Response sent:</span>
                 <div
-                  className="bg-muted/30 rounded-lg p-2 mt-1 text-xs prose prose-sm max-w-none"
+                  className="bg-muted/30 rounded-lg p-2 mt-1 text-xs email-html-content max-w-none"
                   dangerouslySetInnerHTML={{ __html: email.draft_response }}
                 />
               </div>
@@ -508,7 +508,7 @@ export default function Inbox() {
                 <div>
                   <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Email Body</span>
                   <div
-                    className="text-sm font-sans border rounded-xl p-4 prose prose-sm max-w-none"
+                    className="text-sm font-sans border rounded-xl p-4 email-html-content max-w-none"
                     dangerouslySetInnerHTML={{ __html: detailEmail.body || "" }}
                   />
                 </div>
@@ -526,7 +526,7 @@ export default function Inbox() {
                       />
                     ) : (
                       <div
-                        className="bg-muted/30 rounded-xl p-4 text-sm font-sans prose prose-sm max-w-none"
+                        className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
                         dangerouslySetInnerHTML={{ __html: detailEmail.draft_response }}
                       />
                     )}

@@ -98,4 +98,17 @@
     @apply bg-card rounded-2xl border-0 p-5;
     box-shadow: 0 4px 20px -6px rgba(0,0,0,0.12), 0 8px 32px -8px rgba(0,0,0,0.08);
   }
+
+  /* Email HTML: preserve inline styles from draft_response/body */
+  .email-html-content {
+    font-size: 0.875rem;
+    line-height: 1.625;
+  }
+  .email-html-content a:not([style]) {
+    color: #0563C1;
+    text-decoration: underline;
+  }
+  .email-html-content p {
+    margin: 0.25em 0;
+  }
 }
