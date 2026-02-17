@@ -215,7 +215,7 @@ export default function Inbox() {
     return (
       <div key={email.id} className="floating-card mb-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => showActions ? setDetailEmail(email) : toggleExpand(email.id)}>
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setDetailEmail(email)}>
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium text-sm font-sans truncate">{email.from_name || email.from_email}</span>
               {email.category && (
@@ -236,11 +236,6 @@ export default function Inbox() {
             <div className="text-xs text-muted-foreground font-sans mt-0.5">{formatTime(email.created_at)}</div>
           </div>
 
-          {!showActions && (
-            <button onClick={() => toggleExpand(email.id)} className="shrink-0 text-muted-foreground">
-              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-          )}
         </div>
 
         {/* Preview of draft for action needed */}
@@ -249,27 +244,6 @@ export default function Inbox() {
             className="mt-2 text-xs font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
             dangerouslySetInnerHTML={{ __html: email.draft_response }}
           />
-        )}
-
-        {/* Expanded auto-handled content */}
-        {!showActions && isExpanded && (
-          <div className="mt-3 text-sm font-sans border-t pt-3 space-y-2">
-            {email.body && (
-              <div
-                className="email-html-content max-w-none"
-                dangerouslySetInnerHTML={{ __html: email.body }}
-              />
-            )}
-            {email.draft_response && (
-              <div>
-                <span className="text-xs font-medium text-muted-foreground">Response sent:</span>
-                <div
-                  className="bg-muted/30 rounded-lg p-2 mt-1 text-xs email-html-content max-w-none"
-                  dangerouslySetInnerHTML={{ __html: email.draft_response }}
-                />
-              </div>
-            )}
-          </div>
         )}
 
         {/* Action buttons */}
@@ -537,60 +511,73 @@ export default function Inbox() {
 
               {/* Sticky action buttons */}
               <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
-                <Button
-                  size="sm"
-                  className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => handleSendDraft(detailEmail)}
-                  disabled={sending === detailEmail.id || !detailEmail.draft_response}
-                >
-                  <Send size={12} /> Send
-                </Button>
-                {editDraftId === detailEmail.id ? (
+                {detailEmail.status === "needs_response" || detailEmail.status === "pending" ? (
                   <>
-                    <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail.id, detailEmail.from_email || "", detailEmail.subject || "")} disabled={sending === detailEmail.id}>
-                      <Send size={12} /> Send Edited
+                    <Button
+                      size="sm"
+                      className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => handleSendDraft(detailEmail)}
+                      disabled={sending === detailEmail.id || !detailEmail.draft_response}
+                    >
+                      <Send size={12} /> Send
                     </Button>
-                    <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>
+                    {editDraftId === detailEmail.id ? (
+                      <>
+                        <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail.id, detailEmail.from_email || "", detailEmail.subject || "")} disabled={sending === detailEmail.id}>
+                          <Send size={12} /> Send Edited
+                        </Button>
+                        <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl gap-1 text-xs"
+                        onClick={() => { setEditDraftId(detailEmail.id); setEditDraftText(detailEmail.draft_response || ""); }}
+                      >
+                        <Edit size={12} /> Edit & Send
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl gap-1 text-xs"
+                      onClick={() => {
+                        setComposeOpen(true);
+                        setComposeTo(detailEmail.from_email || "");
+                        setComposeSubject(`Re: ${detailEmail.subject || ""}`);
+                        setDetailEmail(null);
+                      }}
+                    >
+                      <MessageSquare size={12} /> Reply Custom
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-xl gap-1 text-xs text-muted-foreground"
+                      onClick={() => { handleDismiss(detailEmail.id); setDetailEmail(null); }}
+                    >
+                      <X size={12} /> Dismiss
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-xl gap-1 text-xs text-muted-foreground"
+                      onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}
+                    >
+                      <ThumbsDown size={12} />
+                    </Button>
                   </>
                 ) : (
                   <Button
                     size="sm"
                     variant="outline"
                     className="rounded-xl gap-1 text-xs"
-                    onClick={() => { setEditDraftId(detailEmail.id); setEditDraftText(detailEmail.draft_response || ""); }}
+                    onClick={() => setDetailEmail(null)}
                   >
-                    <Edit size={12} /> Edit & Send
+                    Close
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-xl gap-1 text-xs"
-                  onClick={() => {
-                    setComposeOpen(true);
-                    setComposeTo(detailEmail.from_email || "");
-                    setComposeSubject(`Re: ${detailEmail.subject || ""}`);
-                    setDetailEmail(null);
-                  }}
-                >
-                  <MessageSquare size={12} /> Reply Custom
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-xl gap-1 text-xs text-muted-foreground"
-                  onClick={() => { handleDismiss(detailEmail.id); setDetailEmail(null); }}
-                >
-                  <X size={12} /> Dismiss
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-xl gap-1 text-xs text-muted-foreground"
-                  onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}
-                >
-                  <ThumbsDown size={12} />
-                </Button>
               </div>
             </>
           )}
