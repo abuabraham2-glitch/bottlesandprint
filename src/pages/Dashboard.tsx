@@ -1,8 +1,9 @@
 import { useOrders } from "@/lib/data";
+import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { StickyNote, Link2, ClipboardList } from "lucide-react";
+import { StickyNote, Link2, ClipboardList, Mail, PhoneCall, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -21,6 +22,7 @@ const stageCardColors: Record<string, string> = {
 
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
+  const { data: inboxCounts } = useInboxCounts();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
 
@@ -239,6 +241,30 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
 
         {/* Right: QB Review + Calendar */}
         <div className="space-y-5">
+          {/* Inbox & Calls Notifications */}
+          {inboxCounts && (inboxCounts.actionNeeded > 0 || inboxCounts.autoHandledToday > 0 || inboxCounts.newCalls > 0) && (
+            <div className="floating-card space-y-2">
+              <h3 className="text-base font-serif mb-2">Notifications</h3>
+              {inboxCounts.actionNeeded > 0 && (
+                <button onClick={() => navigate("/inbox")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
+                  <Mail size={14} className="text-primary shrink-0" />
+                  <span className="font-medium">{inboxCounts.actionNeeded} email{inboxCounts.actionNeeded !== 1 ? "s" : ""} need attention</span>
+                </button>
+              )}
+              {inboxCounts.autoHandledToday > 0 && (
+                <button onClick={() => navigate("/inbox")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
+                  <Zap size={14} className="text-success shrink-0" />
+                  <span className="font-medium">{inboxCounts.autoHandledToday} auto-handled today</span>
+                </button>
+              )}
+              {inboxCounts.newCalls > 0 && (
+                <button onClick={() => navigate("/calls")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
+                  <PhoneCall size={14} className="text-warning shrink-0" />
+                  <span className="font-medium">{inboxCounts.newCalls} call{inboxCounts.newCalls !== 1 ? "s" : ""} to return</span>
+                </button>
+              )}
+            </div>
+          )}
           {/* QuickBooks Review */}
           {(() => {
             const invoicesToReview = filtered.filter(o => o.invoice_num && !(o as any).invoice_reviewed).length;

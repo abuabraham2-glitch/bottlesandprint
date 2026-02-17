@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, LogOut, KeyRound, Plus } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, LogOut, KeyRound, Plus, Mail, PhoneCall } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,8 @@ import {
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/orders", icon: Package, label: "Orders" },
+  { to: "/inbox", icon: Mail, label: "Inbox" },
+  { to: "/calls", icon: PhoneCall, label: "Calls" },
   { to: "/clients", icon: Users, label: "Clients" },
   { to: "/catalog", icon: BookOpen, label: "Product Catalog" },
   { to: "/completed", icon: Archive, label: "Completed Data" },

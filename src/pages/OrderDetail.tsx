@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useOrder, useOrders, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun, getSignedUrl, extractStoragePath, useOrderItems, useUpdateOrderItem, useDeleteOrderItem, OrderItem } from "@/lib/data";
+import { sendStageEmail, getCompletedStageEmail, getShipStageEmail } from "@/lib/emailData";
 import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, DOC_TYPES, formatAddress, formatDateShort, getStageBadgeClass, getStageLabel } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -163,6 +164,42 @@ export default function OrderDetail() {
     if (newStage === "completed") {
       await updateCatalogLastRun(order.client_id, order.item_name);
       queryClient.invalidateQueries({ queryKey: ["catalog"] });
+      // Auto-send completion email to client
+      if (order.clients?.email) {
+        const { subject, body } = getCompletedStageEmail(order.clients.contact_name || order.clients.company);
+        try {
+          await sendStageEmail({
+            to_email: order.clients.email,
+            to_name: order.clients.contact_name || order.clients.company,
+            subject,
+            body_html: body,
+            order_id: order.id,
+            category: "ORDER_UPDATE",
+          });
+          toast.success("Completion email sent to client");
+        } catch {
+          toast.error("Failed to send completion email");
+        }
+      }
+    }
+    if (newStage === "to_ship") {
+      // Auto-send ship stage email to client
+      if (order.clients?.email) {
+        const { subject, body } = getShipStageEmail(order.clients.contact_name || order.clients.company);
+        try {
+          await sendStageEmail({
+            to_email: order.clients.email,
+            to_name: order.clients.contact_name || order.clients.company,
+            subject,
+            body_html: body,
+            order_id: order.id,
+            category: "ORDER_UPDATE",
+          });
+          toast.success("Ship notification sent to client");
+        } catch {
+          toast.error("Failed to send ship notification");
+        }
+      }
     }
     toast.success(`Order moved to ${STAGES.find(s => s.key === newStage)?.label}`);
   };
