@@ -246,7 +246,7 @@ export default function Inbox() {
         {/* Preview of draft for action needed */}
         {showActions && email.draft_response && (
           <div
-            className="mt-2 text-xs text-muted-foreground font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
+            className="mt-2 text-xs font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
             dangerouslySetInnerHTML={{ __html: email.draft_response }}
           />
         )}
@@ -256,7 +256,7 @@ export default function Inbox() {
           <div className="mt-3 text-sm font-sans border-t pt-3 space-y-2">
             {email.body && (
               <div
-                className="text-muted-foreground email-html-content max-w-none"
+                className="email-html-content max-w-none"
                 dangerouslySetInnerHTML={{ __html: email.body }}
               />
             )}
