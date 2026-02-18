@@ -10,7 +10,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus, Paperclip, Users } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -21,17 +20,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   SPAM: "bg-red-100 text-red-700",
   ORDER_UPDATE: "bg-purple-100 text-purple-700",
   UNKNOWN: "bg-muted text-muted-foreground",
-};
-
-const EMAIL_TEMPLATES: Record<string, string> = {
-  Quote: "Thank you for your inquiry. Here is the quote for your order:\n\n",
-  "Need Info": "Thank you for reaching out. We need a bit more information to proceed:\n\n",
-  "Proof Ready": "Your proof is ready for review. Please take a look and let us know if any changes are needed.\n\n",
-  "Order Complete": "Just wanted to let you know that your order is complete.\n\n",
-  "Payment Received": "We've received your payment — thank you!\n\n",
-  "Follow-up": "Just following up on our previous conversation. Please let us know if you have any questions.\n\n",
-  "ACH Info": "Here are our ACH details:\n\nBank: Thread Bank\nAccount Name: Container and Deco Solutions\nAccount #: 200000014846\nRouting #: 064209588\n\n",
-  Custom: "",
 };
 
 type Tab = "action" | "auto" | "all";
@@ -51,7 +39,6 @@ function getReplyAllCc(email: Email): string {
   const exclude = new Set(["abu@bottlesandprint.com"]);
   if (email.from_email) exclude.add(email.from_email.toLowerCase());
   const recipients: string[] = [];
-  // Parse to_recipients and cc_recipients (comma-separated)
   [email.to_recipients, email.cc_recipients, email.to_email_all, email.cc_emails].forEach(field => {
     if (!field) return;
     field.split(",").map(e => e.trim()).filter(Boolean).forEach(addr => {
@@ -78,12 +65,13 @@ export default function Inbox() {
   const [composeCc, setComposeCc] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
-  const [composeTemplate, setComposeTemplate] = useState("");
+  const [composeEmailRef, setComposeEmailRef] = useState<Email | null>(null);
   const [sending, setSending] = useState<string | null>(null);
   const [detailEmail, setDetailEmail] = useState<Email | null>(null);
   const [showFollowUps, setShowFollowUps] = useState(false);
   const [confirmSend, setConfirmSend] = useState<{ action: () => Promise<void> } | null>(null);
   const editRef = useRef<HTMLDivElement>(null);
+  const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: actionEmails = [], isLoading: loadingAction } = useActionNeededEmails();
   const { data: autoEmails = [] } = useAutoHandledEmails();
@@ -208,6 +196,15 @@ export default function Inbox() {
     setFeedbackNotes("");
   };
 
+  const openReply = (email: Email, replyAll: boolean) => {
+    setComposeOpen(true);
+    setComposeTo(email.from_email || "");
+    setComposeCc(replyAll ? getReplyAllCc(email) : "");
+    setComposeSubject(`Re: ${email.subject || ""}`);
+    setComposeBody(email.draft_response || "");
+    setComposeEmailRef(email);
+  };
+
   const handleComposeSend = async () => {
     if (!composeTo.trim() || !composeSubject.trim()) {
       toast.error("Please fill in To and Subject");
@@ -215,10 +212,13 @@ export default function Inbox() {
     }
     setSending("compose");
     try {
+      const htmlContent = composeBodyRef.current?.innerHTML || composeBody;
       await sendEmailViaWebhook({
         to_email: composeTo,
         subject: composeSubject,
-        draft: composeBody,
+        draft: htmlContent,
+        gmail_id: composeEmailRef?.gmail_id || undefined,
+        email_id: composeEmailRef?.id || undefined,
         cc: composeCc || undefined,
       });
       toast.success("Email sent");
@@ -227,6 +227,7 @@ export default function Inbox() {
       setComposeCc("");
       setComposeSubject("");
       setComposeBody("");
+      setComposeEmailRef(null);
     } catch {
       toast.error("Failed to send");
     }
@@ -243,7 +244,7 @@ export default function Inbox() {
     ).slice(0, 5);
   };
 
-const formatTime = (dateStr: string | null) => {
+  const formatTime = (dateStr: string | null) => {
     if (!dateStr) return "";
     return format(new Date(dateStr), "MMM d, h:mm a");
   };
@@ -256,6 +257,20 @@ const formatTime = (dateStr: string | null) => {
     }
     return [];
   };
+
+  const renderReplyButtons = (email: Email) => (
+    <>
+      <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { openReply(email, false); setDetailEmail(null); }}>
+        <Mail size={12} /> Reply
+      </Button>
+      <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { openReply(email, true); setDetailEmail(null); }}>
+        <Users size={12} /> Reply All
+      </Button>
+      <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => { handleDismiss(email.id); setDetailEmail(null); }}>
+        <X size={12} /> Dismiss
+      </Button>
+    </>
+  );
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
     return (
@@ -308,27 +323,17 @@ const formatTime = (dateStr: string | null) => {
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setEditDraftId(email.id); setEditDraftText(email.draft_response || ""); }}>
               <Edit size={12} /> Edit & Send
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs">
-                  <MessageSquare size={12} /> Reply <ChevronDown size={10} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => { setComposeOpen(true); setComposeTo(email.from_email || ""); setComposeCc(""); setComposeSubject(`Re: ${email.subject || ""}`); }}>
-                  <Mail size={12} className="mr-2" /> Reply
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setComposeOpen(true); setComposeTo(email.from_email || ""); setComposeCc(getReplyAllCc(email)); setComposeSubject(`Re: ${email.subject || ""}`); }}>
-                  <Users size={12} className="mr-2" /> Reply All
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => handleDismiss(email.id)}>
-              <X size={12} /> Dismiss
-            </Button>
+            {renderReplyButtons(email)}
             <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => { setFeedbackEmailId(email.id); }}>
               <ThumbsDown size={12} />
             </Button>
+          </div>
+        )}
+
+        {/* Reply/Reply All for non-action tabs */}
+        {!showActions && (
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            {renderReplyButtons(email)}
           </div>
         )}
 
@@ -382,7 +387,7 @@ const formatTime = (dateStr: string | null) => {
               <button onClick={() => setShowFollowUps(true)} className="text-xs text-muted-foreground hover:text-foreground font-sans underline">
                 View scheduled follow-ups
               </button>
-              <Button size="sm" className="rounded-xl gap-1" onClick={() => setComposeOpen(true)}>
+              <Button size="sm" className="rounded-xl gap-1" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(""); }}>
                 <Plus size={14} /> Compose
               </Button>
             </>
@@ -628,9 +633,9 @@ const formatTime = (dateStr: string | null) => {
                 })()}
               </div>
 
-              {/* Sticky action buttons */}
+              {/* Sticky action buttons — always show Reply/Reply All/Dismiss */}
               <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
-                {detailEmail.status === "needs_response" || detailEmail.status === "pending" ? (
+                {(detailEmail.status === "needs_response" || detailEmail.status === "pending") && (
                   <>
                     <Button
                       size="sm"
@@ -657,58 +662,17 @@ const formatTime = (dateStr: string | null) => {
                         <Edit size={12} /> Edit & Send
                       </Button>
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs">
-                          <MessageSquare size={12} /> Reply <ChevronDown size={10} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => {
-                          setComposeOpen(true);
-                          setComposeTo(detailEmail.from_email || "");
-                          setComposeCc("");
-                          setComposeSubject(`Re: ${detailEmail.subject || ""}`);
-                          setDetailEmail(null);
-                        }}>
-                          <Mail size={12} className="mr-2" /> Reply
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          setComposeOpen(true);
-                          setComposeTo(detailEmail.from_email || "");
-                          setComposeCc(getReplyAllCc(detailEmail));
-                          setComposeSubject(`Re: ${detailEmail.subject || ""}`);
-                          setDetailEmail(null);
-                        }}>
-                          <Users size={12} className="mr-2" /> Reply All
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-xl gap-1 text-xs text-muted-foreground"
-                      onClick={() => { handleDismiss(detailEmail.id); setDetailEmail(null); }}
-                    >
-                      <X size={12} /> Dismiss
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-xl gap-1 text-xs text-muted-foreground"
-                      onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}
-                    >
-                      <ThumbsDown size={12} />
-                    </Button>
                   </>
-                ) : (
+                )}
+                {renderReplyButtons(detailEmail)}
+                {(detailEmail.status === "needs_response" || detailEmail.status === "pending") && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="rounded-xl gap-1 text-xs"
-                    onClick={() => setDetailEmail(null)}
+                    variant="ghost"
+                    className="rounded-xl gap-1 text-xs text-muted-foreground"
+                    onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}
                   >
-                    Close
+                    <ThumbsDown size={12} />
                   </Button>
                 )}
               </div>
@@ -767,7 +731,7 @@ const formatTime = (dateStr: string | null) => {
         </DialogContent>
       </Dialog>
 
-      {/* Compose Dialog */}
+      {/* Compose Dialog — uses contentEditable for rich text body */}
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -787,26 +751,14 @@ const formatTime = (dateStr: string | null) => {
               <Input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} className="rounded-xl" />
             </div>
             <div>
-              <label className="text-xs font-sans text-muted-foreground">Template</label>
-              <Select value={composeTemplate} onValueChange={(val) => {
-                setComposeTemplate(val);
-                if (EMAIL_TEMPLATES[val] !== undefined) {
-                  setComposeBody(EMAIL_TEMPLATES[val]);
-                }
-              }}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Choose template..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.keys(EMAIL_TEMPLATES).map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <label className="text-xs font-sans text-muted-foreground">Body</label>
-              <Textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} rows={8} className="rounded-xl font-sans text-sm" />
+              <div
+                ref={composeBodyRef}
+                contentEditable
+                suppressContentEditableWarning
+                className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
+                dangerouslySetInnerHTML={{ __html: composeBody }}
+              />
             </div>
           </div>
           <DialogFooter>
