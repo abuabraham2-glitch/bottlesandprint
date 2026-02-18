@@ -252,8 +252,8 @@ export default function Inbox() {
                 </span>
               )}
               {Array.isArray(email.attachments) && (email.attachments as any[]).length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-sans font-medium inline-flex items-center gap-0.5">
-                  📎 {(email.attachments as any[]).length} attachment{(email.attachments as any[]).length > 1 ? "s" : ""}
+                <span className="text-[10px] text-muted-foreground font-sans font-medium inline-flex items-center gap-0.5">
+                  📎 {(email.attachments as any[]).length}
                 </span>
               )}
             </div>
@@ -497,7 +497,7 @@ export default function Inbox() {
                   <div className="flex flex-wrap gap-2">
                     {detailEmail.attachments.map((att: any, i: number) => {
                       const sizeStr = att.size ? (att.size < 1024 ? `${att.size} B` : att.size < 1048576 ? `${(att.size / 1024).toFixed(0)} KB` : `${(att.size / 1048576).toFixed(1)} MB`) : "";
-                      const url = `https://bottlesandprint.app.n8n.cloud/webhook/get-attachment?messageId=${encodeURIComponent(detailEmail.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
+                      const url = `https://bottlesandprint.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(detailEmail.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
                       return (
                         <a
                           key={i}
