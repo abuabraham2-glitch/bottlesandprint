@@ -51,8 +51,8 @@ function getReplyAllCc(email: Email): string {
   const exclude = new Set(["abu@bottlesandprint.com"]);
   if (email.from_email) exclude.add(email.from_email.toLowerCase());
   const recipients: string[] = [];
-  // Parse to_email_all and cc_emails (comma-separated)
-  [email.to_email_all, email.cc_emails].forEach(field => {
+  // Parse to_recipients and cc_recipients (comma-separated)
+  [email.to_recipients, email.cc_recipients, email.to_email_all, email.cc_emails].forEach(field => {
     if (!field) return;
     field.split(",").map(e => e.trim()).filter(Boolean).forEach(addr => {
       if (!exclude.has(addr.toLowerCase()) && !recipients.includes(addr.toLowerCase())) {
