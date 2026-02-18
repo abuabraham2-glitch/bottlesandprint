@@ -221,9 +221,18 @@ export default function Inbox() {
     ).slice(0, 5);
   };
 
-  const formatTime = (dateStr: string | null) => {
+const formatTime = (dateStr: string | null) => {
     if (!dateStr) return "";
     return format(new Date(dateStr), "MMM d, h:mm a");
+  };
+
+  const parseAttachments = (att: any): any[] => {
+    if (!att) return [];
+    if (Array.isArray(att)) return att;
+    if (typeof att === "string") {
+      try { const parsed = JSON.parse(att); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+    }
+    return [];
   };
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
@@ -255,9 +264,9 @@ export default function Inbox() {
             <div className="text-sm font-sans truncate">{email.subject}</div>
             <div className="text-xs text-muted-foreground font-sans mt-0.5 flex items-center gap-1.5">
               <span>{formatTime(email.created_at)}</span>
-              {Array.isArray(email.attachments) && (email.attachments as any[]).length > 0 && (
-                <span className="inline-flex items-center gap-0.5">📎 {(email.attachments as any[]).length}</span>
-              )}
+              {(() => { const atts = parseAttachments(email.attachments); return atts.length > 0 ? (
+                <span className="inline-flex items-center gap-0.5">📎 {atts.length}</span>
+              ) : null; })()}
             </div>
           </div>
         </div>
@@ -493,27 +502,32 @@ export default function Inbox() {
                 })()}
 
                 {/* Attachments */}
-                {Array.isArray(detailEmail.attachments) && detailEmail.attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {detailEmail.attachments.map((att: any, i: number) => {
-                      const sizeStr = att.size ? (att.size < 1024 ? `${att.size} B` : att.size < 1048576 ? `${(att.size / 1024).toFixed(0)} KB` : `${(att.size / 1048576).toFixed(1)} MB`) : "";
-                      const url = `https://bottlesandprint.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(detailEmail.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
-                      return (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border"
-                        >
-                          <Paperclip size={12} className="text-muted-foreground" />
-                          <span className="truncate max-w-[160px]">{att.name}</span>
-                          {sizeStr && <span className="text-muted-foreground">({sizeStr})</span>}
-                        </a>
-                      );
-                    })}
-                  </div>
-                )}
+                {(() => {
+                  const atts = parseAttachments(detailEmail.attachments);
+                  if (atts.length === 0) return null;
+                  return (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Attachments</span>
+                      <div className="flex flex-wrap gap-2">
+                        {atts.map((att: any, i: number) => {
+                          const url = `https://bottlesandprint.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(detailEmail.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
+                          return (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border"
+                            >
+                              <Paperclip size={12} className="text-muted-foreground" />
+                              <span className="truncate max-w-[160px]">{att.name}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Draft response first */}
                 {detailEmail.draft_response && (() => {
