@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/b6dc8d57-3e50-4b28-bb6f-0fe08bbf1dc4";
+const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
 
 export interface Email {
   id: string;
