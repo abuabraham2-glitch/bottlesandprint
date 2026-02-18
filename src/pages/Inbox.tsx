@@ -265,7 +265,7 @@ const formatTime = (dateStr: string | null) => {
             <div className="text-xs text-muted-foreground font-sans mt-0.5 flex items-center gap-1.5">
               <span>{formatTime(email.created_at)}</span>
               {(() => { const atts = parseAttachments(email.attachments); return atts.length > 0 ? (
-                <span className="inline-flex items-center gap-0.5">📎 {atts.length}</span>
+                <span className="inline-flex items-center gap-0.5 bg-destructive text-destructive-foreground text-[11px] font-bold rounded-full px-1.5 py-0.5 leading-none">📎 {atts.length}</span>
               ) : null; })()}
             </div>
           </div>
