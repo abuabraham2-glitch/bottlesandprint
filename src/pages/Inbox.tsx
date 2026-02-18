@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus, Paperclip } from "lucide-react";
+import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus, Paperclip, Users } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -43,6 +44,23 @@ function splitDraftAtHr(html: string): { draftPart: string; quotedPart: string |
     draftPart: html.substring(0, hrIndex),
     quotedPart: html.substring(hrIndex),
   };
+}
+
+/** Get CC recipients for Reply All (excludes abu@bottlesandprint.com and the from_email) */
+function getReplyAllCc(email: Email): string {
+  const exclude = new Set(["abu@bottlesandprint.com"]);
+  if (email.from_email) exclude.add(email.from_email.toLowerCase());
+  const recipients: string[] = [];
+  // Parse to_email_all and cc_emails (comma-separated)
+  [email.to_email_all, email.cc_emails].forEach(field => {
+    if (!field) return;
+    field.split(",").map(e => e.trim()).filter(Boolean).forEach(addr => {
+      if (!exclude.has(addr.toLowerCase()) && !recipients.includes(addr.toLowerCase())) {
+        recipients.push(addr);
+      }
+    });
+  });
+  return recipients.join(", ");
 }
 
 export default function Inbox() {
@@ -290,9 +308,21 @@ const formatTime = (dateStr: string | null) => {
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setEditDraftId(email.id); setEditDraftText(email.draft_response || ""); }}>
               <Edit size={12} /> Edit & Send
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setComposeOpen(true); setComposeTo(email.from_email || ""); setComposeSubject(`Re: ${email.subject || ""}`); }}>
-              <MessageSquare size={12} /> Reply Custom
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs">
+                  <MessageSquare size={12} /> Reply <ChevronDown size={10} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => { setComposeOpen(true); setComposeTo(email.from_email || ""); setComposeCc(""); setComposeSubject(`Re: ${email.subject || ""}`); }}>
+                  <Mail size={12} className="mr-2" /> Reply
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setComposeOpen(true); setComposeTo(email.from_email || ""); setComposeCc(getReplyAllCc(email)); setComposeSubject(`Re: ${email.subject || ""}`); }}>
+                  <Users size={12} className="mr-2" /> Reply All
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => handleDismiss(email.id)}>
               <X size={12} /> Dismiss
             </Button>
@@ -627,19 +657,33 @@ const formatTime = (dateStr: string | null) => {
                         <Edit size={12} /> Edit & Send
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl gap-1 text-xs"
-                      onClick={() => {
-                        setComposeOpen(true);
-                        setComposeTo(detailEmail.from_email || "");
-                        setComposeSubject(`Re: ${detailEmail.subject || ""}`);
-                        setDetailEmail(null);
-                      }}
-                    >
-                      <MessageSquare size={12} /> Reply Custom
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs">
+                          <MessageSquare size={12} /> Reply <ChevronDown size={10} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => {
+                          setComposeOpen(true);
+                          setComposeTo(detailEmail.from_email || "");
+                          setComposeCc("");
+                          setComposeSubject(`Re: ${detailEmail.subject || ""}`);
+                          setDetailEmail(null);
+                        }}>
+                          <Mail size={12} className="mr-2" /> Reply
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setComposeOpen(true);
+                          setComposeTo(detailEmail.from_email || "");
+                          setComposeCc(getReplyAllCc(detailEmail));
+                          setComposeSubject(`Re: ${detailEmail.subject || ""}`);
+                          setDetailEmail(null);
+                        }}>
+                          <Users size={12} className="mr-2" /> Reply All
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       size="sm"
                       variant="ghost"

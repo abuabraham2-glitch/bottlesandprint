@@ -23,6 +23,8 @@ export interface Email {
   auto_sent_at: string | null;
   holding_sent_at: string | null;
   attachments: any[] | null;
+  to_email_all: string | null;
+  cc_emails: string | null;
 }
 export interface Call {
   id: string;
