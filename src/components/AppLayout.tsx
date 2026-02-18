@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, LogOut, KeyRound, Plus, Mail, PhoneCall } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, Search, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +19,8 @@ const navItems = [
   { to: "/clients", icon: Users, label: "Clients" },
   { to: "/catalog", icon: BookOpen, label: "Product Catalog" },
   { to: "/completed", icon: Archive, label: "Completed Data" },
-];
+  { to: "https://drive.google.com", icon: HardDrive, label: "Google Drive", external: true },
+] as const;
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -72,6 +73,20 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
         <nav className="flex-1 px-3 space-y-0.5 mt-2">
           {navItems.map((item) => {
             const active = location.pathname === item.to;
+            if ('external' in item && item.external) {
+              return (
+                <a
+                  key={item.to}
+                  href={item.to}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                >
+                  <item.icon size={17} />
+                  <span>{item.label}</span>
+                </a>
+              );
+            }
             return (
               <Link
                 key={item.to}
