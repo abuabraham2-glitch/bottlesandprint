@@ -251,14 +251,14 @@ export default function Inbox() {
                   Sent
                 </span>
               )}
-              {Array.isArray(email.attachments) && (email.attachments as any[]).length > 0 && (
-                <span className="text-[10px] text-muted-foreground font-sans font-medium inline-flex items-center gap-0.5">
-                  📎 {(email.attachments as any[]).length}
-                </span>
-              )}
             </div>
             <div className="text-sm font-sans truncate">{email.subject}</div>
-            <div className="text-xs text-muted-foreground font-sans mt-0.5">{formatTime(email.created_at)}</div>
+            <div className="text-xs text-muted-foreground font-sans mt-0.5 flex items-center gap-1.5">
+              <span>{formatTime(email.created_at)}</span>
+              {Array.isArray(email.attachments) && (email.attachments as any[]).length > 0 && (
+                <span className="inline-flex items-center gap-0.5">📎 {(email.attachments as any[]).length}</span>
+              )}
+            </div>
           </div>
         </div>
 
