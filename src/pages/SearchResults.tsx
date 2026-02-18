@@ -2,8 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getStageBadgeClass, getStageLabel } from "@/lib/constants";
-import { Search } from "lucide-react";
+import { Search, Paperclip, Mail, Users, X, Send, Edit } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { sendEmailViaWebhook, Email } from "@/lib/emailData";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface SearchResultsProps {
   searchQuery: string;
@@ -42,6 +48,23 @@ interface EmailResult {
   subject: string | null;
   category: string | null;
   created_at: string | null;
+  status: string | null;
+  draft_response: string | null;
+  body: string | null;
+  gmail_id: string | null;
+  thread_id: string | null;
+  tier: string | null;
+  attachments: any;
+  to_recipients: string | null;
+  cc_recipients: string | null;
+  to_email_all: string | null;
+  cc_emails: string | null;
+  acknowledged: boolean | null;
+  resolved_at: string | null;
+  auto_sent_at: string | null;
+  holding_sent_at: string | null;
+  quote_data: any;
+  client_id: string | null;
 }
 
 interface CallResult {
@@ -53,7 +76,58 @@ interface CallResult {
   created_at: string | null;
 }
 
+interface ProductResult {
+  id: string;
+  product_name: string;
+  size: string | null;
+  material: string | null;
+  container_color: string | null;
+  clients: { company: string } | null;
+}
+
 const PREVIEW_LIMIT = 5;
+
+function formatTime(dateStr: string | null) {
+  if (!dateStr) return "";
+  return format(new Date(dateStr), "MMM d, h:mm a");
+}
+
+function formatQuotedText(html: string): string {
+  // If it looks like HTML already, just return it
+  if (/<[a-z][\s\S]*>/i.test(html)) return html;
+  // Plain text: parse > quoted lines
+  const lines = html.split(/\n/);
+  let result = "";
+  let inQuote = false;
+  for (const line of lines) {
+    const match = line.match(/^(>+)\s?(.*)/);
+    if (match) {
+      if (!inQuote) {
+        result += '<div style="border-left: 3px solid #d1d5db; padding-left: 12px; margin: 8px 0; color: #6b7280; font-size: 13px;">';
+        inQuote = true;
+      }
+      result += match[2] + "<br>";
+    } else {
+      if (inQuote) {
+        result += "</div>";
+        inQuote = false;
+      }
+      result += line + "<br>";
+    }
+  }
+  if (inQuote) result += "</div>";
+  return result;
+}
+
+/** Split draft_response at the FIRST <hr> only */
+function splitDraftAtHr(html: string): { draftPart: string; quotedPart: string | null } {
+  const hrIndex = html.search(/<hr[\s/>]/i);
+  if (hrIndex === -1) return { draftPart: html, quotedPart: null };
+  return {
+    draftPart: html.substring(0, hrIndex),
+    quotedPart: html.substring(hrIndex),
+  };
+}
 
 export default function SearchResults({ searchQuery }: SearchResultsProps) {
   const navigate = useNavigate();
@@ -62,11 +136,14 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
   const [clients, setClients] = useState<ClientResult[]>([]);
   const [emails, setEmails] = useState<EmailResult[]>([]);
   const [calls, setCalls] = useState<CallResult[]>([]);
+  const [products, setProducts] = useState<ProductResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [detailEmail, setDetailEmail] = useState<EmailResult | null>(null);
+  const [detailProduct, setDetailProduct] = useState<ProductResult | null>(null);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setOrders([]); setArchived([]); setClients([]); setEmails([]); setCalls([]);
+      setOrders([]); setArchived([]); setClients([]); setEmails([]); setCalls([]); setProducts([]);
       return;
     }
 
@@ -74,7 +151,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setLoading(true);
       const term = `%${searchQuery.trim()}%`;
 
-      const [orderRes, orderByClient, archRes, clientRes, emailRes, callRes] = await Promise.all([
+      const [orderRes, orderByClient, archRes, clientRes, emailRes, callRes, productRes] = await Promise.all([
         supabase.from("orders").select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
           .eq("archived", false)
           .or(`item_name.ilike.${term},client_po.ilike.${term},vendor_po.ilike.${term},invoice_num.ilike.${term},clients.company.ilike.${term}`)
@@ -85,10 +162,13 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
           .or(`client_company.ilike.${term},description.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("clients").select("id, company, contact_name, email")
           .or(`company.ilike.${term},contact_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`).limit(PREVIEW_LIMIT),
-        supabase.from("emails").select("id, from_name, from_email, subject, category, created_at")
-          .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term}`).limit(PREVIEW_LIMIT),
+        supabase.from("emails").select("*")
+          .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term},to_recipients.ilike.${term},cc_recipients.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("calls").select("id, caller_name, company_name, phone_number, call_reason, created_at")
           .or(`caller_name.ilike.${term},company_name.ilike.${term},phone_number.ilike.${term},call_reason.ilike.${term}`).limit(PREVIEW_LIMIT),
+        supabase.from("catalog").select("id, product_name, size, material, container_color, clients!inner(company)")
+          .or(`product_name.ilike.${term},size.ilike.${term},material.ilike.${term},clients.company.ilike.${term}`)
+          .eq("archived", false).limit(PREVIEW_LIMIT),
       ]);
 
       const allOrders = [...(orderRes.data || []), ...(orderByClient.data || [])];
@@ -96,21 +176,22 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setOrders(uniqueOrders as unknown as OrderResult[]);
       setArchived((archRes.data || []) as ArchivedResult[]);
       setClients((clientRes.data || []) as ClientResult[]);
-      setEmails((emailRes.data || []) as EmailResult[]);
+      setEmails((emailRes.data || []) as unknown as EmailResult[]);
       setCalls((callRes.data || []) as CallResult[]);
+      setProducts((productRes.data || []) as unknown as ProductResult[]);
       setLoading(false);
     };
 
     doSearch();
   }, [searchQuery]);
 
-  const noResults = !loading && orders.length === 0 && archived.length === 0 && clients.length === 0 && emails.length === 0 && calls.length === 0;
+  const noResults = !loading && orders.length === 0 && archived.length === 0 && clients.length === 0 && emails.length === 0 && calls.length === 0 && products.length === 0;
 
   if (!searchQuery.trim()) {
     return (
       <div className="p-6 max-w-[1400px]">
         <h1 className="text-2xl font-serif mb-4">Search</h1>
-        <p className="text-muted-foreground font-sans">Type in the search bar to find orders, clients, emails, calls, and more.</p>
+        <p className="text-muted-foreground font-sans">Type in the search bar to find orders, clients, emails, calls, products, and more.</p>
       </div>
     );
   }
@@ -174,6 +255,30 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
         </div>
       ))}
 
+      {/* Products */}
+      {renderSection("Products", products.length, (
+        <div className="bg-card rounded-2xl border overflow-hidden">
+          <table className="w-full text-sm font-sans">
+            <thead><tr className="border-b bg-muted/40">
+              <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Size</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Material</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Color</th>
+            </tr></thead>
+            <tbody>{products.map(p => (
+              <tr key={p.id} onClick={() => setDetailProduct(p)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+                <td className="p-3 font-medium">{p.product_name}</td>
+                <td className="p-3">{p.clients?.company || "—"}</td>
+                <td className="p-3 text-muted-foreground">{p.size || "—"}</td>
+                <td className="p-3 text-muted-foreground">{p.material || "—"}</td>
+                <td className="p-3 text-muted-foreground">{p.container_color || "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ))}
+
       {/* Emails */}
       {renderSection("Emails", emails.length, (
         <div className="bg-card rounded-2xl border overflow-hidden">
@@ -182,12 +287,14 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <th className="text-left p-3 font-medium text-muted-foreground">From</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Subject</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
             </tr></thead>
             <tbody>{emails.map(e => (
-              <tr key={e.id} onClick={() => navigate("/inbox")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+              <tr key={e.id} onClick={() => setDetailEmail(e)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
                 <td className="p-3 font-medium">{e.from_name || e.from_email}</td>
                 <td className="p-3">{e.subject}</td>
                 <td className="p-3 text-muted-foreground">{e.category || "—"}</td>
+                <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime(e.created_at)}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -202,12 +309,14 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <th className="text-left p-3 font-medium text-muted-foreground">Caller</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Company</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Reason</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
             </tr></thead>
             <tbody>{calls.map(c => (
               <tr key={c.id} onClick={() => navigate("/calls")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
                 <td className="p-3 font-medium">{c.caller_name || "Unknown"}</td>
                 <td className="p-3">{c.company_name || "—"}</td>
                 <td className="p-3 text-muted-foreground truncate max-w-xs">{c.call_reason || "—"}</td>
+                <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime(c.created_at)}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -235,6 +344,94 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
           </table>
         </div>
       ))}
+
+      {/* Email Detail Sheet */}
+      <Sheet open={!!detailEmail} onOpenChange={() => setDetailEmail(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
+          {detailEmail && (
+            <>
+              <SheetHeader className="p-6 pb-4 border-b shrink-0">
+                <SheetTitle className="font-serif text-lg">{detailEmail.subject}</SheetTitle>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans">
+                  <span>{detailEmail.from_name}</span>
+                  <span>&lt;{detailEmail.from_email}&gt;</span>
+                  <span>•</span>
+                  <span>{formatTime(detailEmail.created_at)}</span>
+                </div>
+              </SheetHeader>
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Draft response */}
+                {detailEmail.draft_response && (() => {
+                  const { draftPart, quotedPart } = splitDraftAtHr(detailEmail.draft_response);
+                  return (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
+                      <div className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none" dangerouslySetInnerHTML={{ __html: draftPart }} />
+                      {quotedPart && (
+                        <Accordion type="single" collapsible className="w-full mt-3">
+                          <AccordionItem value="quoted-email" className="border rounded-xl">
+                            <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
+                            <AccordionContent className="px-4 pb-4">
+                              <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }} dangerouslySetInnerHTML={{ __html: formatQuotedText(quotedPart) }} />
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Original email body */}
+                {detailEmail.body && (() => {
+                  const hasQuotedInDraft = detailEmail.draft_response ? splitDraftAtHr(detailEmail.draft_response).quotedPart !== null : false;
+                  if (hasQuotedInDraft) return null;
+                  return (
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="original-email" className="border rounded-xl">
+                        <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
+                        <AccordionContent className="px-4 pb-4">
+                          <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }} dangerouslySetInnerHTML={{ __html: formatQuotedText(detailEmail.body) }} />
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  );
+                })()}
+              </div>
+              <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
+                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setDetailEmail(null); navigate("/inbox"); }}>
+                  <Mail size={12} /> Open in Inbox
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Product Detail Sheet */}
+      <Sheet open={!!detailProduct} onOpenChange={() => setDetailProduct(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-[400px] p-0 flex flex-col h-full">
+          {detailProduct && (
+            <>
+              <SheetHeader className="p-6 pb-4 border-b shrink-0">
+                <SheetTitle className="font-serif text-lg">{detailProduct.product_name}</SheetTitle>
+                <div className="text-sm text-muted-foreground font-sans">{detailProduct.clients?.company}</div>
+              </SheetHeader>
+              <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm font-sans">
+                  <div><span className="text-muted-foreground">Size:</span> <span className="font-medium">{detailProduct.size || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Material:</span> <span className="font-medium">{detailProduct.material || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Color:</span> <span className="font-medium">{detailProduct.container_color || "—"}</span></div>
+                </div>
+              </div>
+              <div className="border-t p-4 flex items-center gap-2 bg-background shrink-0">
+                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setDetailProduct(null); navigate("/catalog"); }}>
+                  Open in Catalog
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

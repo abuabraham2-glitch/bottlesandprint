@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useActionNeededEmails, useAutoHandledEmails, useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, useFollowUps, Email } from "@/lib/emailData";
 import { useClients } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   UNKNOWN: "bg-muted text-muted-foreground",
 };
 
+const SIGNATURE = `<br><br>Best regards,<br>Abu<br>Bottles & Print`;
+
 type Tab = "action" | "auto" | "all";
 
 /** Split draft_response at the FIRST <hr> only */
@@ -32,6 +35,29 @@ function splitDraftAtHr(html: string): { draftPart: string; quotedPart: string |
     draftPart: html.substring(0, hrIndex),
     quotedPart: html.substring(hrIndex),
   };
+}
+
+/** Format quoted text with Gmail-style left border */
+function formatQuotedText(html: string): string {
+  if (/<[a-z][\s\S]*>/i.test(html)) return html;
+  const lines = html.split(/\n/);
+  let result = "";
+  let inQuote = false;
+  for (const line of lines) {
+    const match = line.match(/^(>+)\s?(.*)/);
+    if (match) {
+      if (!inQuote) {
+        result += '<div style="border-left: 3px solid #d1d5db; padding-left: 12px; margin: 8px 0; color: #6b7280; font-size: 13px;">';
+        inQuote = true;
+      }
+      result += match[2] + "<br>";
+    } else {
+      if (inQuote) { result += "</div>"; inQuote = false; }
+      result += line + "<br>";
+    }
+  }
+  if (inQuote) result += "</div>";
+  return result;
 }
 
 /** Get CC recipients for Reply All (excludes abu@bottlesandprint.com and the from_email) */
@@ -48,6 +74,20 @@ function getReplyAllCc(email: Email): string {
     });
   });
   return recipients.join(", ");
+}
+
+/** Extract a short summary from an email body (1-2 sentences) */
+function extractSummary(body: string | null): string | null {
+  if (!body) return null;
+  // Strip HTML tags
+  const text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  // Get first 1-2 sentences
+  const sentences = text.match(/[^.!?]+[.!?]+/g);
+  if (sentences && sentences.length > 0) {
+    return sentences.slice(0, 2).join(" ").trim().substring(0, 150);
+  }
+  return text.substring(0, 150);
 }
 
 export default function Inbox() {
@@ -70,6 +110,10 @@ export default function Inbox() {
   const [detailEmail, setDetailEmail] = useState<Email | null>(null);
   const [showFollowUps, setShowFollowUps] = useState(false);
   const [confirmSend, setConfirmSend] = useState<{ action: () => Promise<void> } | null>(null);
+  const [toSuggestions, setToSuggestions] = useState<string[]>([]);
+  const [ccSuggestions, setCcSuggestions] = useState<string[]>([]);
+  const [showToSuggestions, setShowToSuggestions] = useState(false);
+  const [showCcSuggestions, setShowCcSuggestions] = useState(false);
   const editRef = useRef<HTMLDivElement>(null);
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +139,56 @@ export default function Inbox() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  // Email autocomplete search
+  const searchEmails = useCallback(async (query: string): Promise<string[]> => {
+    if (query.length < 2) return [];
+    const { data } = await supabase
+      .from("emails")
+      .select("from_email")
+      .ilike("from_email", `%${query}%`)
+      .limit(10);
+    if (!data) return [];
+    const unique = [...new Set(data.map(d => d.from_email).filter(Boolean))] as string[];
+    return unique.slice(0, 5);
+  }, []);
+
+  const handleToChange = async (value: string) => {
+    setComposeTo(value);
+    if (value.length >= 2) {
+      const suggestions = await searchEmails(value);
+      setToSuggestions(suggestions);
+      setShowToSuggestions(suggestions.length > 0);
+    } else {
+      setShowToSuggestions(false);
+    }
+  };
+
+  const handleCcChange = async (value: string) => {
+    setComposeCc(value);
+    // Only autocomplete the last email being typed
+    const parts = value.split(",");
+    const lastPart = parts[parts.length - 1].trim();
+    if (lastPart.length >= 2) {
+      const suggestions = await searchEmails(lastPart);
+      setCcSuggestions(suggestions);
+      setShowCcSuggestions(suggestions.length > 0);
+    } else {
+      setShowCcSuggestions(false);
+    }
+  };
+
+  const selectToSuggestion = (email: string) => {
+    setComposeTo(email);
+    setShowToSuggestions(false);
+  };
+
+  const selectCcSuggestion = (email: string) => {
+    const parts = composeCc.split(",").map(s => s.trim()).filter(Boolean);
+    parts[parts.length - 1] = email;
+    setComposeCc(parts.join(", "));
+    setShowCcSuggestions(false);
   };
 
   const doSendDraft = async (email: Email) => {
@@ -196,12 +290,25 @@ export default function Inbox() {
     setFeedbackNotes("");
   };
 
+  const isSentEmail = (email: Email) => {
+    return email.status === "approved_sent" || email.status === "auto_sent";
+  };
+
   const openReply = (email: Email, replyAll: boolean) => {
     setComposeOpen(true);
     setComposeTo(email.from_email || "");
     setComposeCc(replyAll ? getReplyAllCc(email) : "");
     setComposeSubject(`Re: ${email.subject || ""}`);
-    setComposeBody(email.draft_response || "");
+
+    if (isSentEmail(email)) {
+      // For sent emails: empty body + signature, quote the sent email below
+      const quotedContent = email.draft_response || email.body || "";
+      const quotedBlock = `<br><br><div style="border-left: 3px solid #d1d5db; padding-left: 12px; margin: 8px 0; color: #6b7280; font-size: 13px;"><strong>On ${formatTime(email.created_at)}, you wrote:</strong><br>${quotedContent}</div>`;
+      setComposeBody(SIGNATURE + quotedBlock);
+    } else {
+      // For incoming emails: pre-fill with existing draft
+      setComposeBody(email.draft_response || "");
+    }
     setComposeEmailRef(email);
   };
 
@@ -213,14 +320,36 @@ export default function Inbox() {
     setSending("compose");
     try {
       const htmlContent = composeBodyRef.current?.innerHTML || composeBody;
-      await sendEmailViaWebhook({
+      const isNewEmail = !composeEmailRef?.gmail_id;
+      
+      const payload: any = {
         to_email: composeTo,
         subject: composeSubject,
         draft: htmlContent,
-        gmail_id: composeEmailRef?.gmail_id || undefined,
-        email_id: composeEmailRef?.id || undefined,
         cc: composeCc || undefined,
+      };
+
+      if (isNewEmail) {
+        // New compose — use send_new action
+        payload.action = "send_new";
+        if (composeEmailRef?.id) payload.email_id = composeEmailRef.id;
+      } else {
+        payload.gmail_id = composeEmailRef?.gmail_id;
+        payload.email_id = composeEmailRef?.id;
+      }
+
+      // Use sendEmailViaWebhook but override action for new emails
+      const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
+      const response = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: isNewEmail ? "send_new" : "send_email",
+          ...payload,
+        }),
       });
+      if (!response.ok) throw new Error("Failed to send email");
+
       toast.success("Email sent");
       setComposeOpen(false);
       setComposeTo("");
@@ -228,20 +357,11 @@ export default function Inbox() {
       setComposeSubject("");
       setComposeBody("");
       setComposeEmailRef(null);
-    } catch {
+    } catch (err) {
+      console.error("Compose send error:", err);
       toast.error("Failed to send");
     }
     setSending(null);
-  };
-
-  const clientSuggestions = (query: string) => {
-    if (!query) return [];
-    const q = query.toLowerCase();
-    return clients.filter(c =>
-      c.company.toLowerCase().includes(q) ||
-      c.contact_name?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q)
-    ).slice(0, 5);
   };
 
   const formatTime = (dateStr: string | null) => {
@@ -271,6 +391,17 @@ export default function Inbox() {
       </Button>
     </>
   );
+
+  const renderDraftSummaryBubble = (email: Email) => {
+    if (!email.draft_response || !email.body) return null;
+    const summary = extractSummary(email.body);
+    if (!summary) return null;
+    return (
+      <div className="mt-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 text-xs text-blue-800 font-sans line-clamp-2">
+        <span className="font-medium">Replying to:</span> {summary}
+      </div>
+    );
+  };
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
     return (
@@ -305,6 +436,8 @@ export default function Inbox() {
                 <span className="inline-flex items-center gap-0.5 bg-destructive text-destructive-foreground text-[11px] font-bold rounded-full px-1.5 py-0.5 leading-none"><Paperclip size={10} className="text-destructive-foreground" /> {atts.length}</span>
               ) : null; })()}
             </div>
+            {/* Draft summary bubble */}
+            {renderDraftSummaryBubble(email)}
           </div>
         </div>
 
@@ -387,7 +520,7 @@ export default function Inbox() {
               <button onClick={() => setShowFollowUps(true)} className="text-xs text-muted-foreground hover:text-foreground font-sans underline">
                 View scheduled follow-ups
               </button>
-              <Button size="sm" className="rounded-xl gap-1" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(""); }}>
+              <Button size="sm" className="rounded-xl gap-1" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
                 <Plus size={14} /> Compose
               </Button>
             </>
@@ -525,6 +658,8 @@ export default function Inbox() {
                   <span>•</span>
                   <span>{formatTime(detailEmail.created_at)}</span>
                 </div>
+                {/* Draft summary bubble in drawer header */}
+                {renderDraftSummaryBubble(detailEmail)}
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Client info */}
@@ -590,7 +725,7 @@ export default function Inbox() {
                         />
                       )}
 
-                      {/* Quoted/original content from draft_response after <hr> — only ONE accordion */}
+                      {/* Quoted/original content — Gmail-style */}
                       {quotedPart && (
                         <Accordion type="single" collapsible className="w-full mt-3">
                           <AccordionItem value="quoted-email" className="border rounded-xl">
@@ -600,8 +735,8 @@ export default function Inbox() {
                             <AccordionContent className="px-4 pb-4">
                               <div
                                 className="text-sm font-sans email-html-content max-w-none"
-                                style={{ color: '#000000' }}
-                                dangerouslySetInnerHTML={{ __html: quotedPart }}
+                                style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }}
+                                dangerouslySetInnerHTML={{ __html: formatQuotedText(quotedPart) }}
                               />
                             </AccordionContent>
                           </AccordionItem>
@@ -611,7 +746,7 @@ export default function Inbox() {
                   );
                 })()}
 
-                {/* Original email body — only show if there's NO quoted content from draft_response */}
+                {/* Original email body */}
                 {detailEmail.body && (() => {
                   const hasQuotedInDraft = detailEmail.draft_response ? splitDraftAtHr(detailEmail.draft_response).quotedPart !== null : false;
                   if (hasQuotedInDraft) return null;
@@ -624,7 +759,8 @@ export default function Inbox() {
                         <AccordionContent className="px-4 pb-4">
                           <div
                             className="text-sm font-sans email-html-content max-w-none"
-                            dangerouslySetInnerHTML={{ __html: detailEmail.body }}
+                            style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }}
+                            dangerouslySetInnerHTML={{ __html: formatQuotedText(detailEmail.body) }}
                           />
                         </AccordionContent>
                       </AccordionItem>
@@ -633,7 +769,7 @@ export default function Inbox() {
                 })()}
               </div>
 
-              {/* Sticky action buttons — always show Reply/Reply All/Dismiss */}
+              {/* Sticky action buttons */}
               <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
                 {(detailEmail.status === "needs_response" || detailEmail.status === "pending") && (
                   <>
@@ -731,20 +867,34 @@ export default function Inbox() {
         </DialogContent>
       </Dialog>
 
-      {/* Compose Dialog — uses contentEditable for rich text body */}
+      {/* Compose Dialog — max-height 80vh, scrollable body */}
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
+        <DialogContent className="max-w-xl" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+          <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">Compose Email</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
+            <div className="relative">
               <label className="text-xs font-sans text-muted-foreground">To</label>
-              <Input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="email@example.com" className="rounded-xl" />
+              <Input value={composeTo} onChange={e => handleToChange(e.target.value)} onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)} placeholder="email@example.com" className="rounded-xl" />
+              {showToSuggestions && toSuggestions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                  {toSuggestions.map((s, i) => (
+                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectToSuggestion(s)}>{s}</button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
+            <div className="relative">
               <label className="text-xs font-sans text-muted-foreground">CC</label>
-              <Input value={composeCc} onChange={e => setComposeCc(e.target.value)} placeholder="cc@example.com" className="rounded-xl" />
+              <Input value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+              {showCcSuggestions && ccSuggestions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                  {ccSuggestions.map((s, i) => (
+                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s)}>{s}</button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs font-sans text-muted-foreground">Subject</label>
@@ -756,12 +906,12 @@ export default function Inbox() {
                 ref={composeBodyRef}
                 contentEditable
                 suppressContentEditableWarning
-                className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
+                className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] max-h-[40vh] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
                 dangerouslySetInnerHTML={{ __html: composeBody }}
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="ghost" onClick={() => setComposeOpen(false)} className="rounded-xl">Cancel</Button>
             <Button className="rounded-xl gap-1" onClick={handleComposeSend} disabled={sending === "compose"}>
               <Send size={14} /> Send
