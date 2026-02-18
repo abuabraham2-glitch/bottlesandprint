@@ -25,6 +25,8 @@ export interface Email {
   attachments: any[] | null;
   to_email_all: string | null;
   cc_emails: string | null;
+  to_recipients: string | null;
+  cc_recipients: string | null;
 }
 export interface Call {
   id: string;
