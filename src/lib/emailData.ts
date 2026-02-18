@@ -199,7 +199,9 @@ export function useCreateTriageFeedback() {
 export async function sendEmailViaWebhook(params: {
   to_email: string;
   subject: string;
-  body_html: string;
+  draft: string;
+  gmail_id?: string;
+  email_id?: string;
   order_id?: string;
   cc?: string;
 }) {
@@ -224,7 +226,7 @@ export async function sendStageEmail(params: {
   await sendEmailViaWebhook({
     to_email: params.to_email,
     subject: params.subject,
-    body_html: params.body_html,
+    draft: params.body_html,
     order_id: params.order_id,
   });
 
