@@ -218,6 +218,7 @@ export type Database = {
           auto_sent_at: string | null
           body: string | null
           category: string | null
+          cc_emails: string | null
           client_id: string | null
           created_at: string | null
           draft_response: string | null
@@ -232,6 +233,7 @@ export type Database = {
           subject: string | null
           thread_id: string | null
           tier: string | null
+          to_email_all: string | null
         }
         Insert: {
           acknowledged?: boolean | null
@@ -239,6 +241,7 @@ export type Database = {
           auto_sent_at?: string | null
           body?: string | null
           category?: string | null
+          cc_emails?: string | null
           client_id?: string | null
           created_at?: string | null
           draft_response?: string | null
@@ -253,6 +256,7 @@ export type Database = {
           subject?: string | null
           thread_id?: string | null
           tier?: string | null
+          to_email_all?: string | null
         }
         Update: {
           acknowledged?: boolean | null
@@ -260,6 +264,7 @@ export type Database = {
           auto_sent_at?: string | null
           body?: string | null
           category?: string | null
+          cc_emails?: string | null
           client_id?: string | null
           created_at?: string | null
           draft_response?: string | null
@@ -274,6 +279,7 @@ export type Database = {
           subject?: string | null
           thread_id?: string | null
           tier?: string | null
+          to_email_all?: string | null
         }
         Relationships: [
           {
