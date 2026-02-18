@@ -98,7 +98,9 @@ export default function Inbox() {
       await sendEmailViaWebhook({
         to_email: email.from_email,
         subject: `Re: ${email.subject || ""}`,
-        body_html: email.draft_response,
+        draft: email.draft_response,
+        gmail_id: email.gmail_id || undefined,
+        email_id: email.id,
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
       toast.success("Email sent");
@@ -112,14 +114,16 @@ export default function Inbox() {
     setConfirmSend({ action: () => doSendDraft(email) });
   };
 
-  const doSendEdited = async (emailId: string, toEmail: string, subject: string) => {
+  const doSendEdited = async (emailId: string, toEmail: string, subject: string, gmailId?: string) => {
     const html = editRef.current?.innerHTML || editDraftText;
     setSending(emailId);
     try {
       await sendEmailViaWebhook({
         to_email: toEmail,
         subject: `Re: ${subject || ""}`,
-        body_html: html,
+        draft: html,
+        gmail_id: gmailId || undefined,
+        email_id: emailId,
       });
       await updateEmail.mutateAsync({ id: emailId, status: "approved_sent" as any, draft_response: html });
       toast.success("Email sent");
@@ -130,8 +134,8 @@ export default function Inbox() {
     setSending(null);
   };
 
-  const handleSendEdited = (emailId: string, toEmail: string, subject: string) => {
-    setConfirmSend({ action: () => doSendEdited(emailId, toEmail, subject) });
+  const handleSendEdited = (emailId: string, toEmail: string, subject: string, gmailId?: string) => {
+    setConfirmSend({ action: () => doSendEdited(emailId, toEmail, subject, gmailId) });
   };
 
   const pendingDismissals = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -196,7 +200,7 @@ export default function Inbox() {
       await sendEmailViaWebhook({
         to_email: composeTo,
         subject: composeSubject,
-        body_html: composeBody,
+        draft: composeBody,
         cc: composeCc || undefined,
       });
       toast.success("Email sent");
@@ -309,7 +313,7 @@ const formatTime = (dateStr: string | null) => {
               dangerouslySetInnerHTML={{ __html: editDraftText }}
             />
             <div className="flex gap-2">
-              <Button size="sm" className="rounded-xl text-xs" onClick={() => handleSendEdited(email.id, email.from_email || "", email.subject || "")} disabled={sending === email.id}>
+              <Button size="sm" className="rounded-xl text-xs" onClick={() => handleSendEdited(email.id, email.from_email || "", email.subject || "", email.gmail_id || undefined)} disabled={sending === email.id}>
                 <Send size={12} /> Send Edited
               </Button>
               <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>
@@ -608,7 +612,7 @@ const formatTime = (dateStr: string | null) => {
                     </Button>
                     {editDraftId === detailEmail.id ? (
                       <>
-                        <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail.id, detailEmail.from_email || "", detailEmail.subject || "")} disabled={sending === detailEmail.id}>
+                        <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail.id, detailEmail.from_email || "", detailEmail.subject || "", detailEmail.gmail_id || undefined)} disabled={sending === detailEmail.id}>
                           <Send size={12} /> Send Edited
                         </Button>
                         <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>
