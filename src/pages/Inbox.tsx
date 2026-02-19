@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus, Paperclip, Users } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp, Mail, Clock, Plus, Paperclip, Users, BookUser, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +24,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   UNKNOWN: "bg-muted text-muted-foreground",
 };
 
-const SIGNATURE = `<br><br>Best regards,<br>Abu<br>Bottles & Print`;
+const SIGNATURE = `<br><br><span style="font-family: Georgia, serif; font-size: 14pt; color: #263652;">Thanks,<br><br><b>Abu Mathew Abraham</b><br><b>BOTTLES &amp; PRINT</b><br>Tel: (951) 725-1786<br><br><a href="https://www.bottlesandprint.com" style="color: #0563C1;">www.bottlesandprint.com</a></span>`;
 
 type Tab = "action" | "auto" | "all";
 
@@ -37,27 +38,9 @@ function splitDraftAtHr(html: string): { draftPart: string; quotedPart: string |
   };
 }
 
-/** Format quoted text with Gmail-style left border */
-function formatQuotedText(html: string): string {
-  if (/<[a-z][\s\S]*>/i.test(html)) return html;
-  const lines = html.split(/\n/);
-  let result = "";
-  let inQuote = false;
-  for (const line of lines) {
-    const match = line.match(/^(>+)\s?(.*)/);
-    if (match) {
-      if (!inQuote) {
-        result += '<div style="border-left: 3px solid #d1d5db; padding-left: 12px; margin: 8px 0; color: #6b7280; font-size: 13px;">';
-        inQuote = true;
-      }
-      result += match[2] + "<br>";
-    } else {
-      if (inQuote) { result += "</div>"; inQuote = false; }
-      result += line + "<br>";
-    }
-  }
-  if (inQuote) result += "</div>";
-  return result;
+/** Strip "This email was sent automatically with n8n" from HTML content */
+function stripN8nFooter(html: string): string {
+  return html.replace(/This email was sent automatically with n8n\.?/gi, "").replace(/<p>\s*<\/p>/g, "");
 }
 
 /** Get CC recipients for Reply All (excludes abu@bottlesandprint.com and the from_email) */
@@ -79,10 +62,8 @@ function getReplyAllCc(email: Email): string {
 /** Extract a short summary from an email body (1-2 sentences) */
 function extractSummary(body: string | null): string | null {
   if (!body) return null;
-  // Strip HTML tags
   const text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
   if (!text) return null;
-  // Get first 1-2 sentences
   const sentences = text.match(/[^.!?]+[.!?]+/g);
   if (sentences && sentences.length > 0) {
     return sentences.slice(0, 2).join(" ").trim().substring(0, 150);
@@ -110,10 +91,14 @@ export default function Inbox() {
   const [detailEmail, setDetailEmail] = useState<Email | null>(null);
   const [showFollowUps, setShowFollowUps] = useState(false);
   const [confirmSend, setConfirmSend] = useState<{ action: () => Promise<void> } | null>(null);
-  const [toSuggestions, setToSuggestions] = useState<string[]>([]);
-  const [ccSuggestions, setCcSuggestions] = useState<string[]>([]);
+  const [toSuggestions, setToSuggestions] = useState<{email: string; name?: string}[]>([]);
+  const [ccSuggestions, setCcSuggestions] = useState<{email: string; name?: string}[]>([]);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
   const [showCcSuggestions, setShowCcSuggestions] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(false);
+  const [contacts, setContacts] = useState<{id: string; email: string; name: string | null}[]>([]);
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactName, setNewContactName] = useState("");
   const editRef = useRef<HTMLDivElement>(null);
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
@@ -141,23 +126,57 @@ export default function Inbox() {
     });
   };
 
-  // Email autocomplete search
-  const searchEmails = useCallback(async (query: string): Promise<string[]> => {
+  // Load contacts
+  const loadContacts = useCallback(async () => {
+    const { data } = await supabase.from("contacts").select("id, email, name").order("created_at", { ascending: false });
+    if (data) setContacts(data as any);
+  }, []);
+
+  useEffect(() => { loadContacts(); }, [loadContacts]);
+
+  const addContact = async () => {
+    if (!newContactEmail.trim()) return;
+    await supabase.from("contacts").insert({ email: newContactEmail.trim(), name: newContactName.trim() || null } as any);
+    setNewContactEmail("");
+    setNewContactName("");
+    loadContacts();
+    toast.success("Contact added");
+  };
+
+  const deleteContact = async (id: string) => {
+    await supabase.from("contacts").delete().eq("id", id);
+    loadContacts();
+    toast.success("Contact removed");
+  };
+
+  // Email + contacts autocomplete search
+  const searchEmailsAndContacts = useCallback(async (query: string): Promise<{email: string; name?: string}[]> => {
     if (query.length < 2) return [];
-    const { data } = await supabase
-      .from("emails")
-      .select("from_email")
-      .ilike("from_email", `%${query}%`)
-      .limit(10);
-    if (!data) return [];
-    const unique = [...new Set(data.map(d => d.from_email).filter(Boolean))] as string[];
-    return unique.slice(0, 5);
+    const [emailRes, contactRes] = await Promise.all([
+      supabase.from("emails").select("from_email, from_name").ilike("from_email", `%${query}%`).limit(10),
+      supabase.from("contacts").select("email, name").or(`email.ilike.%${query}%,name.ilike.%${query}%`).limit(10),
+    ]);
+    const seen = new Set<string>();
+    const results: {email: string; name?: string}[] = [];
+    (contactRes.data || []).forEach((c: any) => {
+      if (c.email && !seen.has(c.email.toLowerCase())) {
+        seen.add(c.email.toLowerCase());
+        results.push({ email: c.email, name: c.name || undefined });
+      }
+    });
+    (emailRes.data || []).forEach((e: any) => {
+      if (e.from_email && !seen.has(e.from_email.toLowerCase())) {
+        seen.add(e.from_email.toLowerCase());
+        results.push({ email: e.from_email, name: e.from_name || undefined });
+      }
+    });
+    return results.slice(0, 8);
   }, []);
 
   const handleToChange = async (value: string) => {
     setComposeTo(value);
     if (value.length >= 2) {
-      const suggestions = await searchEmails(value);
+      const suggestions = await searchEmailsAndContacts(value);
       setToSuggestions(suggestions);
       setShowToSuggestions(suggestions.length > 0);
     } else {
@@ -167,11 +186,10 @@ export default function Inbox() {
 
   const handleCcChange = async (value: string) => {
     setComposeCc(value);
-    // Only autocomplete the last email being typed
     const parts = value.split(",");
     const lastPart = parts[parts.length - 1].trim();
     if (lastPart.length >= 2) {
-      const suggestions = await searchEmails(lastPart);
+      const suggestions = await searchEmailsAndContacts(lastPart);
       setCcSuggestions(suggestions);
       setShowCcSuggestions(suggestions.length > 0);
     } else {
@@ -198,7 +216,7 @@ export default function Inbox() {
       await sendEmailViaWebhook({
         to_email: email.from_email,
         subject: `Re: ${email.subject || ""}`,
-        draft: email.draft_response,
+        draft: stripN8nFooter(email.draft_response),
         gmail_id: email.gmail_id || undefined,
         email_id: email.id,
       });
@@ -215,7 +233,7 @@ export default function Inbox() {
   };
 
   const doSendEdited = async (emailId: string, toEmail: string, subject: string, gmailId?: string) => {
-    const html = editRef.current?.innerHTML || editDraftText;
+    const html = stripN8nFooter(editRef.current?.innerHTML || editDraftText);
     setSending(emailId);
     try {
       await sendEmailViaWebhook({
@@ -242,26 +260,20 @@ export default function Inbox() {
 
   const handleDismiss = (id: string) => {
     updateEmail.mutate({ id, status: "pending_dismiss" as any });
-
     const timeoutId = setTimeout(async () => {
       pendingDismissals.current.delete(id);
       try {
         await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
       } catch {}
     }, 8000);
-
     pendingDismissals.current.set(id, timeoutId);
-
     toast("Email dismissed", {
       duration: 8000,
       action: {
         label: "Undo",
         onClick: () => {
           const tid = pendingDismissals.current.get(id);
-          if (tid) {
-            clearTimeout(tid);
-            pendingDismissals.current.delete(id);
-          }
+          if (tid) { clearTimeout(tid); pendingDismissals.current.delete(id); }
           updateEmail.mutate({ id, status: "needs_response" as any });
           toast.success("Email restored");
         },
@@ -273,9 +285,7 @@ export default function Inbox() {
     return () => {
       pendingDismissals.current.forEach(async (tid, id) => {
         clearTimeout(tid);
-        try {
-          await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
-        } catch {}
+        try { await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() }); } catch {}
       });
       pendingDismissals.current.clear();
     };
@@ -301,13 +311,11 @@ export default function Inbox() {
     setComposeSubject(`Re: ${email.subject || ""}`);
 
     if (isSentEmail(email)) {
-      // For sent emails: empty body + signature, quote the sent email below
-      const quotedContent = email.draft_response || email.body || "";
-      const quotedBlock = `<br><br><div style="border-left: 3px solid #d1d5db; padding-left: 12px; margin: 8px 0; color: #6b7280; font-size: 13px;"><strong>On ${formatTime(email.created_at)}, you wrote:</strong><br>${quotedContent}</div>`;
+      const quotedContent = stripN8nFooter(email.draft_response || email.body || "");
+      const quotedBlock = `<br><br><div style="border-left: 3px solid #ccc; padding-left: 12px; margin-top: 10px; color: #555;"><strong>On ${formatTime(email.created_at)}, you wrote:</strong><br>${quotedContent}</div>`;
       setComposeBody(SIGNATURE + quotedBlock);
     } else {
-      // For incoming emails: pre-fill with existing draft
-      setComposeBody(email.draft_response || "");
+      setComposeBody(stripN8nFooter(email.draft_response || ""));
     }
     setComposeEmailRef(email);
   };
@@ -319,9 +327,9 @@ export default function Inbox() {
     }
     setSending("compose");
     try {
-      const htmlContent = composeBodyRef.current?.innerHTML || composeBody;
+      const htmlContent = stripN8nFooter(composeBodyRef.current?.innerHTML || composeBody);
       const isNewEmail = !composeEmailRef?.gmail_id;
-      
+
       const payload: any = {
         to_email: composeTo,
         subject: composeSubject,
@@ -330,7 +338,6 @@ export default function Inbox() {
       };
 
       if (isNewEmail) {
-        // New compose — use send_new action
         payload.action = "send_new";
         if (composeEmailRef?.id) payload.email_id = composeEmailRef.id;
       } else {
@@ -338,7 +345,6 @@ export default function Inbox() {
         payload.email_id = composeEmailRef?.id;
       }
 
-      // Use sendEmailViaWebhook but override action for new emails
       const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
       const response = await fetch(WEBHOOK_URL, {
         method: "POST",
@@ -392,18 +398,9 @@ export default function Inbox() {
     </>
   );
 
-  const renderDraftSummaryBubble = (email: Email) => {
-    if (!email.draft_response || !email.body) return null;
-    const summary = extractSummary(email.body);
-    if (!summary) return null;
-    return (
-      <div className="mt-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 text-xs text-blue-800 font-sans line-clamp-2">
-        <span className="font-medium">Replying to:</span> {summary}
-      </div>
-    );
-  };
-
   const renderEmailCard = (email: Email, showActions: boolean) => {
+    const summary = email.draft_response && email.body ? extractSummary(email.body) : null;
+
     return (
       <div key={email.id} className="floating-card mb-3">
         <div className="flex items-start justify-between gap-3">
@@ -420,13 +417,23 @@ export default function Inbox() {
                   Holding Sent
                 </span>
               )}
-              {email.status === "auto_sent" && (
-                <Check size={14} className="text-success shrink-0" />
-              )}
+              {email.status === "auto_sent" && <Check size={14} className="text-success shrink-0" />}
               {email.status === "approved_sent" && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">
-                  Sent
-                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">Sent</span>
+              )}
+              {/* Summary as tooltip on hover */}
+              {summary && (
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-sans cursor-help">💬</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs text-xs font-sans">
+                      <p className="font-medium mb-0.5">Replying to:</p>
+                      <p>{summary}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
             <div className="text-sm font-sans truncate">{email.subject}</div>
@@ -436,15 +443,13 @@ export default function Inbox() {
                 <span className="inline-flex items-center gap-0.5 bg-destructive text-destructive-foreground text-[11px] font-bold rounded-full px-1.5 py-0.5 leading-none"><Paperclip size={10} className="text-destructive-foreground" /> {atts.length}</span>
               ) : null; })()}
             </div>
-            {/* Draft summary bubble */}
-            {renderDraftSummaryBubble(email)}
           </div>
         </div>
 
         {showActions && email.draft_response && (
           <div
             className="mt-2 text-xs font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
-            dangerouslySetInnerHTML={{ __html: email.draft_response }}
+            dangerouslySetInnerHTML={{ __html: stripN8nFooter(email.draft_response) }}
           />
         )}
 
@@ -453,7 +458,7 @@ export default function Inbox() {
             <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendDraft(email)} disabled={sending === email.id || !email.draft_response}>
               <Send size={12} /> Send
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setEditDraftId(email.id); setEditDraftText(email.draft_response || ""); }}>
+            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { setEditDraftId(email.id); setEditDraftText(stripN8nFooter(email.draft_response || "")); }}>
               <Edit size={12} /> Edit & Send
             </Button>
             {renderReplyButtons(email)}
@@ -463,14 +468,12 @@ export default function Inbox() {
           </div>
         )}
 
-        {/* Reply/Reply All for non-action tabs */}
         {!showActions && (
           <div className="flex items-center gap-2 mt-3 flex-wrap">
             {renderReplyButtons(email)}
           </div>
         )}
 
-        {/* Rich text edit inline */}
         {editDraftId === email.id && (
           <div className="mt-3 space-y-2 border-t pt-3">
             <div
@@ -494,12 +497,10 @@ export default function Inbox() {
     );
   };
 
-  // Apply category filter for action tab
   let emails = tab === "action" ? actionEmails : tab === "auto" ? autoEmails : allEmails;
   if (tab === "action" && actionCategoryFilter && actionCategoryFilter !== "all") {
     emails = emails.filter(e => e.category === actionCategoryFilter.toUpperCase());
   }
-  // Apply "Sent" status filter in All tab
   if (tab === "all" && categoryFilter === "SENT") {
     emails = emails.filter(e => e.status === "approved_sent");
   }
@@ -566,7 +567,6 @@ export default function Inbox() {
         </div>
       ) : (
         <>
-          {/* Sub-tabs */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
             {[
               { key: "action" as Tab, label: "Action Needed", count: actionEmails.length },
@@ -588,7 +588,6 @@ export default function Inbox() {
             ))}
           </div>
 
-          {/* Category filter for Action Needed tab */}
           {tab === "action" && (
             <div className="flex gap-1">
               {["all", "sales", "support"].map(cat => (
@@ -605,7 +604,6 @@ export default function Inbox() {
             </div>
           )}
 
-          {/* Category filter for All tab */}
           {tab === "all" && (
             <div className="flex gap-2">
               <Select value={categoryFilter || "all"} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
@@ -624,14 +622,12 @@ export default function Inbox() {
             </div>
           )}
 
-          {/* Auto-handled badge */}
           {tab === "auto" && todayAutoCount > 0 && (
             <div className="text-xs font-sans text-muted-foreground">
               <span className="bg-success/10 text-success px-2 py-1 rounded-full font-medium">{todayAutoCount} auto-handled today</span>
             </div>
           )}
 
-          {/* Email list */}
           {loading ? (
             <div className="text-muted-foreground text-sm">Loading...</div>
           ) : emails.length === 0 ? (
@@ -658,8 +654,6 @@ export default function Inbox() {
                   <span>•</span>
                   <span>{formatTime(detailEmail.created_at)}</span>
                 </div>
-                {/* Draft summary bubble in drawer header */}
-                {renderDraftSummaryBubble(detailEmail)}
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Client info */}
@@ -675,6 +669,26 @@ export default function Inbox() {
                   );
                 })()}
 
+                {/* Collapsible summary of incoming email (subtle placement) */}
+                {detailEmail.draft_response && detailEmail.body && (() => {
+                  const summary = extractSummary(detailEmail.body);
+                  if (!summary) return null;
+                  return (
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="email-summary" className="border-0">
+                        <AccordionTrigger className="py-1.5 text-xs font-sans text-muted-foreground hover:no-underline gap-1">
+                          <span className="flex items-center gap-1">💬 Incoming message preview</span>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="text-xs font-sans text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 mt-1">
+                            {summary}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  );
+                })()}
+
                 {/* Attachments */}
                 {(() => {
                   const atts = parseAttachments(detailEmail.attachments);
@@ -686,13 +700,8 @@ export default function Inbox() {
                         {atts.map((att: any, i: number) => {
                           const url = `https://bottlesandprint.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(detailEmail.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
                           return (
-                            <a
-                              key={i}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border"
-                            >
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border">
                               <Paperclip size={12} className="text-muted-foreground" />
                               <span className="truncate max-w-[160px]">{att.name}</span>
                             </a>
@@ -703,41 +712,28 @@ export default function Inbox() {
                   );
                 })()}
 
-                {/* Draft response first */}
+                {/* Draft response */}
                 {detailEmail.draft_response && (() => {
-                  const { draftPart, quotedPart } = splitDraftAtHr(detailEmail.draft_response);
-
+                  const cleaned = stripN8nFooter(detailEmail.draft_response);
+                  const { draftPart, quotedPart } = splitDraftAtHr(cleaned);
                   return (
                     <div>
                       <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
                       {editDraftId === detailEmail.id ? (
-                        <div
-                          ref={editRef}
-                          contentEditable
-                          suppressContentEditableWarning
+                        <div ref={editRef} contentEditable suppressContentEditableWarning
                           className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
-                          dangerouslySetInnerHTML={{ __html: editDraftText }}
-                        />
+                          dangerouslySetInnerHTML={{ __html: editDraftText }} />
                       ) : (
-                        <div
-                          className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
-                          dangerouslySetInnerHTML={{ __html: draftPart }}
-                        />
+                        <div className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none" dangerouslySetInnerHTML={{ __html: draftPart }} />
                       )}
-
-                      {/* Quoted/original content — Gmail-style */}
                       {quotedPart && (
                         <Accordion type="single" collapsible className="w-full mt-3">
                           <AccordionItem value="quoted-email" className="border rounded-xl">
-                            <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">
-                              Original Email
-                            </AccordionTrigger>
+                            <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
                             <AccordionContent className="px-4 pb-4">
-                              <div
-                                className="text-sm font-sans email-html-content max-w-none"
-                                style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }}
-                                dangerouslySetInnerHTML={{ __html: formatQuotedText(quotedPart) }}
-                              />
+                              <div className="text-sm font-sans email-html-content max-w-none"
+                                style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }}
+                                dangerouslySetInnerHTML={{ __html: quotedPart }} />
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
@@ -746,22 +742,19 @@ export default function Inbox() {
                   );
                 })()}
 
-                {/* Original email body */}
+                {/* Original email body — render as HTML */}
                 {detailEmail.body && (() => {
-                  const hasQuotedInDraft = detailEmail.draft_response ? splitDraftAtHr(detailEmail.draft_response).quotedPart !== null : false;
+                  const cleaned = stripN8nFooter(detailEmail.draft_response || "");
+                  const hasQuotedInDraft = cleaned ? splitDraftAtHr(cleaned).quotedPart !== null : false;
                   if (hasQuotedInDraft) return null;
                   return (
                     <Accordion type="single" collapsible className="w-full">
                       <AccordionItem value="original-email" className="border rounded-xl">
-                        <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">
-                          Original Email
-                        </AccordionTrigger>
+                        <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
                         <AccordionContent className="px-4 pb-4">
-                          <div
-                            className="text-sm font-sans email-html-content max-w-none"
-                            style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }}
-                            dangerouslySetInnerHTML={{ __html: formatQuotedText(detailEmail.body) }}
-                          />
+                          <div className="text-sm font-sans email-html-content max-w-none"
+                            style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }}
+                            dangerouslySetInnerHTML={{ __html: stripN8nFooter(detailEmail.body) }} />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
@@ -773,12 +766,8 @@ export default function Inbox() {
               <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
                 {(detailEmail.status === "needs_response" || detailEmail.status === "pending") && (
                   <>
-                    <Button
-                      size="sm"
-                      className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => handleSendDraft(detailEmail)}
-                      disabled={sending === detailEmail.id || !detailEmail.draft_response}
-                    >
+                    <Button size="sm" className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => handleSendDraft(detailEmail)} disabled={sending === detailEmail.id || !detailEmail.draft_response}>
                       <Send size={12} /> Send
                     </Button>
                     {editDraftId === detailEmail.id ? (
@@ -789,12 +778,8 @@ export default function Inbox() {
                         <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>
                       </>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl gap-1 text-xs"
-                        onClick={() => { setEditDraftId(detailEmail.id); setEditDraftText(detailEmail.draft_response || ""); }}
-                      >
+                      <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs"
+                        onClick={() => { setEditDraftId(detailEmail.id); setEditDraftText(stripN8nFooter(detailEmail.draft_response || "")); }}>
                         <Edit size={12} /> Edit & Send
                       </Button>
                     )}
@@ -802,12 +787,8 @@ export default function Inbox() {
                 )}
                 {renderReplyButtons(detailEmail)}
                 {(detailEmail.status === "needs_response" || detailEmail.status === "pending") && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-xl gap-1 text-xs text-muted-foreground"
-                    onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}
-                  >
+                  <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground"
+                    onClick={() => { setFeedbackEmailId(detailEmail.id); setDetailEmail(null); }}>
                     <ThumbsDown size={12} />
                   </Button>
                 )}
@@ -822,17 +803,12 @@ export default function Inbox() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-serif">Confirm Send</DialogTitle>
-            <DialogDescription className="text-sm font-sans">
-              Are you sure you want to send this email?
-            </DialogDescription>
+            <DialogDescription className="text-sm font-sans">Are you sure you want to send this email?</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" className="rounded-xl" onClick={() => setConfirmSend(null)}>Cancel</Button>
             <Button className="rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={async () => {
-              if (confirmSend) {
-                await confirmSend.action();
-                setConfirmSend(null);
-              }
+              if (confirmSend) { await confirmSend.action(); setConfirmSend(null); }
             }}>
               <Send size={14} /> Yes, Send
             </Button>
@@ -843,14 +819,10 @@ export default function Inbox() {
       {/* Feedback Dialog */}
       <Dialog open={!!feedbackEmailId} onOpenChange={() => setFeedbackEmailId(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-serif">Triage Feedback</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="font-serif">Triage Feedback</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <Select value={feedbackType} onValueChange={setFeedbackType}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="What went wrong?" />
-              </SelectTrigger>
+              <SelectTrigger className="rounded-xl"><SelectValue placeholder="What went wrong?" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="wrong_category">Wrong category</SelectItem>
                 <SelectItem value="wrong_template">Wrong template</SelectItem>
@@ -867,7 +839,7 @@ export default function Inbox() {
         </DialogContent>
       </Dialog>
 
-      {/* Compose Dialog — max-height 80vh, scrollable body */}
+      {/* Compose Dialog */}
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
         <DialogContent className="max-w-xl" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
           <DialogHeader className="shrink-0">
@@ -875,12 +847,19 @@ export default function Inbox() {
           </DialogHeader>
           <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
             <div className="relative">
-              <label className="text-xs font-sans text-muted-foreground">To</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-sans text-muted-foreground">To</label>
+                <button onClick={() => { setContactsOpen(true); }} className="text-[10px] font-sans text-primary hover:underline flex items-center gap-0.5">
+                  <BookUser size={10} /> Manage Contacts
+                </button>
+              </div>
               <Input value={composeTo} onChange={e => handleToChange(e.target.value)} onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)} placeholder="email@example.com" className="rounded-xl" />
               {showToSuggestions && toSuggestions.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                   {toSuggestions.map((s, i) => (
-                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectToSuggestion(s)}>{s}</button>
+                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectToSuggestion(s.email)}>
+                      {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
+                    </button>
                   ))}
                 </div>
               )}
@@ -891,7 +870,9 @@ export default function Inbox() {
               {showCcSuggestions && ccSuggestions.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                   {ccSuggestions.map((s, i) => (
-                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s)}>{s}</button>
+                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
+                      {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
+                    </button>
                   ))}
                 </div>
               )}
@@ -902,13 +883,9 @@ export default function Inbox() {
             </div>
             <div>
               <label className="text-xs font-sans text-muted-foreground">Body</label>
-              <div
-                ref={composeBodyRef}
-                contentEditable
-                suppressContentEditableWarning
+              <div ref={composeBodyRef} contentEditable suppressContentEditableWarning
                 className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] max-h-[40vh] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
-                dangerouslySetInnerHTML={{ __html: composeBody }}
-              />
+                dangerouslySetInnerHTML={{ __html: composeBody }} />
             </div>
           </div>
           <DialogFooter className="shrink-0">
@@ -917,6 +894,39 @@ export default function Inbox() {
               <Send size={14} /> Send
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Contacts Dialog */}
+      <Dialog open={contactsOpen} onOpenChange={setContactsOpen}>
+        <DialogContent className="max-w-md" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="font-serif">Manage Contacts</DialogTitle>
+            <DialogDescription className="text-sm font-sans">Add or remove email contacts for autocomplete.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div className="flex gap-2">
+              <Input placeholder="Name" value={newContactName} onChange={e => setNewContactName(e.target.value)} className="rounded-xl flex-1" />
+              <Input placeholder="Email" value={newContactEmail} onChange={e => setNewContactEmail(e.target.value)} className="rounded-xl flex-1" />
+              <Button size="sm" className="rounded-xl shrink-0" onClick={addContact} disabled={!newContactEmail.trim()}>
+                <Plus size={14} />
+              </Button>
+            </div>
+            <div className="space-y-1">
+              {contacts.length === 0 && <p className="text-sm text-muted-foreground font-sans">No contacts yet.</p>}
+              {contacts.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/30 text-sm font-sans">
+                  <div>
+                    {c.name && <span className="font-medium mr-2">{c.name}</span>}
+                    <span className="text-muted-foreground">{c.email}</span>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => deleteContact(c.id)}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
