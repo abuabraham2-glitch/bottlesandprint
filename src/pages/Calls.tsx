@@ -310,8 +310,8 @@ export default function Calls() {
                 {canGenerateQuote(selectedCall) && (
                   <Button
                     size="sm"
-                    variant="default"
-                    className="rounded-xl gap-1.5 text-xs"
+                    variant="outline"
+                    className="rounded-xl gap-1.5 text-xs bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
                     disabled={generatingQuote}
                     onClick={() => handleGenerateQuote(selectedCall)}
                   >
