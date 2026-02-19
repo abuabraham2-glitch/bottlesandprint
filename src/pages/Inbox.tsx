@@ -59,37 +59,20 @@ function getReplyAllCc(email: Email): string {
   return recipients.join(", ");
 }
 
-/** Extract a 1-sentence summary prefixed with category */
-function extractSummary(body: string | null, _category?: string | null): string | null {
-  if (!body) return null;
-  let text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-  // Strip quoted replies (lines starting with >)
-  text = text.replace(/^>.*$/gm, "").trim();
-  // Strip "On ... wrote:" blocks
-  text = text.replace(/On .* wrote:.*$/s, "").trim();
-  // Strip signatures
-  text = text.replace(/--\s.*$/s, "").trim();
-  text = text.replace(/(Thanks|Best|Regards|Cheers|Sincerely|Best regards|Kind regards),?\s*[\s\S]*$/i, "").trim();
-  // Strip phone numbers and email-like patterns at the end
-  text = text.replace(/Tel:.*$/i, "").replace(/\(\d{3}\)\s*\d{3}.*$/i, "").trim();
-  // Strip common greetings from the start
-  text = text.replace(/^(Hi|Hey|Hello|Dear)\s+[\w,]+\s*/i, "").trim();
-  if (!text) return null;
-  // Take first 1-2 sentences up to 120 chars
-  const sentences = text.match(/^[^.!?]+[.!?](\s+[^.!?]+[.!?])?/);
-  const summary = sentences ? sentences[0].trim() : text;
-  return summary.substring(0, 120);
-}
+/** No longer needed — summaries come from email.incoming_summary DB field */
 
 /** Convert plain text email body to HTML, handling > quoted lines and newlines */
 function formatEmailBodyAsHtml(body: string): string {
-  // If body contains HTML tags, it's already HTML — just return it
-  if (/<[a-z][\s\S]*>/i.test(body)) {
+  // If body contains real HTML tags (not just text with >), return as-is
+  if (/<(?:div|p|br|span|table|a|b|i|strong|em|ul|ol|li|h[1-6]|img|blockquote)\b/i.test(body)) {
     return body;
   }
-  // Plain text: strip leading > chars, convert newlines to <br>, wrap in styled div
-  const lines = body.split("\n").map(line => line.replace(/^>+\s?/g, ""));
-  return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.5;">${lines.join("<br>")}</div>`;
+  // Plain text: split by actual newline chars, strip leading > chars, filter empty > lines, join with <br>
+  const lines = body.split(/\r?\n/).map(line => {
+    // Remove leading > characters (quoted text markers)
+    return line.replace(/^(?:>\s*)+/g, "").trimEnd();
+  }).filter(line => line !== ">" && line !== "> ");
+  return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.6;">${lines.join("<br>")}</div>`;
 }
 
 export default function Inbox() {
@@ -420,8 +403,6 @@ export default function Inbox() {
   );
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
-    const summary = email.body ? extractSummary(email.body) : null;
-
     return (
       <div key={email.id} className="floating-card mb-3">
         <div className="flex items-start justify-between gap-3">
@@ -445,9 +426,9 @@ export default function Inbox() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-sans truncate flex-1">{email.subject}</span>
-              {summary && (
+              {email.incoming_summary && (
                 <span className="shrink-0 text-[12px] font-sans font-medium rounded-full px-2.5 py-0.5 max-w-[50%] truncate" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
-                  {summary}
+                  {email.incoming_summary}
                 </span>
               )}
             </div>
@@ -685,15 +666,11 @@ export default function Inbox() {
                 })()}
 
                 {/* Summary of incoming email */}
-                {detailEmail.body && (() => {
-                  const summary = extractSummary(detailEmail.body);
-                  if (!summary) return null;
-                  return (
-                    <div className="text-sm font-sans font-medium rounded-lg px-3 py-2" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
-                      💬 {summary}
-                    </div>
-                  );
-                })()}
+                {detailEmail.incoming_summary && (
+                  <div className="text-sm font-sans font-medium rounded-lg px-3 py-2" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
+                    💬 {detailEmail.incoming_summary}
+                  </div>
+                )}
 
                 {/* Attachments */}
                 {(() => {

@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useCatalog, useUpdateCatalogItem, useDeleteCatalogItem, CatalogItem } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ type SortKey = "client" | "first_run" | "last_run";
 type SortDir = "asc" | "desc";
 
 export default function Catalog() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const { data: allItems = [], isLoading } = useCatalog(undefined, true); // fetch all
   const updateItem = useUpdateCatalogItem();
@@ -57,6 +59,19 @@ export default function Catalog() {
   });
   const [sortKey, setSortKey] = useState<SortKey>("client");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Auto-open product from URL ?product=id
+  useEffect(() => {
+    const productId = searchParams.get("product");
+    if (productId && allItems.length > 0) {
+      const item = allItems.find(i => i.id === productId);
+      if (item) {
+        if (item.archived) setActiveTab("archived");
+        openEdit(item);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [allItems, searchParams]);
 
   const activeItems = allItems.filter(i => !i.archived);
   const archivedItems = allItems.filter(i => i.archived);
