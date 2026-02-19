@@ -73,6 +73,7 @@ export type Database = {
           resolved_at: string | null
           status: string | null
           summary: string | null
+          transcript: string | null
         }
         Insert: {
           call_reason?: string | null
@@ -90,6 +91,7 @@ export type Database = {
           resolved_at?: string | null
           status?: string | null
           summary?: string | null
+          transcript?: string | null
         }
         Update: {
           call_reason?: string | null
@@ -107,6 +109,7 @@ export type Database = {
           resolved_at?: string | null
           status?: string | null
           summary?: string | null
+          transcript?: string | null
         }
         Relationships: []
       }
