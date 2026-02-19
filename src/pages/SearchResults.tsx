@@ -313,7 +313,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <th className="text-left p-3 font-medium text-muted-foreground">Qty</th>
             </tr></thead>
             <tbody>{archived.map(a => (
-              <tr key={a.id} onClick={() => navigate(`/orders/${a.original_order_id || a.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+              <tr key={a.id} onClick={() => navigate(`/completed?highlight=${a.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
                 <td className="p-3">{a.year}</td>
                 <td className="p-3">{a.client_company}</td>
                 <td className="p-3">{a.description}</td>

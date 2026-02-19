@@ -59,16 +59,31 @@ function getReplyAllCc(email: Email): string {
   return recipients.join(", ");
 }
 
-/** Extract a short summary from an email body (1-2 sentences) */
-function extractSummary(body: string | null): string | null {
+/** Extract a 1-sentence summary prefixed with category */
+function extractSummary(body: string | null, category?: string | null): string | null {
   if (!body) return null;
-  const text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  let text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  // Strip signature blocks and quoted text
+  text = text.replace(/--\s.*$/s, "").replace(/^>.*$/gm, "").replace(/On .* wrote:.*$/s, "").trim();
   if (!text) return null;
-  const sentences = text.match(/[^.!?]+[.!?]+/g);
-  if (sentences && sentences.length > 0) {
-    return sentences.slice(0, 2).join(" ").trim().substring(0, 150);
+  // Take first sentence (up to first period) or first 100 chars
+  const firstSentence = text.match(/^[^.!?]+[.!?]/);
+  const summary = firstSentence ? firstSentence[0].trim() : text.substring(0, 100);
+  const prefix = category ? `${category.toUpperCase()}: ` : "";
+  return (prefix + summary).substring(0, 160);
+}
+
+/** Convert plain text email body to HTML, handling > quoted lines and newlines */
+function formatEmailBodyAsHtml(body: string): string {
+  // If body contains HTML tags, it's already HTML — just return it
+  if (/<[a-z][\s\S]*>/i.test(body)) {
+    return body;
   }
-  return text.substring(0, 150);
+  // Plain text: strip leading > chars, convert newlines to <br>
+  return body
+    .split("\n")
+    .map(line => line.replace(/^>+\s?/g, ""))
+    .join("<br>");
 }
 
 export default function Inbox() {
@@ -399,7 +414,7 @@ export default function Inbox() {
   );
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
-    const summary = email.draft_response && email.body ? extractSummary(email.body) : null;
+    const summary = email.draft_response && email.body ? extractSummary(email.body, email.category) : null;
 
     return (
       <div key={email.id} className="floating-card mb-3">
@@ -421,20 +436,6 @@ export default function Inbox() {
               {email.status === "approved_sent" && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">Sent</span>
               )}
-              {/* Summary as tooltip on hover */}
-              {summary && (
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-base px-2 py-1 rounded-full bg-blue-100 text-blue-600 font-sans cursor-help">💬</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-xs text-xs font-sans">
-                      <p className="font-medium mb-0.5">Replying to:</p>
-                      <p>{summary}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
             </div>
             <div className="text-sm font-sans truncate">{email.subject}</div>
             <div className="text-xs text-muted-foreground font-sans mt-0.5 flex items-center gap-1.5">
@@ -451,6 +452,15 @@ export default function Inbox() {
             className="mt-2 text-xs font-sans line-clamp-2 bg-muted/30 rounded-lg p-2 email-html-content max-w-none"
             dangerouslySetInnerHTML={{ __html: stripN8nFooter(email.draft_response) }}
           />
+        )}
+
+        {/* Summary bubble below draft preview, right-aligned */}
+        {summary && (
+          <div className="mt-1.5 flex justify-end">
+            <div className="text-xs font-sans rounded-lg px-3 py-1.5 max-w-[70%] text-right" style={{ backgroundColor: '#E8F0FE', color: '#333' }}>
+              💬 {summary}
+            </div>
+          </div>
         )}
 
         {showActions && (
@@ -671,7 +681,7 @@ export default function Inbox() {
 
                 {/* Collapsible summary of incoming email (subtle placement) */}
                 {detailEmail.draft_response && detailEmail.body && (() => {
-                  const summary = extractSummary(detailEmail.body);
+                  const summary = extractSummary(detailEmail.body, detailEmail.category);
                   if (!summary) return null;
                   return (
                     <Accordion type="single" collapsible className="w-full">
@@ -680,7 +690,7 @@ export default function Inbox() {
                           <span className="flex items-center gap-1">💬 Incoming message preview</span>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="text-xs font-sans text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 mt-1">
+                          <div className="text-xs font-sans rounded-lg px-3 py-2 mt-1" style={{ backgroundColor: '#E8F0FE', color: '#333' }}>
                             {summary}
                           </div>
                         </AccordionContent>
@@ -754,7 +764,7 @@ export default function Inbox() {
                         <AccordionContent className="px-4 pb-4">
                           <div className="text-sm font-sans email-html-content max-w-none"
                             style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }}
-                            dangerouslySetInnerHTML={{ __html: stripN8nFooter(detailEmail.body) }} />
+                            dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(detailEmail.body)) }} />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
