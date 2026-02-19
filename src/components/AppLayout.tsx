@@ -70,7 +70,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 space-y-0.5 mt-2">
+        <nav className="px-3 space-y-0.5 mt-2">
           {navItems.map((item) => {
             const active = location.pathname === item.to;
             if ('external' in item && item.external) {
