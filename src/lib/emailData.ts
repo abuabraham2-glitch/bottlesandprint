@@ -43,6 +43,7 @@ export interface Call {
   is_urgent: boolean | null;
   is_existing_client: boolean | null;
   draft_response: string | null;
+  transcript: string | null;
   created_at: string | null;
   resolved_at: string | null;
 }
