@@ -426,7 +426,7 @@ export default function Inbox() {
                 <TooltipProvider delayDuration={300}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-sans cursor-help">💬</span>
+                      <span className="text-base px-2 py-1 rounded-full bg-blue-100 text-blue-600 font-sans cursor-help">💬</span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-xs text-xs font-sans">
                       <p className="font-medium mb-0.5">Replying to:</p>
