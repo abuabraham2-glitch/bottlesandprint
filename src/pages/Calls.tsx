@@ -120,7 +120,22 @@ export default function Calls() {
         }),
       });
       if (!res.ok) throw new Error("Send failed");
+
+      // Archive a copy in the emails table so it appears in Inbox → Sent
+      await supabase.from("emails").insert({
+        status: "approved_sent",
+        subject: "Quote from Bottles & Print",
+        draft_response: call.draft_response,
+        to_email_all: call.email,
+        to_recipients: call.email,
+        from_email: "abu@bottlesandprint.com",
+        from_name: "Bottles & Print",
+        category: "QUOTE",
+        body: call.draft_response,
+      } as any);
+
       await updateCall.mutateAsync({ id: call.id, status: "resolved" as any, resolved_at: new Date().toISOString() });
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success("Quote sent and call resolved");
       setSelectedCall(null);
     } catch {
