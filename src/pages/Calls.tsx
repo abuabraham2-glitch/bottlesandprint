@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCalls, useUpdateCall, Call } from "@/lib/emailData";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,13 @@ export default function Calls() {
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [generatingQuote, setGeneratingQuote] = useState(false);
   const [sendingQuote, setSendingQuote] = useState(false);
+  const [editableEmail, setEditableEmail] = useState("");
+  const draftRef = useRef<HTMLDivElement>(null);
+
+  // Sync editable email when selectedCall changes
+  useEffect(() => {
+    setEditableEmail(selectedCall?.email || "");
+  }, [selectedCall?.id, selectedCall?.email]);
 
   const { data: pendingCalls = [], isLoading: loadingPending } = useCalls({ neq: "resolved" });
   const { data: resolvedCalls = [], isLoading: loadingResolved } = useCalls({ eq: "resolved" });
@@ -362,25 +369,45 @@ export default function Calls() {
                   </Button>
                 )}
 
-                {/* Draft quote email */}
+                {/* Editable To email */}
+                {selectedCall.draft_response && (
+                  <div>
+                    <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">To</h3>
+                    <Input
+                      type="email"
+                      value={editableEmail}
+                      onChange={e => setEditableEmail(e.target.value)}
+                      placeholder="recipient@example.com"
+                      className="rounded-lg h-8 text-sm"
+                    />
+                  </div>
+                )}
+
+                {/* Draft quote email — editable */}
                 {selectedCall.draft_response && (
                   <div>
                     <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Draft Quote Email</h3>
                     <div
-                      className="text-sm font-sans bg-muted/30 rounded-lg p-4 border border-border prose prose-sm max-w-none"
+                      ref={draftRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      className="text-sm font-sans bg-muted/30 rounded-lg p-4 border border-border prose prose-sm max-w-none focus:outline-none focus:ring-1 focus:ring-primary/30 min-h-[120px]"
                       dangerouslySetInnerHTML={{ __html: selectedCall.draft_response }}
                     />
                   </div>
                 )}
 
                 {/* Send Quote button */}
-                {selectedCall.email && selectedCall.draft_response && (
+                {editableEmail && selectedCall.draft_response && (
                   <Button
                     size="sm"
                     variant="outline"
                     className="rounded-xl gap-1.5 text-xs bg-amber-50 border-amber-600 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/50"
                     disabled={sendingQuote}
-                    onClick={() => handleSendQuote(selectedCall)}
+                    onClick={() => {
+                      const editedDraft = draftRef.current?.innerHTML || selectedCall.draft_response;
+                      handleSendQuote({ ...selectedCall, email: editableEmail, draft_response: editedDraft });
+                    }}
                   >
                     {sendingQuote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                     Send Quote
