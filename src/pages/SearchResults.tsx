@@ -378,9 +378,9 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                         <AccordionContent className="px-4 pb-4">
                           <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: (() => {
                             const body = stripN8nFooter(detailEmail.body);
-                            if (/<[a-z][\s\S]*>/i.test(body)) return body;
-                            const lines = body.split("\n").map(line => line.replace(/^>+\s?/g, ""));
-                            return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.5;">${lines.join("<br>")}</div>`;
+                            if (/<(?:div|p|br|span|table|a|b|i|strong|em|ul|ol|li|h[1-6]|img|blockquote)\b/i.test(body)) return body;
+                            const lines = body.split(/\r?\n/).map(line => line.replace(/^(?:>\s*)+/g, "").trimEnd()).filter(line => line !== ">" && line !== "> ");
+                            return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.6;">${lines.join("<br>")}</div>`;
                           })() }} />
                         </AccordionContent>
                       </AccordionItem>
