@@ -19,7 +19,7 @@ const navItems = [
   { to: "/clients", icon: Users, label: "Clients" },
   { to: "/catalog", icon: BookOpen, label: "Product Catalog" },
   { to: "/completed", icon: Archive, label: "Completed Data" },
-  { to: "https://drive.google.com", icon: HardDrive, label: "Google Drive", external: true },
+  { to: "https://drive.google.com/drive/folders/1jqGJ9lB01He28ReEAB9JQGqQ2m9ajLsY", icon: HardDrive, label: "Google Drive", external: true },
 ] as const;
 
 interface AppLayoutProps {

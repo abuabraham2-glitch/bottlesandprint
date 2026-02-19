@@ -32,6 +32,7 @@ interface ArchivedResult {
   description: string | null;
   size: string | null;
   quantity: number | null;
+  original_order_id: string | null;
 }
 
 interface ClientResult {
@@ -92,31 +93,9 @@ function formatTime(dateStr: string | null) {
   return format(new Date(dateStr), "MMM d, h:mm a");
 }
 
-function formatQuotedText(html: string): string {
-  // If it looks like HTML already, just return it
-  if (/<[a-z][\s\S]*>/i.test(html)) return html;
-  // Plain text: parse > quoted lines
-  const lines = html.split(/\n/);
-  let result = "";
-  let inQuote = false;
-  for (const line of lines) {
-    const match = line.match(/^(>+)\s?(.*)/);
-    if (match) {
-      if (!inQuote) {
-        result += '<div style="border-left: 3px solid #d1d5db; padding-left: 12px; margin: 8px 0; color: #6b7280; font-size: 13px;">';
-        inQuote = true;
-      }
-      result += match[2] + "<br>";
-    } else {
-      if (inQuote) {
-        result += "</div>";
-        inQuote = false;
-      }
-      result += line + "<br>";
-    }
-  }
-  if (inQuote) result += "</div>";
-  return result;
+/** Strip n8n footer text */
+function stripN8nFooter(html: string): string {
+  return html.replace(/This email was sent automatically with n8n\.?/gi, "").replace(/<p>\s*<\/p>/g, "");
 }
 
 /** Split draft_response at the FIRST <hr> only */
@@ -158,7 +137,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
           .limit(PREVIEW_LIMIT),
         supabase.from("orders").select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
           .eq("archived", false).ilike("clients.company" as any, term).limit(PREVIEW_LIMIT),
-        supabase.from("archived_orders").select("id, year, month, client_company, description, size, quantity")
+        supabase.from("archived_orders").select("id, year, month, client_company, description, size, quantity, original_order_id")
           .or(`client_company.ilike.${term},description.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("clients").select("id, company, contact_name, email")
           .or(`company.ilike.${term},contact_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`).limit(PREVIEW_LIMIT),
@@ -267,7 +246,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <th className="text-left p-3 font-medium text-muted-foreground">Color</th>
             </tr></thead>
             <tbody>{products.map(p => (
-              <tr key={p.id} onClick={() => setDetailProduct(p)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+              <tr key={p.id} onClick={() => navigate(`/catalog?product=${p.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
                 <td className="p-3 font-medium">{p.product_name}</td>
                 <td className="p-3">{p.clients?.company || "—"}</td>
                 <td className="p-3 text-muted-foreground">{p.size || "—"}</td>
@@ -334,7 +313,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <th className="text-left p-3 font-medium text-muted-foreground">Qty</th>
             </tr></thead>
             <tbody>{archived.map(a => (
-              <tr key={a.id} className="border-b last:border-b-0">
+              <tr key={a.id} onClick={() => navigate(`/orders/${a.original_order_id || a.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
                 <td className="p-3">{a.year}</td>
                 <td className="p-3">{a.client_company}</td>
                 <td className="p-3">{a.description}</td>
@@ -362,7 +341,8 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Draft response */}
                 {detailEmail.draft_response && (() => {
-                  const { draftPart, quotedPart } = splitDraftAtHr(detailEmail.draft_response);
+                  const cleaned = stripN8nFooter(detailEmail.draft_response);
+                  const { draftPart, quotedPart } = splitDraftAtHr(cleaned);
                   return (
                     <div>
                       <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
@@ -372,7 +352,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                           <AccordionItem value="quoted-email" className="border rounded-xl">
                             <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
                             <AccordionContent className="px-4 pb-4">
-                              <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }} dangerouslySetInnerHTML={{ __html: formatQuotedText(quotedPart) }} />
+                              <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: quotedPart }} />
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
@@ -383,14 +363,15 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
 
                 {/* Original email body */}
                 {detailEmail.body && (() => {
-                  const hasQuotedInDraft = detailEmail.draft_response ? splitDraftAtHr(detailEmail.draft_response).quotedPart !== null : false;
+                  const cleaned = stripN8nFooter(detailEmail.draft_response || "");
+                  const hasQuotedInDraft = cleaned ? splitDraftAtHr(cleaned).quotedPart !== null : false;
                   if (hasQuotedInDraft) return null;
                   return (
                     <Accordion type="single" collapsible className="w-full">
                       <AccordionItem value="original-email" className="border rounded-xl">
                         <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
                         <AccordionContent className="px-4 pb-4">
-                          <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #d1d5db', paddingLeft: '12px', color: '#6b7280', fontSize: '13px' }} dangerouslySetInnerHTML={{ __html: formatQuotedText(detailEmail.body) }} />
+                          <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: stripN8nFooter(detailEmail.body) }} />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
