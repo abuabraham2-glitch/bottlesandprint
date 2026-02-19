@@ -8,19 +8,14 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-} from "@/components/ui/drawer";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   SALES_NEW: { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300" },
+  SALES_FOLLOWUP: { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300" },
   SUPPORT: { bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300" },
   EXISTING_CLIENT: { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300" },
   CALLBACK_REQUEST: { bg: "bg-yellow-100 dark:bg-yellow-900/40", text: "text-yellow-700 dark:text-yellow-300" },
@@ -37,28 +32,11 @@ function CategoryBadge({ category }: { category: string | null }) {
   );
 }
 
-function QuoteDetailsView({ details }: { details: any }) {
-  if (!details || typeof details !== "object") return null;
-  const fields = ["component", "material", "colors", "quantity", "shape", "size"];
-  const entries = Object.entries(details).filter(([, v]) => v != null && v !== "");
-  if (entries.length === 0) return null;
-
-  // Show prioritized fields first, then the rest
-  const ordered = [
-    ...fields.filter(f => details[f] != null && details[f] !== "").map(f => [f, details[f]] as [string, any]),
-    ...entries.filter(([k]) => !fields.includes(k)),
-  ];
-
-  return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-      {ordered.map(([key, val]) => (
-        <div key={key}>
-          <span className="text-[11px] font-medium text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
-          <div className="text-sm font-sans">{typeof val === "object" ? JSON.stringify(val) : String(val)}</div>
-        </div>
-      ))}
-    </div>
-  );
+function hasQuoteDetails(qd: any): boolean {
+  if (!qd) return false;
+  if (typeof qd === "string") return qd.trim() !== "" && qd.trim() !== "{}";
+  if (typeof qd === "object") return Object.keys(qd).length > 0;
+  return false;
 }
 
 export default function Calls() {
@@ -105,7 +83,6 @@ export default function Calls() {
       });
       if (!res.ok) throw new Error("Webhook failed");
       toast.success("Quote generated successfully");
-      // Refresh call data
       queryClient.invalidateQueries({ queryKey: ["calls"] });
     } catch {
       toast.error("Failed to generate quote");
@@ -115,7 +92,7 @@ export default function Calls() {
   };
 
   const canGenerateQuote = (call: Call) => {
-    return call.category === "SALES_NEW" || call.category === "SALES_FOLLOWUP";
+    return call.category?.startsWith("SALES") ?? false;
   };
 
   const formatTime = (dateStr: string | null) => {
@@ -125,14 +102,11 @@ export default function Calls() {
 
   const filterCalls = (calls: Call[]) => {
     let filtered = calls;
-
-    // Category filter
-    if (categoryFilter === "sales") filtered = filtered.filter(c => c.category === "SALES_NEW");
+    if (categoryFilter === "sales") filtered = filtered.filter(c => c.category?.startsWith("SALES"));
     else if (categoryFilter === "support") filtered = filtered.filter(c => c.category === "SUPPORT");
     else if (categoryFilter === "callback") filtered = filtered.filter(c => c.category === "CALLBACK_REQUEST");
     else if (categoryFilter === "urgent") filtered = filtered.filter(c => c.is_urgent);
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       filtered = filtered.filter(c =>
@@ -143,14 +117,12 @@ export default function Calls() {
         c.summary?.toLowerCase().includes(q)
       );
     }
-
     return filtered;
   };
 
   const baseCalls = statusTab === "pending" ? pendingCalls : resolvedCalls;
   const calls = filterCalls(baseCalls);
   const loading = statusTab === "pending" ? loadingPending : loadingResolved;
-  const isResolved = statusTab === "resolved";
 
   const categoryTabs: { key: CategoryFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -261,16 +233,16 @@ export default function Calls() {
         ))
       )}
 
-      {/* Detail Drawer */}
-      <Drawer open={!!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
-        <DrawerContent className="max-h-[85vh]">
+      {/* Detail Side Sheet — same pattern as email inbox */}
+      <Sheet open={!!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
           {selectedCall && (
-            <div className="overflow-y-auto px-6 pb-8">
-              <DrawerHeader className="px-0">
+            <>
+              <SheetHeader className="p-6 pb-4 border-b shrink-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <DrawerTitle className="font-serif font-normal text-xl">
+                  <SheetTitle className="font-serif text-lg">
                     {selectedCall.caller_name || "Unknown Caller"}
-                  </DrawerTitle>
+                  </SheetTitle>
                   {selectedCall.is_urgent && (
                     <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
                       <AlertTriangle size={10} /> URGENT
@@ -278,13 +250,14 @@ export default function Calls() {
                   )}
                   <CategoryBadge category={selectedCall.category} />
                 </div>
-                <DrawerDescription className="font-sans">
-                  {selectedCall.company_name && <span>{selectedCall.company_name} · </span>}
-                  {formatTime(selectedCall.created_at)}
-                </DrawerDescription>
-              </DrawerHeader>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans">
+                  {selectedCall.company_name && <span>{selectedCall.company_name}</span>}
+                  {selectedCall.company_name && <span>·</span>}
+                  <span>{formatTime(selectedCall.created_at)}</span>
+                </div>
+              </SheetHeader>
 
-              <div className="space-y-5">
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Contact info */}
                 <div className="flex items-center gap-4">
                   {selectedCall.phone_number && (
@@ -321,17 +294,33 @@ export default function Calls() {
                   </div>
                 )}
 
-                {/* Quote details */}
-                {selectedCall.quote_details && typeof selectedCall.quote_details === "object" && Object.keys(selectedCall.quote_details).length > 0 && (
+                {/* Quote details — plain text display */}
+                {hasQuoteDetails(selectedCall.quote_details) && (
                   <div>
                     <h3 className="text-xs font-medium text-muted-foreground mb-2 font-sans">Quote Details</h3>
-                    <div className="bg-muted/50 rounded-xl p-4">
-                      <QuoteDetailsView details={selectedCall.quote_details} />
+                    <div className="bg-muted/50 rounded-md p-3 text-sm font-sans whitespace-pre-wrap">
+                      {typeof selectedCall.quote_details === "string"
+                        ? selectedCall.quote_details
+                        : JSON.stringify(selectedCall.quote_details, null, 2)}
                     </div>
                   </div>
                 )}
 
-                {/* Draft response - rendered as HTML */}
+                {/* Generate Quote button */}
+                {canGenerateQuote(selectedCall) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="rounded-xl gap-1.5 text-xs"
+                    disabled={generatingQuote}
+                    onClick={() => handleGenerateQuote(selectedCall)}
+                  >
+                    {generatingQuote ? <Loader2 size={14} className="animate-spin" /> : null}
+                    Generate Quote
+                  </Button>
+                )}
+
+                {/* Draft response — rendered as HTML */}
                 {selectedCall.draft_response && (
                   <div>
                     <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Draft Response</h3>
@@ -351,7 +340,7 @@ export default function Calls() {
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex items-center gap-2 pt-2 border-t">
                   {selectedCall.status !== "resolved" ? (
                     <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => handleResolve(selectedCall.id)}>
                       <CheckCircle size={14} /> Mark Resolved
@@ -361,25 +350,12 @@ export default function Calls() {
                       <Phone size={14} /> Restore to Pending
                     </Button>
                   )}
-
-                  {canGenerateQuote(selectedCall) && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl gap-1.5 text-xs"
-                      disabled={generatingQuote}
-                      onClick={() => handleGenerateQuote(selectedCall)}
-                    >
-                      {generatingQuote ? <Loader2 size={14} className="animate-spin" /> : null}
-                      Generate Quote
-                    </Button>
-                  )}
                 </div>
               </div>
-            </div>
+            </>
           )}
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
