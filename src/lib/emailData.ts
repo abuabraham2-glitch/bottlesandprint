@@ -145,12 +145,13 @@ export function useCreateEmail() {
 }
 
 // Calls hooks
-export function useCalls(status?: string) {
+export function useCalls(filter?: { eq?: string; neq?: string }) {
   return useQuery({
-    queryKey: ["calls", status],
+    queryKey: ["calls", filter],
     queryFn: async () => {
       let query = supabase.from("calls").select("*").order("created_at", { ascending: false });
-      if (status) query = query.eq("status", status);
+      if (filter?.eq) query = query.eq("status", filter.eq);
+      if (filter?.neq) query = query.neq("status", filter.neq);
       const { data, error } = await query;
       if (error) throw error;
       return data as unknown as Call[];
