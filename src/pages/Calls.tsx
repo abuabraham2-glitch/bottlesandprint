@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCalls, useUpdateCall, Call } from "@/lib/emailData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ export default function Calls() {
   const { data: pendingCalls = [], isLoading: loadingPending } = useCalls("pending");
   const { data: resolvedCalls = [], isLoading: loadingResolved } = useCalls("resolved");
   const updateCall = useUpdateCall();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const handleResolve = async (id: string) => {
@@ -87,8 +89,24 @@ export default function Calls() {
   const handleGenerateQuote = async (call: Call) => {
     setGeneratingQuote(true);
     try {
-      // Placeholder webhook — will be wired up next
-      toast.info("Quote generation will be wired up to a webhook next.");
+      const res = await fetch("https://bottlesandprint.app.n8n.cloud/webhook/generate-call-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          call_id: call.id,
+          caller_name: call.caller_name,
+          company_name: call.company_name,
+          email: call.email,
+          phone_number: call.phone_number,
+          call_reason: call.call_reason,
+          quote_details: call.quote_details,
+          summary: call.summary,
+        }),
+      });
+      if (!res.ok) throw new Error("Webhook failed");
+      toast.success("Quote generated successfully");
+      // Refresh call data
+      queryClient.invalidateQueries({ queryKey: ["calls"] });
     } catch {
       toast.error("Failed to generate quote");
     } finally {
@@ -97,9 +115,7 @@ export default function Calls() {
   };
 
   const canGenerateQuote = (call: Call) => {
-    if (call.category !== "SALES_NEW") return false;
-    const qd = call.quote_details;
-    return qd && typeof qd === "object" && (qd as any).component && (qd as any).quantity;
+    return call.category === "SALES_NEW" || call.category === "SALES_FOLLOWUP";
   };
 
   const formatTime = (dateStr: string | null) => {
@@ -315,11 +331,22 @@ export default function Calls() {
                   </div>
                 )}
 
-                {/* Draft response */}
+                {/* Draft response - rendered as HTML */}
                 {selectedCall.draft_response && (
                   <div>
                     <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Draft Response</h3>
-                    <p className="text-sm font-sans whitespace-pre-wrap bg-muted/50 rounded-xl p-4">{selectedCall.draft_response}</p>
+                    <div
+                      className="text-sm font-sans bg-muted/50 rounded-xl p-4 prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: selectedCall.draft_response }}
+                    />
+                  </div>
+                )}
+
+                {/* Transcript */}
+                {selectedCall.transcript && (
+                  <div>
+                    <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Transcript</h3>
+                    <p className="text-sm font-sans whitespace-pre-wrap bg-muted/50 rounded-xl p-4 max-h-60 overflow-y-auto">{selectedCall.transcript}</p>
                   </div>
                 )}
 
