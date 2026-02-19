@@ -249,6 +249,7 @@ export type Database = {
           gmail_id: string | null
           holding_sent_at: string | null
           id: string
+          incoming_summary: string | null
           quote_data: Json | null
           resolved_at: string | null
           status: string | null
@@ -274,6 +275,7 @@ export type Database = {
           gmail_id?: string | null
           holding_sent_at?: string | null
           id?: string
+          incoming_summary?: string | null
           quote_data?: Json | null
           resolved_at?: string | null
           status?: string | null
@@ -299,6 +301,7 @@ export type Database = {
           gmail_id?: string | null
           holding_sent_at?: string | null
           id?: string
+          incoming_summary?: string | null
           quote_data?: Json | null
           resolved_at?: string | null
           status?: string | null
