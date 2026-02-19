@@ -14,8 +14,13 @@ async function postToWebhook(payload: Record<string, any>): Promise<boolean> {
       signal: controller.signal,
     });
     clearTimeout(timeout);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      console.error("QB webhook error:", { status: res.status, statusText: res.statusText, body: errorText, payload: { ...payload, action: payload.action } });
+    }
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.error("QB webhook network error:", err, { action: payload.action });
     return false;
   }
 }
@@ -42,19 +47,28 @@ export async function syncClientToQB(client: {
   state?: string | null;
   zip?: string | null;
 }) {
-  const ok = await postToWebhook({
-    action: "create_customer",
-    company: client.company,
-    email: client.email || "",
-    phone: client.phone || "",
-    street: client.street_address || "",
-    city: client.city || "",
-    state: client.state || "",
-    zip: client.zip || "",
-  });
-  if (ok) toast.success("Client synced to QuickBooks.");
-  else toast.error("Failed to sync client. Please try again.");
-  return ok;
+  try {
+    const ok = await postToWebhook({
+      action: "create_customer",
+      company: client.company,
+      email: client.email || "",
+      phone: client.phone || "",
+      street: client.street_address || "",
+      city: client.city || "",
+      state: client.state || "",
+      zip: client.zip || "",
+    });
+    if (ok) toast.success("Client synced to QuickBooks.");
+    else {
+      console.error("QB syncClient failed: webhook returned non-ok response", { company: client.company });
+      toast.error("Failed to sync client. Please try again.");
+    }
+    return ok;
+  } catch (err) {
+    console.error("QB syncClient error:", err, { company: client.company });
+    toast.error("Failed to sync client. Please try again.");
+    return false;
+  }
 }
 
 export async function pushInvoiceToQB(params: {
