@@ -3,12 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCalls, useUpdateCall, Call } from "@/lib/emailData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Mail, CheckCircle, PhoneCall, AlertTriangle, Loader2 } from "lucide-react";
+import { Phone, Mail, CheckCircle, PhoneCall, AlertTriangle, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { supabase } from "@/integrations/supabase/client";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
@@ -45,12 +46,18 @@ export default function Calls() {
   const [search, setSearch] = useState("");
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [generatingQuote, setGeneratingQuote] = useState(false);
+  const [sendingQuote, setSendingQuote] = useState(false);
 
-  const { data: pendingCalls = [], isLoading: loadingPending } = useCalls("pending");
-  const { data: resolvedCalls = [], isLoading: loadingResolved } = useCalls("resolved");
+  const { data: pendingCalls = [], isLoading: loadingPending } = useCalls({ neq: "resolved" });
+  const { data: resolvedCalls = [], isLoading: loadingResolved } = useCalls({ eq: "resolved" });
   const updateCall = useUpdateCall();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  const refreshSelectedCall = async (id: string) => {
+    const { data } = await supabase.from("calls").select("*").eq("id", id).single();
+    if (data) setSelectedCall(data as unknown as Call);
+  };
 
   const handleResolve = async (id: string) => {
     await updateCall.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
@@ -84,10 +91,35 @@ export default function Calls() {
       if (!res.ok) throw new Error("Webhook failed");
       toast.success("Quote generated successfully");
       queryClient.invalidateQueries({ queryKey: ["calls"] });
+      await refreshSelectedCall(call.id);
     } catch {
       toast.error("Failed to generate quote");
     } finally {
       setGeneratingQuote(false);
+    }
+  };
+
+  const handleSendQuote = async (call: Call) => {
+    setSendingQuote(true);
+    try {
+      const res = await fetch("https://bottlesandprint.app.n8n.cloud/webhook/email-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_new",
+          to_email: call.email,
+          subject: "Quote from Bottles & Print",
+          draft: call.draft_response,
+        }),
+      });
+      if (!res.ok) throw new Error("Send failed");
+      await updateCall.mutateAsync({ id: call.id, status: "resolved" as any, resolved_at: new Date().toISOString() });
+      toast.success("Quote sent and call resolved");
+      setSelectedCall(null);
+    } catch {
+      toast.error("Failed to send quote");
+    } finally {
+      setSendingQuote(false);
     }
   };
 
@@ -210,6 +242,11 @@ export default function Calls() {
                     </Badge>
                   )}
                   <CategoryBadge category={call.category} />
+                  {call.status === "quote_generated" && (
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      Quote Ready
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground font-sans">{formatTime(call.created_at)}</div>
                 {call.summary && (
@@ -233,7 +270,7 @@ export default function Calls() {
         ))
       )}
 
-      {/* Detail Side Sheet — same pattern as email inbox */}
+      {/* Detail Side Sheet */}
       <Sheet open={!!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
         <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
           {selectedCall && (
@@ -249,6 +286,11 @@ export default function Calls() {
                     </Badge>
                   )}
                   <CategoryBadge category={selectedCall.category} />
+                  {selectedCall.status === "quote_generated" && (
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      Quote Ready
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans">
                   {selectedCall.company_name && <span>{selectedCall.company_name}</span>}
@@ -294,7 +336,7 @@ export default function Calls() {
                   </div>
                 )}
 
-                {/* Quote details — plain text display */}
+                {/* Quote details */}
                 {hasQuoteDetails(selectedCall.quote_details) && (
                   <div>
                     <h3 className="text-xs font-medium text-muted-foreground mb-2 font-sans">Quote Details</h3>
@@ -320,15 +362,29 @@ export default function Calls() {
                   </Button>
                 )}
 
-                {/* Draft response — rendered as HTML */}
+                {/* Draft quote email */}
                 {selectedCall.draft_response && (
                   <div>
-                    <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Draft Response</h3>
+                    <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Draft Quote Email</h3>
                     <div
-                      className="text-sm font-sans bg-muted/50 rounded-xl p-4 prose prose-sm max-w-none"
+                      className="text-sm font-sans bg-muted/30 rounded-lg p-4 border border-border prose prose-sm max-w-none"
                       dangerouslySetInnerHTML={{ __html: selectedCall.draft_response }}
                     />
                   </div>
+                )}
+
+                {/* Send Quote button */}
+                {selectedCall.email && selectedCall.draft_response && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl gap-1.5 text-xs bg-amber-50 border-amber-600 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                    disabled={sendingQuote}
+                    onClick={() => handleSendQuote(selectedCall)}
+                  >
+                    {sendingQuote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    Send Quote
+                  </Button>
                 )}
 
                 {/* Transcript */}
