@@ -130,7 +130,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setLoading(true);
       const term = `%${searchQuery.trim()}%`;
 
-      const [orderRes, orderByClient, archRes, clientRes, emailRes, callRes, productRes] = await Promise.all([
+      const [orderRes, orderByClient, archRes, clientRes, emailRes, callRes, productRes, productByClient] = await Promise.all([
         supabase.from("orders").select("id, item_name, client_po, vendor_po, stage, clients!inner(company)")
           .eq("archived", false)
           .or(`item_name.ilike.${term},client_po.ilike.${term},vendor_po.ilike.${term},invoice_num.ilike.${term},clients.company.ilike.${term}`)
@@ -145,8 +145,11 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
           .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term},to_recipients.ilike.${term},cc_recipients.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("calls").select("id, caller_name, company_name, phone_number, call_reason, created_at")
           .or(`caller_name.ilike.${term},company_name.ilike.${term},phone_number.ilike.${term},call_reason.ilike.${term}`).limit(PREVIEW_LIMIT),
+        supabase.from("catalog").select("id, product_name, size, material, container_color, clients(company)")
+          .or(`product_name.ilike.${term},size.ilike.${term},material.ilike.${term},container_color.ilike.${term}`)
+          .eq("archived", false).limit(PREVIEW_LIMIT),
         supabase.from("catalog").select("id, product_name, size, material, container_color, clients!inner(company)")
-          .or(`product_name.ilike.${term},size.ilike.${term},material.ilike.${term},clients.company.ilike.${term}`)
+          .ilike("clients.company" as any, term)
           .eq("archived", false).limit(PREVIEW_LIMIT),
       ]);
 
@@ -157,7 +160,9 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
       setClients((clientRes.data || []) as ClientResult[]);
       setEmails((emailRes.data || []) as unknown as EmailResult[]);
       setCalls((callRes.data || []) as CallResult[]);
-      setProducts((productRes.data || []) as unknown as ProductResult[]);
+      const allProducts = [...(productRes.data || []), ...(productByClient.data || [])];
+      const uniqueProducts = Array.from(new Map(allProducts.map(p => [p.id, p])).values()).slice(0, PREVIEW_LIMIT);
+      setProducts(uniqueProducts as unknown as ProductResult[]);
       setLoading(false);
     };
 
@@ -371,7 +376,12 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                       <AccordionItem value="original-email" className="border rounded-xl">
                         <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
                         <AccordionContent className="px-4 pb-4">
-                          <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: stripN8nFooter(detailEmail.body) }} />
+                          <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: (() => {
+                            const body = stripN8nFooter(detailEmail.body);
+                            if (/<[a-z][\s\S]*>/i.test(body)) return body;
+                            const lines = body.split("\n").map(line => line.replace(/^>+\s?/g, ""));
+                            return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.5;">${lines.join("<br>")}</div>`;
+                          })() }} />
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>

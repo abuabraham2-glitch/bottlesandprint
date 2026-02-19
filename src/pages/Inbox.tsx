@@ -60,17 +60,25 @@ function getReplyAllCc(email: Email): string {
 }
 
 /** Extract a 1-sentence summary prefixed with category */
-function extractSummary(body: string | null, category?: string | null): string | null {
+function extractSummary(body: string | null, _category?: string | null): string | null {
   if (!body) return null;
   let text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-  // Strip signature blocks and quoted text
-  text = text.replace(/--\s.*$/s, "").replace(/^>.*$/gm, "").replace(/On .* wrote:.*$/s, "").trim();
+  // Strip quoted replies (lines starting with >)
+  text = text.replace(/^>.*$/gm, "").trim();
+  // Strip "On ... wrote:" blocks
+  text = text.replace(/On .* wrote:.*$/s, "").trim();
+  // Strip signatures
+  text = text.replace(/--\s.*$/s, "").trim();
+  text = text.replace(/(Thanks|Best|Regards|Cheers|Sincerely|Best regards|Kind regards),?\s*[\s\S]*$/i, "").trim();
+  // Strip phone numbers and email-like patterns at the end
+  text = text.replace(/Tel:.*$/i, "").replace(/\(\d{3}\)\s*\d{3}.*$/i, "").trim();
+  // Strip common greetings from the start
+  text = text.replace(/^(Hi|Hey|Hello|Dear)\s+[\w,]+\s*/i, "").trim();
   if (!text) return null;
-  // Take first sentence (up to first period) or first 100 chars
-  const firstSentence = text.match(/^[^.!?]+[.!?]/);
-  const summary = firstSentence ? firstSentence[0].trim() : text.substring(0, 100);
-  const prefix = category ? `${category.toUpperCase()}: ` : "";
-  return (prefix + summary).substring(0, 160);
+  // Take first 1-2 sentences up to 120 chars
+  const sentences = text.match(/^[^.!?]+[.!?](\s+[^.!?]+[.!?])?/);
+  const summary = sentences ? sentences[0].trim() : text;
+  return summary.substring(0, 120);
 }
 
 /** Convert plain text email body to HTML, handling > quoted lines and newlines */
@@ -79,11 +87,9 @@ function formatEmailBodyAsHtml(body: string): string {
   if (/<[a-z][\s\S]*>/i.test(body)) {
     return body;
   }
-  // Plain text: strip leading > chars, convert newlines to <br>
-  return body
-    .split("\n")
-    .map(line => line.replace(/^>+\s?/g, ""))
-    .join("<br>");
+  // Plain text: strip leading > chars, convert newlines to <br>, wrap in styled div
+  const lines = body.split("\n").map(line => line.replace(/^>+\s?/g, ""));
+  return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.5;">${lines.join("<br>")}</div>`;
 }
 
 export default function Inbox() {
@@ -414,7 +420,7 @@ export default function Inbox() {
   );
 
   const renderEmailCard = (email: Email, showActions: boolean) => {
-    const summary = email.draft_response && email.body ? extractSummary(email.body, email.category) : null;
+    const summary = email.body ? extractSummary(email.body) : null;
 
     return (
       <div key={email.id} className="floating-card mb-3">
@@ -437,7 +443,14 @@ export default function Inbox() {
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">Sent</span>
               )}
             </div>
-            <div className="text-sm font-sans truncate">{email.subject}</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-sans truncate flex-1">{email.subject}</span>
+              {summary && (
+                <span className="shrink-0 text-[12px] font-sans font-medium rounded-full px-2.5 py-0.5 max-w-[50%] truncate" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
+                  {summary}
+                </span>
+              )}
+            </div>
             <div className="text-xs text-muted-foreground font-sans mt-0.5 flex items-center gap-1.5">
               <span>{formatTime(email.created_at)}</span>
               {(() => { const atts = parseAttachments(email.attachments); return atts.length > 0 ? (
@@ -454,14 +467,6 @@ export default function Inbox() {
           />
         )}
 
-        {/* Summary bubble below draft preview, right-aligned */}
-        {summary && (
-          <div className="mt-1.5 flex justify-end">
-            <div className="text-xs font-sans rounded-lg px-3 py-1.5 max-w-[70%] text-right" style={{ backgroundColor: '#E8F0FE', color: '#333' }}>
-              💬 {summary}
-            </div>
-          </div>
-        )}
 
         {showActions && (
           <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -679,23 +684,14 @@ export default function Inbox() {
                   );
                 })()}
 
-                {/* Collapsible summary of incoming email (subtle placement) */}
-                {detailEmail.draft_response && detailEmail.body && (() => {
-                  const summary = extractSummary(detailEmail.body, detailEmail.category);
+                {/* Summary of incoming email */}
+                {detailEmail.body && (() => {
+                  const summary = extractSummary(detailEmail.body);
                   if (!summary) return null;
                   return (
-                    <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem value="email-summary" className="border-0">
-                        <AccordionTrigger className="py-1.5 text-xs font-sans text-muted-foreground hover:no-underline gap-1">
-                          <span className="flex items-center gap-1">💬 Incoming message preview</span>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="text-xs font-sans rounded-lg px-3 py-2 mt-1" style={{ backgroundColor: '#E8F0FE', color: '#333' }}>
-                            {summary}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
+                    <div className="text-sm font-sans font-medium rounded-lg px-3 py-2" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
+                      💬 {summary}
+                    </div>
                   );
                 })()}
 
