@@ -65,6 +65,7 @@ export type Database = {
           created_at: string | null
           draft_response: string | null
           email: string | null
+          holding_sent_at: string | null
           id: string
           is_existing_client: boolean | null
           is_urgent: boolean | null
@@ -83,6 +84,7 @@ export type Database = {
           created_at?: string | null
           draft_response?: string | null
           email?: string | null
+          holding_sent_at?: string | null
           id?: string
           is_existing_client?: boolean | null
           is_urgent?: boolean | null
@@ -101,6 +103,7 @@ export type Database = {
           created_at?: string | null
           draft_response?: string | null
           email?: string | null
+          holding_sent_at?: string | null
           id?: string
           is_existing_client?: boolean | null
           is_urgent?: boolean | null
