@@ -2,28 +2,23 @@ import { useState } from "react";
 import { useCalls, useUpdateCall, Call } from "@/lib/emailData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Mail, Archive, RotateCcw, ChevronDown, ChevronUp, PhoneCall } from "lucide-react";
+import { Phone, Mail, CheckCircle, ChevronDown, ChevronUp, PhoneCall, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 
-type Tab = "new" | "archived";
+type Tab = "pending" | "resolved";
 
 export default function Calls() {
-  const [tab, setTab] = useState<Tab>("new");
+  const [tab, setTab] = useState<Tab>("pending");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
-  const { data: newCalls = [], isLoading: loadingNew } = useCalls("new");
-  const { data: returnedCalls = [] } = useCalls("returned");
-  const { data: archivedCalls = [] } = useCalls("archived");
+  const { data: pendingCalls = [], isLoading: loadingPending } = useCalls("pending");
+  const { data: resolvedCalls = [], isLoading: loadingResolved } = useCalls("resolved");
   const updateCall = useUpdateCall();
   const navigate = useNavigate();
-
-  const archivedList = [...returnedCalls, ...archivedCalls].sort((a, b) =>
-    new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime()
-  );
 
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => {
@@ -33,19 +28,14 @@ export default function Calls() {
     });
   };
 
-  const handleMarkReturned = async (id: string) => {
-    await updateCall.mutateAsync({ id, status: "returned" as any, returned_at: new Date().toISOString() });
-    toast.success("Marked as returned");
-  };
-
-  const handleArchive = async (id: string) => {
-    await updateCall.mutateAsync({ id, status: "archived" as any, archived_at: new Date().toISOString() });
-    toast.success("Archived");
+  const handleResolve = async (id: string) => {
+    await updateCall.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() });
+    toast.success("Marked as resolved");
   };
 
   const handleRestore = async (id: string) => {
-    await updateCall.mutateAsync({ id, status: "new" as any, returned_at: null, archived_at: null });
-    toast.success("Restored to New");
+    await updateCall.mutateAsync({ id, status: "pending" as any, resolved_at: null });
+    toast.success("Restored to Pending");
   };
 
   const formatTime = (dateStr: string | null) => {
@@ -60,15 +50,17 @@ export default function Calls() {
       c.caller_name?.toLowerCase().includes(q) ||
       c.company_name?.toLowerCase().includes(q) ||
       c.phone_number?.includes(q) ||
-      c.call_reason?.toLowerCase().includes(q)
+      c.call_reason?.toLowerCase().includes(q) ||
+      c.summary?.toLowerCase().includes(q)
     );
   };
 
-  const calls = tab === "new" ? filterCalls(newCalls) : filterCalls(archivedList);
-  const loading = loadingNew;
+  const calls = tab === "pending" ? filterCalls(pendingCalls) : filterCalls(resolvedCalls);
+  const loading = tab === "pending" ? loadingPending : loadingResolved;
 
-  const renderCallCard = (call: Call, isArchived: boolean) => {
+  const renderCallCard = (call: Call, isResolved: boolean) => {
     const isExpanded = expandedIds.has(call.id);
+    const hasQuoteDetails = call.quote_details && typeof call.quote_details === 'object' && Object.keys(call.quote_details).length > 0;
 
     return (
       <div key={call.id} className="floating-card mb-3">
@@ -79,9 +71,20 @@ export default function Calls() {
               {call.company_name && (
                 <span className="text-xs text-muted-foreground font-sans">• {call.company_name}</span>
               )}
+              {call.is_urgent && (
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
+                  <AlertTriangle size={10} /> Urgent
+                </Badge>
+              )}
+              {call.category && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{call.category}</Badge>
+              )}
             </div>
             <div className="text-xs text-muted-foreground font-sans">{formatTime(call.created_at)}</div>
-            {call.call_reason && (
+            {call.summary && (
+              <div className="text-sm text-foreground/80 font-sans mt-1.5 line-clamp-2">{call.summary}</div>
+            )}
+            {!call.summary && call.call_reason && (
               <div className="text-sm text-foreground/80 font-sans mt-1.5 line-clamp-2">{call.call_reason}</div>
             )}
             <div className="flex items-center gap-3 mt-2">
@@ -100,33 +103,38 @@ export default function Calls() {
               )}
             </div>
           </div>
-          {call.quote_details && (
+          {(hasQuoteDetails || call.draft_response) && (
             <button onClick={() => toggleExpand(call.id)} className="shrink-0 text-muted-foreground">
               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
           )}
         </div>
 
-        {isExpanded && call.quote_details && (
-          <div className="mt-3 border-t pt-3">
-            <span className="text-xs font-medium text-muted-foreground font-sans">Quote Details</span>
-            <div className="text-sm font-sans mt-1 whitespace-pre-wrap">{call.quote_details}</div>
+        {isExpanded && (
+          <div className="mt-3 border-t pt-3 space-y-3">
+            {hasQuoteDetails && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground font-sans">Quote Details</span>
+                <div className="text-sm font-sans mt-1 whitespace-pre-wrap">{JSON.stringify(call.quote_details, null, 2)}</div>
+              </div>
+            )}
+            {call.draft_response && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground font-sans">Draft Response</span>
+                <div className="text-sm font-sans mt-1 whitespace-pre-wrap">{call.draft_response}</div>
+              </div>
+            )}
           </div>
         )}
 
         <div className="flex items-center gap-2 mt-3">
-          {!isArchived ? (
-            <>
-              <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleMarkReturned(call.id)}>
-                <Phone size={12} /> Mark Returned
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => handleArchive(call.id)}>
-                <Archive size={12} /> Archive
-              </Button>
-            </>
+          {!isResolved ? (
+            <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleResolve(call.id)}>
+              <CheckCircle size={12} /> Mark Resolved
+            </Button>
           ) : (
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => handleRestore(call.id)}>
-              <RotateCcw size={12} /> Restore
+              <Phone size={12} /> Restore
             </Button>
           )}
         </div>
@@ -138,11 +146,10 @@ export default function Calls() {
     <div className="p-6 space-y-5 max-w-[1200px]">
       <h1 className="text-2xl font-serif font-normal">Calls</h1>
 
-      {/* Sub-tabs */}
       <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
         {[
-          { key: "new" as Tab, label: "New", count: newCalls.length },
-          { key: "archived" as Tab, label: "Archived", count: archivedList.length },
+          { key: "pending" as Tab, label: "Pending", count: pendingCalls.length },
+          { key: "resolved" as Tab, label: "Resolved", count: resolvedCalls.length },
         ].map(t => (
           <button
             key={t.key}
@@ -159,14 +166,12 @@ export default function Calls() {
         ))}
       </div>
 
-      {tab === "archived" && (
-        <Input
-          placeholder="Search calls..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="rounded-xl h-8 text-sm w-64"
-        />
-      )}
+      <Input
+        placeholder="Search calls..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="rounded-xl h-8 text-sm w-64"
+      />
 
       <p className="text-[11px] text-muted-foreground font-sans">Call logs are automatically deleted after 1 year.</p>
 
@@ -175,10 +180,10 @@ export default function Calls() {
       ) : calls.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <PhoneCall size={32} className="mx-auto mb-2 opacity-50" />
-          <p className="font-sans text-sm">{tab === "new" ? "No new calls." : "No archived calls."}</p>
+          <p className="font-sans text-sm">{tab === "pending" ? "No pending calls." : "No resolved calls."}</p>
         </div>
       ) : (
-        calls.map(c => renderCallCard(c, tab === "archived"))
+        calls.map(c => renderCallCard(c, tab === "resolved"))
       )}
     </div>
   );
