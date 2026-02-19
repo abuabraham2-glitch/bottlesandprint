@@ -427,7 +427,7 @@ export default function Inbox() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-sans truncate flex-1">{email.subject}</span>
               {email.incoming_summary && (
-                <span className="shrink-0 text-[12px] font-sans font-medium rounded-full px-2.5 py-0.5 max-w-[50%] truncate" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
+                <span className="shrink-0 text-[12px] font-sans font-medium rounded-full px-2.5 py-0.5 max-w-[50%]" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden', whiteSpace: 'normal' }}>
                   {email.incoming_summary}
                 </span>
               )}
