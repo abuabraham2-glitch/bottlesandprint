@@ -105,7 +105,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
         </nav>
 
         {/* Bottom actions */}
-        <div className="px-3 pb-5 mt-auto space-y-0.5">
+        <div className="px-3 pb-5 mt-8 space-y-0.5">
           <Link
             to="/change-password"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors w-full"
