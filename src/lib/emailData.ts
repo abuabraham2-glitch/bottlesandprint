@@ -36,11 +36,15 @@ export interface Call {
   phone_number: string | null;
   email: string | null;
   call_reason: string | null;
-  quote_details: string | null;
+  category: string | null;
+  quote_details: any;
+  summary: string | null;
   status: string | null;
+  is_urgent: boolean | null;
+  is_existing_client: boolean | null;
+  draft_response: string | null;
   created_at: string | null;
-  returned_at: string | null;
-  archived_at: string | null;
+  resolved_at: string | null;
 }
 
 export interface FollowUp {
@@ -269,7 +273,7 @@ export function useInboxCounts() {
       const { count: newCalls } = await supabase
         .from("calls")
         .select("*", { count: "exact", head: true })
-        .eq("status", "new");
+        .eq("status", "pending");
 
       return {
         actionNeeded: actionNeeded || 0,

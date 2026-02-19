@@ -58,43 +58,55 @@ export type Database = {
       }
       calls: {
         Row: {
-          archived_at: string | null
           call_reason: string | null
           caller_name: string | null
+          category: string | null
           company_name: string | null
           created_at: string | null
+          draft_response: string | null
           email: string | null
           id: string
+          is_existing_client: boolean | null
+          is_urgent: boolean | null
           phone_number: string | null
-          quote_details: string | null
-          returned_at: string | null
+          quote_details: Json | null
+          resolved_at: string | null
           status: string | null
+          summary: string | null
         }
         Insert: {
-          archived_at?: string | null
           call_reason?: string | null
           caller_name?: string | null
+          category?: string | null
           company_name?: string | null
           created_at?: string | null
+          draft_response?: string | null
           email?: string | null
           id?: string
+          is_existing_client?: boolean | null
+          is_urgent?: boolean | null
           phone_number?: string | null
-          quote_details?: string | null
-          returned_at?: string | null
+          quote_details?: Json | null
+          resolved_at?: string | null
           status?: string | null
+          summary?: string | null
         }
         Update: {
-          archived_at?: string | null
           call_reason?: string | null
           caller_name?: string | null
+          category?: string | null
           company_name?: string | null
           created_at?: string | null
+          draft_response?: string | null
           email?: string | null
           id?: string
+          is_existing_client?: boolean | null
+          is_urgent?: boolean | null
           phone_number?: string | null
-          quote_details?: string | null
-          returned_at?: string | null
+          quote_details?: Json | null
+          resolved_at?: string | null
           status?: string | null
+          summary?: string | null
         }
         Relationships: []
       }
