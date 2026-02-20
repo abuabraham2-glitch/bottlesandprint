@@ -177,11 +177,11 @@ export default function Proofs() {
     const pageH = 612;
     const margin = 20;
 
-    // ARTWORK BOX — takes up 58% of page height
+    // ARTWORK BOX — takes up 68% of page height
     const boxX = margin;
     const boxY = margin;
     const boxW = pageW - margin * 2;
-    const boxH = Math.floor(pageH * 0.58);
+    const boxH = Math.floor(pageH * 0.68);
 
     // Draw artwork image directly from the high-res canvas
     if (artworkDataUrl) {
@@ -227,7 +227,7 @@ export default function Proofs() {
     doc.line(boxX + boxW, boxY + boxH + gp, boxX + boxW, boxY + boxH + gp + mk);
 
     // BOTTOM SECTION
-    const btY = boxY + boxH + 18;
+    const btY = boxY + boxH + 16;
     const leftW = pageW * 0.57;
     const rightX = margin + leftW + 12;
     const rightW = pageW - margin - rightX;
@@ -425,7 +425,7 @@ export default function Proofs() {
                   type="number"
                   value={specs.width}
                   onChange={(e) => setSpecs((s) => ({ ...s, width: e.target.value }))}
-                  placeholder="0"
+                  placeholder="e.g. 7.5"
                   className="h-9 text-sm"
                 />
               </div>
@@ -435,11 +435,17 @@ export default function Proofs() {
                   type="number"
                   value={specs.height}
                   onChange={(e) => setSpecs((s) => ({ ...s, height: e.target.value }))}
-                  placeholder="0"
+                  placeholder="e.g. 2.875"
                   className="h-9 text-sm"
                 />
               </div>
             </div>
+
+            {artworkImage && !analyzing && (!specs.width || !specs.height) && (
+              <p className="text-xs" style={{ color: "#d97706" }}>
+                Dimensions not found in file — please enter manually.
+              </p>
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-xs">Colors</Label>
@@ -541,7 +547,7 @@ export default function Proofs() {
                 <div
                   style={{
                     width: "900px",
-                    height: "694px",
+                    height: "680px",
                     backgroundColor: "#ffffff",
                     boxShadow: "0 4px 32px rgba(0,0,0,0.18)",
                     fontFamily: "Arial, Helvetica, sans-serif",
@@ -554,8 +560,8 @@ export default function Proofs() {
                     boxSizing: "border-box",
                   }}
                 >
-                  {/* ── SECTION 1: ARTWORK BOX (~45% of height) ── */}
-                  <div style={{ position: "relative", height: "312px", flexShrink: 0 }}>
+                  {/* ── SECTION 1: ARTWORK BOX (~68% of height) ── */}
+                  <div style={{ position: "relative", height: "420px", flexShrink: 0 }}>
                     {/* Crop marks — TL */}
                     <div style={{ position: "absolute", top: "-8px", left: "-8px", width: "14px", height: "1px", backgroundColor: "#000" }} />
                     <div style={{ position: "absolute", top: "-8px", left: "-8px", width: "1px", height: "14px", backgroundColor: "#000" }} />
@@ -592,10 +598,7 @@ export default function Proofs() {
                     </div>
                   </div>
 
-                  {/* ── SECTION 2: EMPTY WHITE SPACE (~10% of height) ── */}
-                  <div style={{ height: "60px", flexShrink: 0 }} />
-
-                  {/* ── SECTION 3: BOTTOM TWO COLUMNS ── */}
+                  {/* ── SECTION 2: BOTTOM TWO COLUMNS ── */}
                   <div style={{ display: "flex", gap: "0", flex: "1" }}>
                     {/* Bottom Left 60% */}
                     <div style={{ flex: "0 0 60%", fontSize: "7.5px", lineHeight: "1.45", paddingRight: "16px" }}>
