@@ -149,8 +149,8 @@ export default function Proofs() {
   const handleDownload = async () => {
     try {
       const imgData = await captureProofBase64();
-      const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
-      pdf.addImage(imgData, "PNG", 0, 0, 8.5, 11);
+      const pdf = new jsPDF({ orientation: "landscape", unit: "in", format: "letter" });
+      pdf.addImage(imgData, "PNG", 0, 0, 11, 8.5);
       const date = new Date().toISOString().slice(0, 10);
       const name = clientName.replace(/\s+/g, "_") || "proof";
       pdf.save(`proof_${name}_${date}.pdf`);
@@ -164,8 +164,8 @@ export default function Proofs() {
     setSending(true);
     try {
       const imgData = await captureProofBase64();
-      const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
-      pdf.addImage(imgData, "PNG", 0, 0, 8.5, 11);
+      const pdf = new jsPDF({ orientation: "landscape", unit: "in", format: "letter" });
+      pdf.addImage(imgData, "PNG", 0, 0, 11, 8.5);
       const pdfBase64 = pdf.output("datauristring").split(",")[1];
       const res = await fetch(SEND_PROOF_URL, {
         method: "POST",
@@ -377,21 +377,22 @@ export default function Proofs() {
               <span className="text-xs font-medium text-muted-foreground">Live Proof Preview</span>
             </div>
             <div className="p-4 bg-muted/30 flex justify-center overflow-x-auto">
-              {/* Letter-size proof sheet */}
+              {/* Landscape letter-size proof sheet — scales to panel width */}
+              <div style={{ width: "100%", maxWidth: "900px" }}>
               <div
                 ref={previewRef}
                 style={{
-                  width: "680px",
-                  minHeight: "880px",
+                  width: "900px",
+                  height: "694px",
                   backgroundColor: "#ffffff",
                   boxShadow: "0 4px 32px rgba(0,0,0,0.18)",
                   fontFamily: "Arial, Helvetica, sans-serif",
                   fontSize: "10px",
                   color: "#000000",
-                  padding: "18px 22px 16px 22px",
+                  padding: "16px 22px 14px 22px",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
+                  gap: "6px",
                   boxSizing: "border-box",
                 }}
               >
@@ -431,7 +432,7 @@ export default function Proofs() {
                   <div
                     style={{
                       border: "1px solid #000",
-                      minHeight: "420px",
+                      minHeight: "350px",
                       height: "100%",
                       display: "flex",
                       alignItems: "center",
@@ -443,7 +444,7 @@ export default function Proofs() {
                       <img
                         src={artworkImage}
                         alt="Artwork"
-                        style={{ maxWidth: "100%", maxHeight: "420px", objectFit: "contain" }}
+                        style={{ maxWidth: "100%", maxHeight: "350px", objectFit: "contain" }}
                       />
                     ) : (
                       <span style={{ color: "#999", fontSize: "12px" }}>Artwork will appear here</span>
@@ -500,6 +501,7 @@ export default function Proofs() {
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
