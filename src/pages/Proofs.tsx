@@ -147,64 +147,43 @@ export default function Proofs() {
 
   // ── Apply crop ───────────────────────────────────────────────────────────
   const applyCrop = useCallback(() => {
-    if (!rawPreviewUrl || !highResCanvasRef.current) return;
+    if (!highResCanvasRef.current) return;
 
     const hiResCanvas = highResCanvasRef.current;
 
-    // Crop preview from the preview data URL
-    const cropPreview = (): Promise<string> =>
-      new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const srcW = img.naturalWidth;
-          const srcH = img.naturalHeight;
-          const cx = Math.round(cropRect.x * srcW);
-          const cy = Math.round(cropRect.y * srcH);
-          const cw = Math.round(cropRect.w * srcW);
-          const ch = Math.round(cropRect.h * srcH);
-          const canvas = document.createElement("canvas");
-          canvas.width = cw;
-          canvas.height = ch;
-          canvas.getContext("2d")!.drawImage(img, cx, cy, cw, ch, 0, 0, cw, ch);
-          resolve(canvas.toDataURL("image/png"));
-        };
-        img.src = rawPreviewUrl;
-      });
+    // Apply crop directly to the hi-res canvas in its own pixel space
+    const hx = Math.floor(cropRect.x * hiResCanvas.width);
+    const hy = Math.floor(cropRect.y * hiResCanvas.height);
+    const hw = Math.floor(cropRect.w * hiResCanvas.width);
+    const hh = Math.floor(cropRect.h * hiResCanvas.height);
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = hw;
+    cropCanvas.height = hh;
+    cropCanvas.getContext("2d")!.drawImage(hiResCanvas, hx, hy, hw, hh, 0, 0, hw, hh);
+    const croppedDataUrl = cropCanvas.toDataURL("image/png");
 
-    // Crop high-res directly from the stored canvas element — no data URL round-trip
-    const cropHiRes = (): string => {
-      const hx = Math.floor(cropRect.x * hiResCanvas.width);
-      const hy = Math.floor(cropRect.y * hiResCanvas.height);
-      const hw = Math.floor(cropRect.w * hiResCanvas.width);
-      const hh = Math.floor(cropRect.h * hiResCanvas.height);
-      const cropCanvas = document.createElement("canvas");
-      cropCanvas.width = hw;
-      cropCanvas.height = hh;
-      cropCanvas.getContext("2d")!.drawImage(hiResCanvas, hx, hy, hw, hh, 0, 0, hw, hh);
-      return cropCanvas.toDataURL("image/png");
-    };
+    // Use the hi-res crop for both the HTML preview and PDF export
+    setArtworkImage(croppedDataUrl);
+    setArtworkDataUrl(croppedDataUrl);
 
-    cropPreview().then((preview) => {
-      const hiRes = cropHiRes();
-      setArtworkImage(preview);
-      setArtworkDataUrl(hiRes);
+    // Update dimensions from crop selection
+    if (pdfPageInches) {
+      const wIn = parseFloat((cropRect.w * pdfPageInches.w).toFixed(3));
+      const hIn = parseFloat((cropRect.h * pdfPageInches.h).toFixed(3));
+      setSpecs((s) => ({ ...s, width: String(wIn), height: String(hIn) }));
+    }
 
-      // Update dimensions from crop selection
-      if (pdfPageInches) {
-        const wIn = parseFloat((cropRect.w * pdfPageInches.w).toFixed(3));
-        const hIn = parseFloat((cropRect.h * pdfPageInches.h).toFixed(3));
-        setSpecs((s) => ({ ...s, width: String(wIn), height: String(hIn) }));
-      }
-
-      setShowCrop(false);
-    });
-  }, [rawPreviewUrl, cropRect, pdfPageInches]);
+    setShowCrop(false);
+  }, [cropRect, pdfPageInches]);
 
   const resetCrop = useCallback(() => {
-    // Restore originals and reopen crop UI
-    if (rawPreviewUrl) setArtworkImage(rawPreviewUrl);
-    if (highResCanvasRef.current) setArtworkDataUrl(highResCanvasRef.current.toDataURL("image/png"));
-    // Reset dims to full PDF page
+    if (highResCanvasRef.current) {
+      const fullDataUrl = highResCanvasRef.current.toDataURL("image/png");
+      setArtworkImage(fullDataUrl);
+      setArtworkDataUrl(fullDataUrl);
+    } else if (rawPreviewUrl) {
+      setArtworkImage(rawPreviewUrl);
+    }
     if (pdfPageInches) {
       setSpecs((s) => ({
         ...s,
@@ -271,9 +250,10 @@ export default function Proofs() {
       // Keep preview original for reset
       setRawPreviewUrl(previewUrl);
 
-      // Show crop UI before placing into proof
-      setArtworkImage(previewUrl);
-      setArtworkDataUrl(canvas4.toDataURL("image/png"));
+      // Show crop UI — use hi-res canvas for both display and PDF export
+      const hiResDataUrl = canvas4.toDataURL("image/png");
+      setArtworkImage(hiResDataUrl);
+      setArtworkDataUrl(hiResDataUrl);
       setCropRect({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 });
       setShowCrop(true);
 
