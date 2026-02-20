@@ -2,7 +2,7 @@
 // Deploy this at: supabase/functions/generate-proof/index.ts
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
