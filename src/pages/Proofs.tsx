@@ -379,43 +379,88 @@ export default function Proofs() {
       try {
         const clientDoc = await PDFDocument.load(originalPdfBytes);
         const clientPage = clientDoc.getPages()[0];
-        const clientW = clientPage.getWidth();
-        const clientH = clientPage.getHeight();
 
-        // Set MediaBox/CropBox on the source page to the cropped region before embedding
-        // This is the most reliable way to crop with pdf-lib — no clip parameter needed
-        const cropX1 = cropRegion.x * clientW;
-        const cropY1 = (1 - cropRegion.y - cropRegion.h) * clientH;
-        const cropX2 = (cropRegion.x + cropRegion.w) * clientW;
-        const cropY2 = (1 - cropRegion.y) * clientH;
-
-        clientPage.setMediaBox(cropX1, cropY1, cropX2 - cropX1, cropY2 - cropY1);
-        clientPage.setCropBox(cropX1, cropY1, cropX2 - cropX1, cropY2 - cropY1);
-
-        // Now embed — it will only contain the cropped area
+        // Embed the FULL page — no crop arguments (most reliable)
         const [embedded] = await proofDoc.embedPages([clientPage]);
 
+        const fullPageW = embedded.width;
+        const fullPageH = embedded.height;
+
+        // The crop region in actual PDF points
+        const cropX1 = cropRegion.x * fullPageW;
+        const cropY1 = (1 - cropRegion.y - cropRegion.h) * fullPageH;
+        const cropW_pts = cropRegion.w * fullPageW;
+        const cropH_pts = cropRegion.h * fullPageH;
+
+        // Scale so cropped area fills the artwork box
+        const scaleX = (boxW - 16) / cropW_pts;
+        const scaleY = (boxH - 16) / cropH_pts;
+        const scale = Math.min(scaleX, scaleY);
+
+        const drawW = cropW_pts * scale;
+        const drawH = cropH_pts * scale;
+
+        const centerX = boxX + (boxW - drawW) / 2;
+        const centerY = boxYBottom + (boxH - drawH) / 2;
+
+        // Full page draw dimensions and offset so crop region aligns to centerX/Y
+        const fullDrawW = fullPageW * scale;
+        const fullDrawH = fullPageH * scale;
+        const drawAtX = centerX - cropX1 * scale;
+        const drawAtY = centerY - cropY1 * scale;
+
         console.log('cropRegion:', cropRegion);
-        console.log('clientW:', clientW, 'clientH:', clientH);
-        console.log('embeddedPage dims:', embedded.width, embedded.height);
+        console.log('embedded dims:', fullPageW, fullPageH);
+        console.log('cropPts:', cropX1, cropY1, cropW_pts, cropH_pts);
+        console.log('draw:', drawAtX, drawAtY, fullDrawW, fullDrawH);
 
-        // Scale embedded art to fit inside box maintaining aspect ratio
-        const artAspect = embedded.width / embedded.height;
-        const boxAspect = boxW / boxH;
-        let drawW: number, drawH: number;
-        if (artAspect > boxAspect) {
-          drawW = boxW - 16;
-          drawH = drawW / artAspect;
-        } else {
-          drawH = boxH - 16;
-          drawW = drawH * artAspect;
-        }
-        const artX = boxX + (boxW - drawW) / 2;
-        const artY = boxYBottom + (boxH - drawH) / 2;
+        // Inject raw PDF operators for clip rect using content stream bytes
+        // pdf-lib's pushOperators typing is strict, so we use appendRawContent via context
+        const { PDFContentStream, PDFRawStream, asPDFName } = await import("pdf-lib");
+        void PDFContentStream; void PDFRawStream; void asPDFName; // suppress unused
 
-        page.drawPage(embedded, { x: artX, y: artY, width: drawW, height: drawH });
+        // Encode clip-on / clip-off as raw content stream bytes appended to the page
+        const enc = new TextEncoder();
+        const clipOn = enc.encode(`q ${boxX} ${boxYBottom} ${boxW} ${boxH} re W n\n`);
+        const clipOff = enc.encode(`Q\n`);
+
+        const clipOnStream = proofDoc.context.stream(clipOn);
+        const clipOffStream = proofDoc.context.stream(clipOff);
+
+        const clipOnRef = proofDoc.context.register(clipOnStream);
+        const clipOffRef = proofDoc.context.register(clipOffStream);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pageNode = (page as any).node;
+        pageNode.addContentStreams(clipOnRef);
+
+        page.drawPage(embedded, {
+          x: drawAtX,
+          y: drawAtY,
+          width: fullDrawW,
+          height: fullDrawH,
+        });
+
+        pageNode.addContentStreams(clipOffRef);
       } catch (e) {
-        console.warn("pdf-lib embed failed, skipping artwork:", e);
+        console.warn("pdf-lib clip embed failed, trying simple fallback:", e);
+        // Simplest fallback — embed full page, fit to box, no crop
+        try {
+          const clientDoc2 = await PDFDocument.load(originalPdfBytes);
+          const [embedded2] = await proofDoc.embedPages([clientDoc2.getPages()[0]]);
+          const aspect = embedded2.width / embedded2.height;
+          const boxAspect = boxW / boxH;
+          const drawW2 = aspect > boxAspect ? boxW - 16 : (boxH - 16) * aspect;
+          const drawH2 = aspect > boxAspect ? (boxW - 16) / aspect : boxH - 16;
+          page.drawPage(embedded2, {
+            x: boxX + (boxW - drawW2) / 2,
+            y: boxYBottom + (boxH - drawH2) / 2,
+            width: drawW2,
+            height: drawH2,
+          });
+        } catch (e2) {
+          console.warn("pdf-lib fallback embed also failed:", e2);
+        }
       }
     }
 
