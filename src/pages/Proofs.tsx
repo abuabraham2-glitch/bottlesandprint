@@ -224,11 +224,11 @@ export default function Proofs() {
     setShowCrop(false);
 
     try {
-      const buffer = await file.arrayBuffer();
-      // Store raw bytes for vector PDF embedding via pdf-lib
-      setOriginalPdfBytes(buffer);
+      const arrayBuffer = await file.arrayBuffer();
+      // Store a copy BEFORE passing to PDF.js — PDF.js detaches the original ArrayBuffer
+      setOriginalPdfBytes(arrayBuffer.slice(0));
 
-      const uint8 = new Uint8Array(buffer);
+      const uint8 = new Uint8Array(arrayBuffer);
       const lib = window.pdfjsLib;
       if (!lib) throw new Error("PDF.js not loaded");
       const loadingTask = lib.getDocument({ data: uint8 });
