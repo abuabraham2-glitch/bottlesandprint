@@ -353,215 +353,52 @@ export default function Proofs() {
   const numFilmsDisplay = specs.numFilms && specs.numFilms !== "0" ? specs.numFilms : "1";
 
   /**
-   * Build proof PDF using pdf-lib — embeds the original client PDF as vector data.
-   * The artwork is never rasterized; only the text/layout elements around it are drawn.
+   * Call the generate-proof edge function to build the proof PDF server-side.
+   * Returns the PDF bytes as a Uint8Array.
    */
   const generateProofPdf = async (): Promise<Uint8Array> => {
-    const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
+    if (!originalPdfBytes) throw new Error("No artwork uploaded");
 
-    const pageW = 792;
-    const pageH = 612;
-    const margin = 20;
-
-    // pdf-lib y-axis: 0 = bottom of page
-    const proofDoc = await PDFDocument.create();
-    const page = proofDoc.addPage([pageW, pageH]);
-
-    // ARTWORK BOX — occupies top 68% of page
-    // In pdf-lib coords (y from bottom): boxY is the bottom edge of the artwork box
-    const boxW = pageW - margin * 2;
-    const boxH = Math.floor(pageH * 0.68);
-    const boxX = margin;
-    const boxYBottom = pageH - margin - boxH; // bottom edge of box in pdf-lib coords
-
-    // ── Embed client artwork PDF ──────────────────────────────────────────
-    if (originalPdfBytes) {
-      try {
-        const clientDoc = await PDFDocument.load(originalPdfBytes);
-        const clientPage = clientDoc.getPages()[0];
-
-        // Embed the FULL page — no crop arguments (most reliable)
-        const [embedded] = await proofDoc.embedPages([clientPage]);
-
-        const fullPageW = embedded.width;
-        const fullPageH = embedded.height;
-
-        // The crop region in actual PDF points
-        const cropX1 = cropRegion.x * fullPageW;
-        const cropY1 = (1 - cropRegion.y - cropRegion.h) * fullPageH;
-        const cropW_pts = cropRegion.w * fullPageW;
-        const cropH_pts = cropRegion.h * fullPageH;
-
-        // Scale so cropped area fills the artwork box
-        const scaleX = (boxW - 16) / cropW_pts;
-        const scaleY = (boxH - 16) / cropH_pts;
-        const scale = Math.min(scaleX, scaleY);
-
-        const drawW = cropW_pts * scale;
-        const drawH = cropH_pts * scale;
-
-        const centerX = boxX + (boxW - drawW) / 2;
-        const centerY = boxYBottom + (boxH - drawH) / 2;
-
-        // Full page draw dimensions and offset so crop region aligns to centerX/Y
-        const fullDrawW = fullPageW * scale;
-        const fullDrawH = fullPageH * scale;
-        const drawAtX = centerX - cropX1 * scale;
-        const drawAtY = centerY - cropY1 * scale;
-
-        console.log('cropRegion:', cropRegion);
-        console.log('embedded dims:', fullPageW, fullPageH);
-        console.log('cropPts:', cropX1, cropY1, cropW_pts, cropH_pts);
-        console.log('draw:', drawAtX, drawAtY, fullDrawW, fullDrawH);
-
-        // Inject raw PDF operators for clip rect using content stream bytes
-        // pdf-lib's pushOperators typing is strict, so we use appendRawContent via context
-        const { PDFContentStream, PDFRawStream, asPDFName } = await import("pdf-lib");
-        void PDFContentStream; void PDFRawStream; void asPDFName; // suppress unused
-
-        // Encode clip-on / clip-off as raw content stream bytes appended to the page
-        const enc = new TextEncoder();
-        const clipOn = enc.encode(`q ${boxX} ${boxYBottom} ${boxW} ${boxH} re W n\n`);
-        const clipOff = enc.encode(`Q\n`);
-
-        const clipOnStream = proofDoc.context.stream(clipOn);
-        const clipOffStream = proofDoc.context.stream(clipOff);
-
-        const clipOnRef = proofDoc.context.register(clipOnStream);
-        const clipOffRef = proofDoc.context.register(clipOffStream);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pageNode = (page as any).node;
-        pageNode.addContentStreams(clipOnRef);
-
-        page.drawPage(embedded, {
-          x: drawAtX,
-          y: drawAtY,
-          width: fullDrawW,
-          height: fullDrawH,
-        });
-
-        pageNode.addContentStreams(clipOffRef);
-      } catch (e) {
-        console.warn("pdf-lib clip embed failed, trying simple fallback:", e);
-        // Simplest fallback — embed full page, fit to box, no crop
-        try {
-          const clientDoc2 = await PDFDocument.load(originalPdfBytes);
-          const [embedded2] = await proofDoc.embedPages([clientDoc2.getPages()[0]]);
-          const aspect = embedded2.width / embedded2.height;
-          const boxAspect = boxW / boxH;
-          const drawW2 = aspect > boxAspect ? boxW - 16 : (boxH - 16) * aspect;
-          const drawH2 = aspect > boxAspect ? (boxW - 16) / aspect : boxH - 16;
-          page.drawPage(embedded2, {
-            x: boxX + (boxW - drawW2) / 2,
-            y: boxYBottom + (boxH - drawH2) / 2,
-            width: drawW2,
-            height: drawH2,
-          });
-        } catch (e2) {
-          console.warn("pdf-lib fallback embed also failed:", e2);
-        }
-      }
+    // Convert ArrayBuffer → base64
+    const uint8 = new Uint8Array(originalPdfBytes);
+    let binary = "";
+    const chunk = 8192;
+    for (let i = 0; i < uint8.length; i += chunk) {
+      binary += String.fromCharCode(...uint8.subarray(i, i + chunk));
     }
+    const artworkBase64 = btoa(binary);
 
-    // Box border (drawn after art so it sits on top)
-    page.drawRectangle({
-      x: boxX, y: boxYBottom, width: boxW, height: boxH,
-      borderColor: rgb(0, 0, 0), borderWidth: 0.75,
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const url = `https://${projectId}.supabase.co/functions/v1/generate-proof`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        artworkBase64,
+        cropRegion: { x: cropRegion.x, y: cropRegion.y, width: cropRegion.w, height: cropRegion.h },
+        width: specs.width,
+        height: specs.height,
+        colors: specs.colors,
+        numFilms: Number(numFilmsDisplay),
+      }),
     });
 
-    // Crop marks
-    const mk = 10; const gp = 5;
-    const dl = (x1: number, y1: number, x2: number, y2: number) =>
-      page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 0.5, color: rgb(0, 0, 0) });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Edge function failed");
+    }
 
-    // TL
-    dl(boxX - gp - mk, boxYBottom + boxH, boxX - gp, boxYBottom + boxH);
-    dl(boxX, boxYBottom + boxH + gp, boxX, boxYBottom + boxH + gp + mk);
-    // TR
-    dl(boxX + boxW + gp, boxYBottom + boxH, boxX + boxW + gp + mk, boxYBottom + boxH);
-    dl(boxX + boxW, boxYBottom + boxH + gp, boxX + boxW, boxYBottom + boxH + gp + mk);
-    // BL
-    dl(boxX - gp - mk, boxYBottom, boxX - gp, boxYBottom);
-    dl(boxX, boxYBottom - gp - mk, boxX, boxYBottom - gp);
-    // BR
-    dl(boxX + boxW + gp, boxYBottom, boxX + boxW + gp + mk, boxYBottom);
-    dl(boxX + boxW, boxYBottom - gp - mk, boxX + boxW, boxYBottom - gp);
-
-    // ── Fonts ──────────────────────────────────────────────────────────────
-    const hv     = await proofDoc.embedFont(StandardFonts.Helvetica);
-    const hvBold = await proofDoc.embedFont(StandardFonts.HelveticaBold);
-    const hvBI   = await proofDoc.embedFont(StandardFonts.HelveticaBoldOblique);
-    const tmI    = await proofDoc.embedFont(StandardFonts.TimesRomanItalic);
-
-    const black = rgb(0, 0, 0);
-    const red   = rgb(0.863, 0.149, 0.149);
-
-    // ── BOTTOM SECTION ────────────────────────────────────────────────────
-    // btTop = y coord (from bottom) of the top of the bottom section
-    const btTop = boxYBottom - 16;
-    const leftW = pageW * 0.57;
-    const rightX = margin + leftW + 10;
-    const rightCX = rightX + (pageW - margin - rightX) / 2;
-
-    // Text helper (pdf-lib draws from baseline)
-    const dt = (text: string, x: number, y: number, font: typeof hv, size: number, color: typeof black) =>
-      page.drawText(text, { x, y, font, size, color });
-
-    // Word-wrap helper
-    const wrap = (text: string, maxW: number, font: typeof hv, size: number): string[] => {
-      const words = text.split(" ");
-      const lines: string[] = [];
-      let cur = "";
-      for (const word of words) {
-        const test = cur ? cur + " " + word : word;
-        if (font.widthOfTextAtSize(test, size) > maxW && cur) {
-          lines.push(cur); cur = word;
-        } else { cur = test; }
-      }
-      if (cur) lines.push(cur);
-      return lines;
-    };
-
-    // Draw lines top-down; ty starts at btTop and decreases
-    let ty = btTop - 10;
-    dt("Approval For Attached Job For Film Output", margin, ty, hvBold, 8.5, black); ty -= 11;
-    dt("Sign & Email Back This Proof", margin, ty, hvBI, 8.5, black); ty -= 11;
-    dt("Review & carefully proofread Artwork.", margin, ty, hv, 7, red); ty -= 9;
-
-    const p1 = "Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener\u2019s specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing.";
-    for (const ln of wrap(p1, leftW - 10, hv, 7)) { dt(ln, margin, ty, hv, 7, black); ty -= 8; }
-
-    dt("Artwork that you send is what you will receive on film.", margin, ty, hv, 7, red); ty -= 9;
-
-    const p2 = "We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.";
-    for (const ln of wrap(p2, leftW - 10, hv, 7)) { dt(ln, margin, ty, hv, 7, black); ty -= 8; }
-
-    ty -= 3;
-    const w1 = "IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES & PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.";
-    for (const ln of wrap(w1, leftW - 10, hvBold, 7)) { dt(ln, margin, ty, hvBold, 7, red); ty -= 8; }
-
-    dt("FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.", margin, ty, hvBold, 7, black); ty -= 14;
-
-    page.drawLine({ start: { x: margin, y: ty }, end: { x: margin + 150, y: ty }, thickness: 0.4, color: black });
-    page.drawLine({ start: { x: margin + 170, y: ty }, end: { x: margin + 230, y: ty }, thickness: 0.4, color: black });
-    dt("Customer Signature", margin, ty - 8, hv, 6.5, black);
-    dt("Date", margin + 170, ty - 8, hv, 6.5, black);
-
-    // ── RIGHT COLUMN ──────────────────────────────────────────────────────
-    const centerText = (text: string, cx: number, y: number, font: typeof hv, size: number, color: typeof black) => {
-      const w = font.widthOfTextAtSize(text, size);
-      page.drawText(text, { x: cx - w / 2, y, font, size, color });
-    };
-
-    const sizeStr  = `Size: ${specs.width || "\u2014"} x ${specs.height || "\u2014"} inches`;
-    const colorStr = `Color: ${specs.colors || "\u2014"}`;
-    centerText(sizeStr,  rightCX, btTop - 12, tmI, 15, black);
-    centerText(colorStr, rightCX, btTop - 28, tmI, 15, black);
-    centerText("DIELINE DOES NOT PRINT", rightCX, btTop - 44, tmI, 12, red);
-    centerText(`${numFilmsDisplay} FILMS`, rightCX, btTop - 95, hvBold, 52, black);
-
-    return proofDoc.save();
+    // Decode base64 PDF back to Uint8Array
+    const pdfBinary = atob(data.pdfBase64);
+    const pdfBytes = new Uint8Array(pdfBinary.length);
+    for (let i = 0; i < pdfBinary.length; i++) {
+      pdfBytes[i] = pdfBinary.charCodeAt(i);
+    }
+    return pdfBytes;
   };
 
   const handleDownload = async () => {
