@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 // PDF.js is loaded from CDN in index.html — accessed via window.pdfjsLib
@@ -29,9 +28,11 @@ interface Specs {
   isVector: boolean | null;
 }
 
-
 export default function Proofs() {
+  // artworkImage: lower-res preview for the on-screen HTML display
   const [artworkImage, setArtworkImage] = useState<string | null>(null);
+  // artworkDataUrl: high-res (scale 4) data URL used for crisp PDF export
+  const [artworkDataUrl, setArtworkDataUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [analyzing, setAnalyzing] = useState(false);
   const [sending, setSending] = useState(false);
@@ -46,7 +47,6 @@ export default function Proofs() {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [subject, setSubject] = useState("Artwork Proof – Please Review & Sign");
-  const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFile = useCallback(async (file: File) => {
@@ -62,6 +62,7 @@ export default function Proofs() {
     }
     setFileName(file.name);
     setArtworkImage(null);
+    setArtworkDataUrl(null);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -71,18 +72,27 @@ export default function Proofs() {
       const loadingTask = lib.getDocument({ data: uint8 });
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2 });
 
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      // Scale 2 for on-screen preview
+      const viewport2 = page.getViewport({ scale: 2 });
+      const canvas2 = document.createElement("canvas");
+      canvas2.width = viewport2.width;
+      canvas2.height = viewport2.height;
+      await page.render({ canvasContext: canvas2.getContext("2d"), viewport: viewport2 }).promise;
+      const previewUrl = canvas2.toDataURL("image/png");
+      setArtworkImage(previewUrl);
 
-      const dataUrl = canvas.toDataURL("image/png");
-      setArtworkImage(dataUrl);
+      // Scale 4 for crisp PDF export
+      const viewport4 = page.getViewport({ scale: 4 });
+      const canvas4 = document.createElement("canvas");
+      canvas4.width = viewport4.width;
+      canvas4.height = viewport4.height;
+      await page.render({ canvasContext: canvas4.getContext("2d"), viewport: viewport4 }).promise;
+      const hiResUrl = canvas4.toDataURL("image/png");
+      setArtworkDataUrl(hiResUrl);
 
-      // Strip prefix — send only raw base64
-      const rawBase64 = dataUrl.replace("data:image/png;base64,", "");
+      // Strip prefix — send only raw base64 for AI spec extraction
+      const rawBase64 = previewUrl.replace("data:image/png;base64,", "");
 
       setAnalyzing(true);
       try {
@@ -148,29 +158,168 @@ export default function Proofs() {
 
   const handleRemove = () => {
     setArtworkImage(null);
+    setArtworkDataUrl(null);
     setFileName("");
     setSpecs({ width: "", height: "", colors: "", numFilms: "1", isVector: null });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const captureProofBase64 = async (): Promise<string> => {
-    if (!previewRef.current) throw new Error("No preview");
-    const canvas = await html2canvas(previewRef.current, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-    });
-    return canvas.toDataURL("image/png");
+  // numFilms display: always show at least "1"
+  const numFilmsDisplay = specs.numFilms && specs.numFilms !== "0" ? specs.numFilms : "1";
+
+  /**
+   * Build the entire proof PDF programmatically using jsPDF.
+   * No html2canvas — artwork is drawn from the high-res canvas data URL.
+   */
+  const generateProofPdf = (): jsPDF => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
+    const pageW = 792;
+    const pageH = 612;
+    const margin = 20;
+
+    // ARTWORK BOX — takes up 58% of page height
+    const boxX = margin;
+    const boxY = margin;
+    const boxW = pageW - margin * 2;
+    const boxH = Math.floor(pageH * 0.58);
+
+    // Draw artwork image directly from the high-res canvas
+    if (artworkDataUrl) {
+      const tempImg = new Image();
+      tempImg.src = artworkDataUrl;
+      const imgW = tempImg.naturalWidth || 800;
+      const imgH = tempImg.naturalHeight || 600;
+      const imgAspect = imgW / imgH;
+      const boxAspect = boxW / boxH;
+      let drawW: number, drawH: number;
+      if (imgAspect > boxAspect) {
+        drawW = boxW - 16;
+        drawH = drawW / imgAspect;
+      } else {
+        drawH = boxH - 16;
+        drawW = drawH * imgAspect;
+      }
+      const imgX = boxX + (boxW - drawW) / 2;
+      const imgY = boxY + (boxH - drawH) / 2;
+      doc.addImage(artworkDataUrl, "PNG", imgX, imgY, drawW, drawH, undefined, "NONE");
+    }
+
+    // Box border — draw AFTER image so it's on top
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.75);
+    doc.rect(boxX, boxY, boxW, boxH);
+
+    // Crop marks at corners
+    const mk = 10;
+    const gp = 5;
+    doc.setLineWidth(0.5);
+    // TL
+    doc.line(boxX - gp - mk, boxY, boxX - gp, boxY);
+    doc.line(boxX, boxY - gp - mk, boxX, boxY - gp);
+    // TR
+    doc.line(boxX + boxW + gp, boxY, boxX + boxW + gp + mk, boxY);
+    doc.line(boxX + boxW, boxY - gp - mk, boxX + boxW, boxY - gp);
+    // BL
+    doc.line(boxX - gp - mk, boxY + boxH, boxX - gp, boxY + boxH);
+    doc.line(boxX, boxY + boxH + gp, boxX, boxY + boxH + gp + mk);
+    // BR
+    doc.line(boxX + boxW + gp, boxY + boxH, boxX + boxW + gp + mk, boxY + boxH);
+    doc.line(boxX + boxW, boxY + boxH + gp, boxX + boxW, boxY + boxH + gp + mk);
+
+    // BOTTOM SECTION
+    const btY = boxY + boxH + 18;
+    const leftW = pageW * 0.57;
+    const rightX = margin + leftW + 12;
+    const rightW = pageW - margin - rightX;
+    const rightCX = rightX + rightW / 2;
+
+    // --- LEFT COLUMN ---
+    let cy = btY;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Approval For Attached Job For Film Output", margin, cy);
+    cy += 11;
+
+    doc.setFont("helvetica", "bolditalic");
+    doc.text("Sign & Email Back This Proof", margin, cy);
+    cy += 10;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(220, 38, 38);
+    doc.text("Review & carefully proofread Artwork.", margin, cy);
+    cy += 9;
+
+    doc.setTextColor(0, 0, 0);
+    const p1 =
+      "Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener\u2019s specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing.";
+    const l1 = doc.splitTextToSize(p1, leftW - 8);
+    doc.text(l1, margin, cy);
+    cy += l1.length * 7.5;
+
+    doc.setTextColor(220, 38, 38);
+    doc.text("Artwork that you send is what you will receive on film.", margin, cy);
+    cy += 9;
+
+    doc.setTextColor(0, 0, 0);
+    const p2 =
+      "We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.";
+    const l2 = doc.splitTextToSize(p2, leftW - 8);
+    doc.text(l2, margin, cy);
+    cy += l2.length * 7.5 + 4;
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(220, 38, 38);
+    const w1 = doc.splitTextToSize(
+      "IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES & PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.",
+      leftW - 8
+    );
+    doc.text(w1, margin, cy);
+    cy += w1.length * 7.5 + 2;
+
+    doc.setTextColor(0, 0, 0);
+    doc.text("FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.", margin, cy);
+    cy += 14;
+
+    // Signature line
+    doc.setLineWidth(0.4);
+    doc.line(margin, cy, margin + 150, cy);
+    doc.line(margin + 170, cy, margin + 230, cy);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text("Customer Signature", margin, cy + 7);
+    doc.text("Date", margin + 170, cy + 7);
+
+    // --- RIGHT COLUMN ---
+    doc.setFont("times", "italic");
+    doc.setFontSize(15);
+    doc.setTextColor(0, 0, 0);
+    const sizeText = `Size: ${specs.width || "\u2014"} x ${specs.height || "\u2014"} inches`;
+    const colorText = `Color: ${specs.colors || "\u2014"}`;
+    doc.text(sizeText, rightCX, btY + 14, { align: "center" });
+    doc.text(colorText, rightCX, btY + 30, { align: "center" });
+
+    doc.setFont("times", "italic");
+    doc.setFontSize(12);
+    doc.setTextColor(220, 38, 38);
+    doc.text("DIELINE DOES NOT PRINT", rightCX, btY + 46, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(52);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${numFilmsDisplay} FILMS`, rightCX, btY + 95, { align: "center" });
+
+    return doc;
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     try {
-      const imgData = await captureProofBase64();
-      const pdf = new jsPDF({ orientation: "landscape", unit: "in", format: "letter" });
-      pdf.addImage(imgData, "PNG", 0, 0, 11, 8.5);
+      const doc = generateProofPdf();
       const date = new Date().toISOString().slice(0, 10);
       const name = clientName.replace(/\s+/g, "_") || "proof";
-      pdf.save(`proof_${name}_${date}.pdf`);
+      doc.save(`proof_${name}_${date}.pdf`);
     } catch {
       toast({ title: "Failed to generate PDF", variant: "destructive" });
     }
@@ -180,10 +329,8 @@ export default function Proofs() {
     if (!clientEmail) return;
     setSending(true);
     try {
-      const imgData = await captureProofBase64();
-      const pdf = new jsPDF({ orientation: "landscape", unit: "in", format: "letter" });
-      pdf.addImage(imgData, "PNG", 0, 0, 11, 8.5);
-      const pdfBase64 = pdf.output("datauristring").split(",")[1];
+      const doc = generateProofPdf();
+      const pdfBase64 = doc.output("datauristring").split(",")[1];
       const res = await fetch(SEND_PROOF_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -197,9 +344,6 @@ export default function Proofs() {
       setSending(false);
     }
   };
-
-  // numFilms display: always show at least "1"
-  const numFilmsDisplay = specs.numFilms && specs.numFilms !== "0" ? specs.numFilms : "1";
 
   return (
     <div className="p-6 flex flex-col gap-6">
@@ -395,7 +539,6 @@ export default function Proofs() {
               {/* Landscape letter-size proof sheet */}
               <div style={{ width: "100%", maxWidth: "900px" }}>
                 <div
-                  ref={previewRef}
                   style={{
                     width: "900px",
                     height: "694px",
