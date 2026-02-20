@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { Upload, Loader2, Download, Send, FileText, X } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Upload, Loader2, Download, Send, FileText, X, Crop, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,11 +28,31 @@ interface Specs {
   isVector: boolean | null;
 }
 
+// Crop selection in 0-1 normalised coordinates
+interface CropRect {
+  x: number; // left edge (0-1)
+  y: number; // top edge (0-1)
+  w: number; // width (0-1)
+  h: number; // height (0-1)
+}
+
+type DragHandle =
+  | "move"
+  | "nw" | "n" | "ne"
+  | "e" | "se" | "s"
+  | "sw" | "w";
+
+const HANDLE_SIZE = 10; // px
+
 export default function Proofs() {
   // artworkImage: lower-res preview for the on-screen HTML display
   const [artworkImage, setArtworkImage] = useState<string | null>(null);
   // artworkDataUrl: high-res (scale 4) data URL used for crisp PDF export
   const [artworkDataUrl, setArtworkDataUrl] = useState<string | null>(null);
+  // rawPreviewUrl / rawHiResUrl: uncroped originals kept so Reset Crop works
+  const [rawPreviewUrl, setRawPreviewUrl] = useState<string | null>(null);
+  const [rawHiResUrl, setRawHiResUrl] = useState<string | null>(null);
+
   const [fileName, setFileName] = useState<string>("");
   const [analyzing, setAnalyzing] = useState(false);
   const [sending, setSending] = useState(false);
@@ -47,8 +67,141 @@ export default function Proofs() {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [subject, setSubject] = useState("Artwork Proof – Please Review & Sign");
+
+  // PDF page size in inches (from PDF.js metadata)
+  const [pdfPageInches, setPdfPageInches] = useState<{ w: number; h: number } | null>(null);
+
+  // Crop state
+  const [showCrop, setShowCrop] = useState(false);
+  const [cropRect, setCropRect] = useState<CropRect>({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 });
+  const cropContainerRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{
+    handle: DragHandle;
+    startMouseX: number;
+    startMouseY: number;
+    startRect: CropRect;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Crop mouse events ────────────────────────────────────────────────────
+  const getContainerSize = () => {
+    const el = cropContainerRef.current;
+    if (!el) return { w: 1, h: 1 };
+    return { w: el.clientWidth, h: el.clientHeight };
+  };
+
+  const startDrag = useCallback((handle: DragHandle, e: React.MouseEvent) => {
+    e.preventDefault();
+    dragState.current = {
+      handle,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startRect: { ...cropRect },
+    };
+  }, [cropRect]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragState.current) return;
+      const { handle, startMouseX, startMouseY, startRect } = dragState.current;
+      const { w: cW, h: cH } = getContainerSize();
+      const dx = (e.clientX - startMouseX) / cW;
+      const dy = (e.clientY - startMouseY) / cH;
+
+      let { x, y, w, h } = startRect;
+      const MIN = 0.05;
+
+      if (handle === "move") {
+        x = Math.max(0, Math.min(1 - w, x + dx));
+        y = Math.max(0, Math.min(1 - h, y + dy));
+      }
+      // corners
+      if (handle === "nw") { x = Math.max(0, Math.min(x + w - MIN, x + dx)); y = Math.max(0, Math.min(y + h - MIN, y + dy)); w = startRect.x + startRect.w - x; h = startRect.y + startRect.h - y; }
+      if (handle === "ne") { w = Math.max(MIN, Math.min(1 - x, startRect.w + dx)); y = Math.max(0, Math.min(y + h - MIN, y + dy)); h = startRect.y + startRect.h - y; }
+      if (handle === "sw") { x = Math.max(0, Math.min(x + w - MIN, x + dx)); w = startRect.x + startRect.w - x; h = Math.max(MIN, Math.min(1 - y, startRect.h + dy)); }
+      if (handle === "se") { w = Math.max(MIN, Math.min(1 - x, startRect.w + dx)); h = Math.max(MIN, Math.min(1 - y, startRect.h + dy)); }
+      // edges
+      if (handle === "n") { y = Math.max(0, Math.min(y + h - MIN, y + dy)); h = startRect.y + startRect.h - y; }
+      if (handle === "s") { h = Math.max(MIN, Math.min(1 - y, startRect.h + dy)); }
+      if (handle === "w") { x = Math.max(0, Math.min(x + w - MIN, x + dx)); w = startRect.x + startRect.w - x; }
+      if (handle === "e") { w = Math.max(MIN, Math.min(1 - x, startRect.w + dx)); }
+
+      setCropRect({ x, y, w, h });
+    };
+
+    const onUp = () => { dragState.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
+
+  // Real-time crop dimensions in inches
+  const cropDimensions = pdfPageInches
+    ? {
+        w: parseFloat((cropRect.w * pdfPageInches.w).toFixed(3)),
+        h: parseFloat((cropRect.h * pdfPageInches.h).toFixed(3)),
+      }
+    : null;
+
+  // ── Apply crop ───────────────────────────────────────────────────────────
+  const applyCrop = useCallback(() => {
+    if (!rawPreviewUrl || !rawHiResUrl) return;
+
+    const cropImage = (src: string, scale: number): Promise<string> =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const srcW = img.naturalWidth;
+          const srcH = img.naturalHeight;
+          const cx = Math.round(cropRect.x * srcW);
+          const cy = Math.round(cropRect.y * srcH);
+          const cw = Math.round(cropRect.w * srcW);
+          const ch = Math.round(cropRect.h * srcH);
+          const canvas = document.createElement("canvas");
+          canvas.width = cw;
+          canvas.height = ch;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, cx, cy, cw, ch, 0, 0, cw, ch);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.src = src;
+      });
+
+    Promise.all([cropImage(rawPreviewUrl, 2), cropImage(rawHiResUrl, 4)]).then(
+      ([preview, hiRes]) => {
+        setArtworkImage(preview);
+        setArtworkDataUrl(hiRes);
+
+        // Update dimensions from crop selection
+        if (pdfPageInches) {
+          const wIn = parseFloat((cropRect.w * pdfPageInches.w).toFixed(3));
+          const hIn = parseFloat((cropRect.h * pdfPageInches.h).toFixed(3));
+          setSpecs((s) => ({ ...s, width: String(wIn), height: String(hIn) }));
+        }
+
+        setShowCrop(false);
+      }
+    );
+  }, [rawPreviewUrl, rawHiResUrl, cropRect, pdfPageInches]);
+
+  const resetCrop = useCallback(() => {
+    // Restore originals and reopen crop UI
+    if (rawPreviewUrl) setArtworkImage(rawPreviewUrl);
+    if (rawHiResUrl) setArtworkDataUrl(rawHiResUrl);
+    // Reset dims to full PDF page
+    if (pdfPageInches) {
+      setSpecs((s) => ({
+        ...s,
+        width: String(pdfPageInches.w),
+        height: String(pdfPageInches.h),
+      }));
+    }
+    setCropRect({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 });
+    setShowCrop(true);
+  }, [rawPreviewUrl, rawHiResUrl, pdfPageInches]);
+
+  // ── File processing ──────────────────────────────────────────────────────
   const processFile = useCallback(async (file: File) => {
     const isValidFile =
       file.type === "application/pdf" ||
@@ -63,6 +216,9 @@ export default function Proofs() {
     setFileName(file.name);
     setArtworkImage(null);
     setArtworkDataUrl(null);
+    setRawPreviewUrl(null);
+    setRawHiResUrl(null);
+    setShowCrop(false);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -77,6 +233,7 @@ export default function Proofs() {
       const defaultViewport = page.getViewport({ scale: 1.0 });
       const widthInches = parseFloat((defaultViewport.width / 72).toFixed(3));
       const heightInches = parseFloat((defaultViewport.height / 72).toFixed(3));
+      setPdfPageInches({ w: widthInches, h: heightInches });
       setSpecs((s) => ({ ...s, width: String(widthInches), height: String(heightInches) }));
 
       // Scale 2 for on-screen preview
@@ -86,7 +243,6 @@ export default function Proofs() {
       canvas2.height = viewport2.height;
       await page.render({ canvasContext: canvas2.getContext("2d"), viewport: viewport2 }).promise;
       const previewUrl = canvas2.toDataURL("image/png");
-      setArtworkImage(previewUrl);
 
       // Scale 4 for crisp PDF export
       const viewport4 = page.getViewport({ scale: 4 });
@@ -95,7 +251,16 @@ export default function Proofs() {
       canvas4.height = viewport4.height;
       await page.render({ canvasContext: canvas4.getContext("2d"), viewport: viewport4 }).promise;
       const hiResUrl = canvas4.toDataURL("image/png");
+
+      // Keep originals for reset
+      setRawPreviewUrl(previewUrl);
+      setRawHiResUrl(hiResUrl);
+
+      // Show crop UI before placing into proof
+      setArtworkImage(previewUrl);
       setArtworkDataUrl(hiResUrl);
+      setCropRect({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 });
+      setShowCrop(true);
 
       // Strip prefix — send only raw base64 for AI spec extraction
       const rawBase64 = previewUrl.replace("data:image/png;base64,", "");
@@ -165,7 +330,11 @@ export default function Proofs() {
   const handleRemove = () => {
     setArtworkImage(null);
     setArtworkDataUrl(null);
+    setRawPreviewUrl(null);
+    setRawHiResUrl(null);
     setFileName("");
+    setShowCrop(false);
+    setPdfPageInches(null);
     setSpecs({ width: "", height: "", colors: "", numFilms: "1", isVector: null });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -351,6 +520,19 @@ export default function Proofs() {
     }
   };
 
+  // ── Crop UI helpers ──────────────────────────────────────────────────────
+  // Render 8 resize handles + drag area as absolute positioned divs
+  const handles: { id: DragHandle; style: React.CSSProperties }[] = [
+    { id: "nw", style: { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: "nw-resize" } },
+    { id: "n",  style: { top: -HANDLE_SIZE / 2, left: "calc(50% - 5px)", cursor: "n-resize" } },
+    { id: "ne", style: { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: "ne-resize" } },
+    { id: "e",  style: { top: "calc(50% - 5px)", right: -HANDLE_SIZE / 2, cursor: "e-resize" } },
+    { id: "se", style: { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: "se-resize" } },
+    { id: "s",  style: { bottom: -HANDLE_SIZE / 2, left: "calc(50% - 5px)", cursor: "s-resize" } },
+    { id: "sw", style: { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: "sw-resize" } },
+    { id: "w",  style: { top: "calc(50% - 5px)", left: -HANDLE_SIZE / 2, cursor: "w-resize" } },
+  ];
+
   return (
     <div className="p-6 flex flex-col gap-6">
       <div>
@@ -367,10 +549,10 @@ export default function Proofs() {
           <div className="floating-card space-y-4">
             <h2 className="font-semibold text-sm text-foreground">Upload Artwork</h2>
 
-            {artworkImage ? (
+            {rawPreviewUrl ? (
               <div className="relative rounded-xl overflow-hidden border border-border bg-muted/20">
                 <img
-                  src={artworkImage}
+                  src={rawPreviewUrl}
                   alt="Artwork thumbnail"
                   className="w-full h-48 object-contain bg-white"
                 />
@@ -420,6 +602,146 @@ export default function Proofs() {
             )}
           </div>
 
+          {/* ── CROP TOOL ── */}
+          {showCrop && rawPreviewUrl && (
+            <div className="floating-card space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                  <Crop size={14} /> Crop Artwork
+                </h2>
+              </div>
+
+              {/* Crop container */}
+              <div
+                ref={cropContainerRef}
+                className="relative rounded overflow-hidden select-none"
+                style={{ userSelect: "none" }}
+              >
+                {/* Full artwork image */}
+                <img
+                  src={rawPreviewUrl}
+                  alt="Crop preview"
+                  className="w-full block"
+                  draggable={false}
+                />
+
+                {/* Dark overlay — 4 strips around selection */}
+                {/* Top strip */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0, left: 0, right: 0,
+                    height: `${cropRect.y * 100}%`,
+                    background: "rgba(0,0,0,0.5)",
+                    pointerEvents: "none",
+                  }}
+                />
+                {/* Bottom strip */}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0, left: 0, right: 0,
+                    height: `${(1 - cropRect.y - cropRect.h) * 100}%`,
+                    background: "rgba(0,0,0,0.5)",
+                    pointerEvents: "none",
+                  }}
+                />
+                {/* Left strip */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: `${cropRect.y * 100}%`,
+                    left: 0,
+                    width: `${cropRect.x * 100}%`,
+                    height: `${cropRect.h * 100}%`,
+                    background: "rgba(0,0,0,0.5)",
+                    pointerEvents: "none",
+                  }}
+                />
+                {/* Right strip */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: `${cropRect.y * 100}%`,
+                    right: 0,
+                    width: `${(1 - cropRect.x - cropRect.w) * 100}%`,
+                    height: `${cropRect.h * 100}%`,
+                    background: "rgba(0,0,0,0.5)",
+                    pointerEvents: "none",
+                  }}
+                />
+
+                {/* Selection box */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: `${cropRect.y * 100}%`,
+                    left: `${cropRect.x * 100}%`,
+                    width: `${cropRect.w * 100}%`,
+                    height: `${cropRect.h * 100}%`,
+                    border: "2px solid hsl(var(--primary))",
+                    boxSizing: "border-box",
+                    cursor: "move",
+                  }}
+                  onMouseDown={(e) => startDrag("move", e)}
+                >
+                  {/* Rule-of-thirds grid lines */}
+                  {[1, 2].map((i) => (
+                    <div key={`v${i}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(i / 3) * 100}%`, width: "1px", background: "rgba(255,255,255,0.35)", pointerEvents: "none" }} />
+                  ))}
+                  {[1, 2].map((i) => (
+                    <div key={`h${i}`} style={{ position: "absolute", left: 0, right: 0, top: `${(i / 3) * 100}%`, height: "1px", background: "rgba(255,255,255,0.35)", pointerEvents: "none" }} />
+                  ))}
+
+                  {/* 8 resize handles */}
+                  {handles.map(({ id, style }) => (
+                    <div
+                      key={id}
+                      onMouseDown={(e) => { e.stopPropagation(); startDrag(id, e); }}
+                      style={{
+                        position: "absolute",
+                        width: HANDLE_SIZE,
+                        height: HANDLE_SIZE,
+                        background: "white",
+                        border: "2px solid hsl(var(--primary))",
+                        borderRadius: 2,
+                        boxSizing: "border-box",
+                        ...style,
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Real-time dimensions */}
+              {cropDimensions && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Selection: <strong>{cropDimensions.w}" × {cropDimensions.h}"</strong>
+                </p>
+              )}
+
+              {/* Helper text */}
+              <p className="text-xs text-muted-foreground/70 italic leading-snug">
+                Drag the handles to select just the label artwork area. Exclude dieline marks, spec boxes, and any content outside the print area.
+              </p>
+
+              {/* Actions */}
+              <Button onClick={applyCrop} className="w-full gap-2" size="sm">
+                <Crop size={14} /> Apply Crop
+              </Button>
+            </div>
+          )}
+
+          {/* Reset Crop link — shown after crop has been applied */}
+          {!showCrop && rawPreviewUrl && (
+            <button
+              onClick={resetCrop}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <RotateCcw size={12} /> Reset Crop
+            </button>
+          )}
+
           {/* Spec Fields */}
           <div className="floating-card space-y-4">
             <h2 className="font-semibold text-sm text-foreground">Specifications</h2>
@@ -447,7 +769,7 @@ export default function Proofs() {
               </div>
             </div>
 
-            {artworkImage && !analyzing && (!specs.width || !specs.height) && (
+            {rawPreviewUrl && !analyzing && (!specs.width || !specs.height) && (
               <p className="text-xs" style={{ color: "#d97706" }}>
                 Dimensions not found in file — please enter manually.
               </p>
