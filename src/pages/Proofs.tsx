@@ -26,8 +26,6 @@ interface Specs {
   isVector: boolean | null;
 }
 
-const DISCLAIMER =
-  "Review & carefully proofread Artwork. Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener's specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing. Artwork that you send is what you will receive on film. We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.";
 
 export default function Proofs() {
   const [artworkImage, setArtworkImage] = useState<string | null>(null);
@@ -201,7 +199,6 @@ export default function Proofs() {
             <h2 className="font-semibold text-sm text-foreground">Upload Artwork</h2>
 
             {artworkImage ? (
-              /* Post-upload: thumbnail + filename + remove */
               <div className="relative rounded-xl overflow-hidden border border-border bg-muted/20">
                 <img
                   src={artworkImage}
@@ -219,7 +216,6 @@ export default function Proofs() {
                 </div>
               </div>
             ) : (
-              /* Pre-upload: drag-and-drop zone */
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -377,131 +373,132 @@ export default function Proofs() {
               <span className="text-xs font-medium text-muted-foreground">Live Proof Preview</span>
             </div>
             <div className="p-4 bg-muted/30 flex justify-center overflow-x-auto">
-              {/* Landscape letter-size proof sheet — scales to panel width */}
+              {/* Landscape letter-size proof sheet */}
               <div style={{ width: "100%", maxWidth: "900px" }}>
-              <div
-                ref={previewRef}
-                style={{
-                  width: "900px",
-                  height: "694px",
-                  backgroundColor: "#ffffff",
-                  boxShadow: "0 4px 32px rgba(0,0,0,0.18)",
-                  fontFamily: "Arial, Helvetica, sans-serif",
-                  fontSize: "10px",
-                  color: "#000000",
-                  padding: "16px 22px 14px 22px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                  boxSizing: "border-box",
-                }}
-              >
-                {/* ── SECTION 1: TOP HEADER LINE ── */}
                 <div
+                  ref={previewRef}
                   style={{
+                    width: "900px",
+                    height: "694px",
+                    backgroundColor: "#ffffff",
+                    boxShadow: "0 4px 32px rgba(0,0,0,0.18)",
+                    fontFamily: "Arial, Helvetica, sans-serif",
                     fontSize: "10px",
+                    color: "#000000",
+                    padding: "18px 24px 14px 24px",
                     display: "flex",
-                    justifyContent: "space-between",
-                    borderBottom: "1px solid #000",
-                    paddingBottom: "5px",
+                    flexDirection: "column",
+                    gap: "0",
+                    boxSizing: "border-box",
                   }}
                 >
-                  <span>
-                    Size: {specs.width || "—"} x {specs.height || "—"} inches&nbsp;&nbsp;&nbsp;&nbsp;
-                    Color: {specs.colors || "—"}&nbsp;&nbsp;&nbsp;&nbsp;
-                    DIELINE DOES NOT PRINT&nbsp;&nbsp;&nbsp;&nbsp;
-                    Sign &amp; Fax Back This Proof
-                  </span>
-                </div>
+                  {/* ── SECTION 1: ARTWORK BOX (~45% of height) ── */}
+                  <div style={{ position: "relative", height: "312px", flexShrink: 0 }}>
+                    {/* Crop marks — TL */}
+                    <div style={{ position: "absolute", top: "-8px", left: "-8px", width: "14px", height: "1px", backgroundColor: "#000" }} />
+                    <div style={{ position: "absolute", top: "-8px", left: "-8px", width: "1px", height: "14px", backgroundColor: "#000" }} />
+                    {/* TR */}
+                    <div style={{ position: "absolute", top: "-8px", right: "-8px", width: "14px", height: "1px", backgroundColor: "#000" }} />
+                    <div style={{ position: "absolute", top: "-8px", right: "-8px", width: "1px", height: "14px", backgroundColor: "#000" }} />
+                    {/* BL */}
+                    <div style={{ position: "absolute", bottom: "-8px", left: "-8px", width: "14px", height: "1px", backgroundColor: "#000" }} />
+                    <div style={{ position: "absolute", bottom: "-8px", left: "-8px", width: "1px", height: "14px", backgroundColor: "#000" }} />
+                    {/* BR */}
+                    <div style={{ position: "absolute", bottom: "-8px", right: "-8px", width: "14px", height: "1px", backgroundColor: "#000" }} />
+                    <div style={{ position: "absolute", bottom: "-8px", right: "-8px", width: "1px", height: "14px", backgroundColor: "#000" }} />
 
-                {/* ── SECTION 2: ARTWORK BOX ── */}
-                <div style={{ position: "relative", flex: "1", margin: "6px 0" }}>
-                  {/* Crop marks — TL */}
-                  <div style={{ position: "absolute", top: "-8px", left: "-8px", width: "12px", height: "1px", backgroundColor: "#000" }} />
-                  <div style={{ position: "absolute", top: "-8px", left: "-8px", width: "1px", height: "12px", backgroundColor: "#000" }} />
-                  {/* TR */}
-                  <div style={{ position: "absolute", top: "-8px", right: "-8px", width: "12px", height: "1px", backgroundColor: "#000" }} />
-                  <div style={{ position: "absolute", top: "-8px", right: "-8px", width: "1px", height: "12px", backgroundColor: "#000" }} />
-                  {/* BL */}
-                  <div style={{ position: "absolute", bottom: "-8px", left: "-8px", width: "12px", height: "1px", backgroundColor: "#000" }} />
-                  <div style={{ position: "absolute", bottom: "-8px", left: "-8px", width: "1px", height: "12px", backgroundColor: "#000" }} />
-                  {/* BR */}
-                  <div style={{ position: "absolute", bottom: "-8px", right: "-8px", width: "12px", height: "1px", backgroundColor: "#000" }} />
-                  <div style={{ position: "absolute", bottom: "-8px", right: "-8px", width: "1px", height: "12px", backgroundColor: "#000" }} />
-
-                  <div
-                    style={{
-                      border: "1px solid #000",
-                      minHeight: "350px",
-                      height: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {artworkImage ? (
-                      <img
-                        src={artworkImage}
-                        alt="Artwork"
-                        style={{ maxWidth: "100%", maxHeight: "350px", objectFit: "contain" }}
-                      />
-                    ) : (
-                      <span style={{ color: "#999", fontSize: "12px" }}>Artwork will appear here</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* ── SECTION 3: BOTTOM TWO COLUMNS ── */}
-                <div style={{ display: "flex", gap: "12px", marginTop: "14px" }}>
-                  {/* Bottom Left 60% */}
-                  <div style={{ flex: "0 0 60%", fontSize: "8px", lineHeight: "1.4" }}>
-                    <div style={{ fontWeight: "bold", fontSize: "11px", marginBottom: "2px" }}>
-                      Approval For Attached Job For Film Output
-                    </div>
-                    <div style={{ fontWeight: "bold", fontStyle: "italic", fontSize: "11px", marginBottom: "6px" }}>
-                      Sign &amp; Fax Back This Proof
-                    </div>
-                    <div style={{ color: "#555", marginBottom: "5px" }}>{DISCLAIMER}</div>
-                    <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                      IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES &amp; PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.
-                    </div>
-                    <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
-                      FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.
-                    </div>
-                    <div style={{ borderTop: "1px solid #000", paddingTop: "6px" }}>
-                      Customer Signature _________________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Date _______________
+                    <div
+                      style={{
+                        border: "1px solid #000",
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                        backgroundColor: "#fff",
+                      }}
+                    >
+                      {artworkImage ? (
+                        <img
+                          src={artworkImage}
+                          alt="Artwork"
+                          style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                        />
+                      ) : (
+                        <span style={{ color: "#aaa", fontSize: "12px" }}>Artwork will appear here</span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Bottom Right 40% */}
-                  <div
-                    style={{
-                      flex: "0 0 40%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderLeft: "1px solid #ddd",
-                      paddingLeft: "12px",
-                      gap: "4px",
-                    }}
-                  >
-                    <div style={{ fontStyle: "italic", fontSize: "18px", fontFamily: "Georgia, serif", textAlign: "center" }}>
-                      Size: {specs.width || "—"} x {specs.height || "—"} inches
+                  {/* ── SECTION 2: EMPTY WHITE SPACE (~10% of height) ── */}
+                  <div style={{ height: "60px", flexShrink: 0 }} />
+
+                  {/* ── SECTION 3: BOTTOM TWO COLUMNS ── */}
+                  <div style={{ display: "flex", gap: "0", flex: "1" }}>
+                    {/* Bottom Left 60% */}
+                    <div style={{ flex: "0 0 60%", fontSize: "7.5px", lineHeight: "1.45", paddingRight: "16px" }}>
+                      <div style={{ fontWeight: "bold", fontSize: "11px", marginBottom: "1px", color: "#000" }}>
+                        Approval For Attached Job For Film Output
+                      </div>
+                      <div style={{ fontWeight: "bold", fontStyle: "italic", fontSize: "11px", marginBottom: "6px", color: "#000" }}>
+                        Sign &amp; Email Back This Proof
+                      </div>
+
+                      {/* Red first line */}
+                      <div style={{ color: "#DC2626", fontWeight: "normal", marginBottom: "2px" }}>
+                        Review &amp; carefully proofread Artwork.
+                      </div>
+
+                      {/* Black disclaimer body */}
+                      <div style={{ color: "#000", marginBottom: "4px" }}>
+                        Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener's specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing. Artwork that you send is what you will receive on film. We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.
+                      </div>
+
+                      {/* Bold red warnings */}
+                      <div style={{ fontWeight: "bold", color: "#DC2626", marginBottom: "2px" }}>
+                        IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES &amp; PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.
+                      </div>
+                      <div style={{ fontWeight: "bold", color: "#DC2626", marginBottom: "8px" }}>
+                        FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.
+                      </div>
+
+                      {/* Horizontal rule */}
+                      <div style={{ borderTop: "1px solid #000", marginBottom: "5px" }} />
+
+                      {/* Signature line */}
+                      <div style={{ color: "#000", fontSize: "8px" }}>
+                        Customer Signature _________________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Date _______________
+                      </div>
                     </div>
-                    <div style={{ fontStyle: "italic", fontSize: "18px", fontFamily: "Georgia, serif", textAlign: "center" }}>
-                      Color: {specs.colors || "—"}
-                    </div>
-                    <div style={{ fontStyle: "italic", fontSize: "14px", fontFamily: "Georgia, serif", color: "#D97706", textAlign: "center" }}>
-                      DIELINE DOES NOT PRINT
-                    </div>
-                    <div style={{ fontSize: "52px", fontWeight: "bold", color: "#000", textAlign: "center", lineHeight: "1", letterSpacing: "-1px" }}>
-                      {numFilmsDisplay} FILMS
+
+                    {/* Bottom Right 40% */}
+                    <div
+                      style={{
+                        flex: "0 0 40%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "2px",
+                        paddingLeft: "16px",
+                        borderLeft: "none",
+                      }}
+                    >
+                      <div style={{ fontStyle: "italic", fontSize: "20px", fontFamily: "Georgia, serif", textAlign: "center", color: "#000", lineHeight: "1.2" }}>
+                        Size: {specs.width || "—"} x {specs.height || "—"} inches
+                      </div>
+                      <div style={{ fontStyle: "italic", fontSize: "20px", fontFamily: "Georgia, serif", textAlign: "center", color: "#000", lineHeight: "1.2" }}>
+                        Color: {specs.colors || "—"}
+                      </div>
+                      <div style={{ fontStyle: "italic", fontSize: "16px", fontFamily: "Georgia, serif", color: "#DC2626", textAlign: "center", lineHeight: "1.2" }}>
+                        DIELINE DOES NOT PRINT
+                      </div>
+                      <div style={{ fontSize: "64px", fontWeight: "bold", color: "#000", textAlign: "center", lineHeight: "1", letterSpacing: "-1px", marginTop: "4px" }}>
+                        {numFilmsDisplay} FILMS
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
               </div>
             </div>
           </div>
