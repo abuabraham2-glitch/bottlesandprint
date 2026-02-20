@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import jsPDF from "jspdf";
 
 // PDF.js is loaded from CDN in index.html — accessed via window.pdfjsLib
 declare global {
@@ -45,14 +44,18 @@ type DragHandle =
 const HANDLE_SIZE = 10; // px
 
 export default function Proofs() {
-  // artworkImage: lower-res preview for the on-screen HTML display
+  // artworkImage: canvas render for the on-screen HTML preview
   const [artworkImage, setArtworkImage] = useState<string | null>(null);
-  // artworkDataUrl: high-res (scale 4) data URL used for crisp PDF export
+  // artworkDataUrl: same canvas render (kept for legacy compat — not used in PDF anymore)
   const [artworkDataUrl, setArtworkDataUrl] = useState<string | null>(null);
   // rawPreviewUrl: uncropped preview kept so Reset Crop works
   const [rawPreviewUrl, setRawPreviewUrl] = useState<string | null>(null);
-  // highResCanvas: the raw scale-4 canvas element — kept so we can crop at full resolution
+  // highResCanvas: the raw scale-4 canvas element — kept so we can crop at full resolution for preview
   const highResCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // originalPdfBytes: the raw ArrayBuffer of the uploaded file — used for vector PDF embedding
+  const [originalPdfBytes, setOriginalPdfBytes] = useState<ArrayBuffer | null>(null);
+  // cropRegion: normalised 0-1 region of the PDF page to embed. Full page = {x:0,y:0,w:1,h:1}
+  const [cropRegion, setCropRegion] = useState<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 1, h: 1 });
 
   const [fileName, setFileName] = useState<string>("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -151,7 +154,7 @@ export default function Proofs() {
 
     const hiResCanvas = highResCanvasRef.current;
 
-    // Apply crop directly to the hi-res canvas in its own pixel space
+    // Apply crop directly to the hi-res canvas in its own pixel space (for HTML preview)
     const hx = Math.floor(cropRect.x * hiResCanvas.width);
     const hy = Math.floor(cropRect.y * hiResCanvas.height);
     const hw = Math.floor(cropRect.w * hiResCanvas.width);
@@ -162,9 +165,11 @@ export default function Proofs() {
     cropCanvas.getContext("2d")!.drawImage(hiResCanvas, hx, hy, hw, hh, 0, 0, hw, hh);
     const croppedDataUrl = cropCanvas.toDataURL("image/png");
 
-    // Use the hi-res crop for both the HTML preview and PDF export
     setArtworkImage(croppedDataUrl);
     setArtworkDataUrl(croppedDataUrl);
+
+    // Store crop region as normalised 0-1 coords — used by pdf-lib to crop the embedded vector PDF
+    setCropRegion({ x: cropRect.x, y: cropRect.y, w: cropRect.w, h: cropRect.h });
 
     // Update dimensions from crop selection
     if (pdfPageInches) {
@@ -184,6 +189,8 @@ export default function Proofs() {
     } else if (rawPreviewUrl) {
       setArtworkImage(rawPreviewUrl);
     }
+    // Reset crop region to full page
+    setCropRegion({ x: 0, y: 0, w: 1, h: 1 });
     if (pdfPageInches) {
       setSpecs((s) => ({
         ...s,
@@ -212,10 +219,15 @@ export default function Proofs() {
     setArtworkDataUrl(null);
     setRawPreviewUrl(null);
     highResCanvasRef.current = null;
+    setOriginalPdfBytes(null);
+    setCropRegion({ x: 0, y: 0, w: 1, h: 1 });
     setShowCrop(false);
 
     try {
       const buffer = await file.arrayBuffer();
+      // Store raw bytes for vector PDF embedding via pdf-lib
+      setOriginalPdfBytes(buffer);
+
       const uint8 = new Uint8Array(buffer);
       const lib = window.pdfjsLib;
       if (!lib) throw new Error("PDF.js not loaded");
@@ -238,22 +250,23 @@ export default function Proofs() {
       await page.render({ canvasContext: canvas2.getContext("2d"), viewport: viewport2 }).promise;
       const previewUrl = canvas2.toDataURL("image/png");
 
-      // Scale 4 — keep the raw canvas element so we can crop at full resolution
+      // Scale 4 — keep the raw canvas element so we can crop for the HTML preview
       const viewport4 = page.getViewport({ scale: 4 });
       const canvas4 = document.createElement("canvas");
       canvas4.width = viewport4.width;
       canvas4.height = viewport4.height;
       await page.render({ canvasContext: canvas4.getContext("2d"), viewport: viewport4 }).promise;
-      // Store canvas element (not data URL) for high-quality crop
       highResCanvasRef.current = canvas4;
 
       // Keep preview original for reset
       setRawPreviewUrl(previewUrl);
 
-      // Show crop UI — use hi-res canvas for both display and PDF export
+      // Show crop UI with hi-res canvas render for display
       const hiResDataUrl = canvas4.toDataURL("image/png");
       setArtworkImage(hiResDataUrl);
       setArtworkDataUrl(hiResDataUrl);
+      // Default crop region = full page (no crop)
+      setCropRegion({ x: 0, y: 0, w: 1, h: 1 });
       setCropRect({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 });
       setShowCrop(true);
 
@@ -327,6 +340,8 @@ export default function Proofs() {
     setArtworkDataUrl(null);
     setRawPreviewUrl(null);
     highResCanvasRef.current = null;
+    setOriginalPdfBytes(null);
+    setCropRegion({ x: 0, y: 0, w: 1, h: 1 });
     setFileName("");
     setShowCrop(false);
     setPdfPageInches(null);
@@ -338,159 +353,185 @@ export default function Proofs() {
   const numFilmsDisplay = specs.numFilms && specs.numFilms !== "0" ? specs.numFilms : "1";
 
   /**
-   * Build the entire proof PDF programmatically using jsPDF.
-   * No html2canvas — artwork is drawn from the high-res canvas data URL.
+   * Build proof PDF using pdf-lib — embeds the original client PDF as vector data.
+   * The artwork is never rasterized; only the text/layout elements around it are drawn.
    */
-  const generateProofPdf = (): jsPDF => {
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
+  const generateProofPdf = async (): Promise<Uint8Array> => {
+    const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
+
     const pageW = 792;
     const pageH = 612;
     const margin = 20;
 
-    // ARTWORK BOX — takes up 68% of page height
-    const boxX = margin;
-    const boxY = margin;
+    // pdf-lib y-axis: 0 = bottom of page
+    const proofDoc = await PDFDocument.create();
+    const page = proofDoc.addPage([pageW, pageH]);
+
+    // ARTWORK BOX — occupies top 68% of page
+    // In pdf-lib coords (y from bottom): boxY is the bottom edge of the artwork box
     const boxW = pageW - margin * 2;
     const boxH = Math.floor(pageH * 0.68);
+    const boxX = margin;
+    const boxYBottom = pageH - margin - boxH; // bottom edge of box in pdf-lib coords
 
-    // Draw artwork image directly from the high-res canvas
-    if (artworkDataUrl) {
-      const tempImg = new Image();
-      tempImg.src = artworkDataUrl;
-      const imgW = tempImg.naturalWidth || 800;
-      const imgH = tempImg.naturalHeight || 600;
-      const imgAspect = imgW / imgH;
-      const boxAspect = boxW / boxH;
-      let drawW: number, drawH: number;
-      if (imgAspect > boxAspect) {
-        drawW = boxW - 16;
-        drawH = drawW / imgAspect;
-      } else {
-        drawH = boxH - 16;
-        drawW = drawH * imgAspect;
+    // ── Embed client artwork PDF ──────────────────────────────────────────
+    if (originalPdfBytes) {
+      try {
+        const clientDoc = await PDFDocument.load(originalPdfBytes);
+        const srcPage = clientDoc.getPages()[0];
+        const srcW = srcPage.getWidth();
+        const srcH = srcPage.getHeight();
+
+        // Convert normalised cropRegion → points on the source page
+        // pdf-lib embedPages clip box: left/bottom/right/top in source page points (y from bottom)
+        const clipLeft   = cropRegion.x * srcW;
+        const clipBottom = (1 - cropRegion.y - cropRegion.h) * srcH;
+        const clipRight  = (cropRegion.x + cropRegion.w) * srcW;
+        const clipTop    = (1 - cropRegion.y) * srcH;
+
+        const [embedded] = await proofDoc.embedPages([srcPage], [{
+          left: clipLeft,
+          bottom: clipBottom,
+          right: clipRight,
+          top: clipTop,
+        }]);
+
+        // Scale embedded art to fit inside box maintaining aspect ratio
+        const artW = embedded.width;
+        const artH = embedded.height;
+        const artAspect = artW / artH;
+        const boxAspect = boxW / boxH;
+        let drawW: number, drawH: number;
+        if (artAspect > boxAspect) {
+          drawW = boxW - 16;
+          drawH = drawW / artAspect;
+        } else {
+          drawH = boxH - 16;
+          drawW = drawH * artAspect;
+        }
+        const artX = boxX + (boxW - drawW) / 2;
+        const artY = boxYBottom + (boxH - drawH) / 2;
+
+        page.drawPage(embedded, { x: artX, y: artY, width: drawW, height: drawH });
+      } catch (e) {
+        console.warn("pdf-lib embed failed, skipping artwork:", e);
       }
-      const imgX = boxX + (boxW - drawW) / 2;
-      const imgY = boxY + (boxH - drawH) / 2;
-      doc.addImage(artworkDataUrl, "PNG", imgX, imgY, drawW, drawH, undefined, "NONE");
     }
 
-    // Box border — draw AFTER image so it's on top
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.75);
-    doc.rect(boxX, boxY, boxW, boxH);
+    // Box border (drawn after art so it sits on top)
+    page.drawRectangle({
+      x: boxX, y: boxYBottom, width: boxW, height: boxH,
+      borderColor: rgb(0, 0, 0), borderWidth: 0.75,
+    });
 
-    // Crop marks at corners
-    const mk = 10;
-    const gp = 5;
-    doc.setLineWidth(0.5);
+    // Crop marks
+    const mk = 10; const gp = 5;
+    const dl = (x1: number, y1: number, x2: number, y2: number) =>
+      page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 0.5, color: rgb(0, 0, 0) });
+
     // TL
-    doc.line(boxX - gp - mk, boxY, boxX - gp, boxY);
-    doc.line(boxX, boxY - gp - mk, boxX, boxY - gp);
+    dl(boxX - gp - mk, boxYBottom + boxH, boxX - gp, boxYBottom + boxH);
+    dl(boxX, boxYBottom + boxH + gp, boxX, boxYBottom + boxH + gp + mk);
     // TR
-    doc.line(boxX + boxW + gp, boxY, boxX + boxW + gp + mk, boxY);
-    doc.line(boxX + boxW, boxY - gp - mk, boxX + boxW, boxY - gp);
+    dl(boxX + boxW + gp, boxYBottom + boxH, boxX + boxW + gp + mk, boxYBottom + boxH);
+    dl(boxX + boxW, boxYBottom + boxH + gp, boxX + boxW, boxYBottom + boxH + gp + mk);
     // BL
-    doc.line(boxX - gp - mk, boxY + boxH, boxX - gp, boxY + boxH);
-    doc.line(boxX, boxY + boxH + gp, boxX, boxY + boxH + gp + mk);
+    dl(boxX - gp - mk, boxYBottom, boxX - gp, boxYBottom);
+    dl(boxX, boxYBottom - gp - mk, boxX, boxYBottom - gp);
     // BR
-    doc.line(boxX + boxW + gp, boxY + boxH, boxX + boxW + gp + mk, boxY + boxH);
-    doc.line(boxX + boxW, boxY + boxH + gp, boxX + boxW, boxY + boxH + gp + mk);
+    dl(boxX + boxW + gp, boxYBottom, boxX + boxW + gp + mk, boxYBottom);
+    dl(boxX + boxW, boxYBottom - gp - mk, boxX + boxW, boxYBottom - gp);
 
-    // BOTTOM SECTION
-    const btY = boxY + boxH + 16;
+    // ── Fonts ──────────────────────────────────────────────────────────────
+    const hv     = await proofDoc.embedFont(StandardFonts.Helvetica);
+    const hvBold = await proofDoc.embedFont(StandardFonts.HelveticaBold);
+    const hvBI   = await proofDoc.embedFont(StandardFonts.HelveticaBoldOblique);
+    const tmI    = await proofDoc.embedFont(StandardFonts.TimesRomanItalic);
+
+    const black = rgb(0, 0, 0);
+    const red   = rgb(0.863, 0.149, 0.149);
+
+    // ── BOTTOM SECTION ────────────────────────────────────────────────────
+    // btTop = y coord (from bottom) of the top of the bottom section
+    const btTop = boxYBottom - 16;
     const leftW = pageW * 0.57;
-    const rightX = margin + leftW + 12;
-    const rightW = pageW - margin - rightX;
-    const rightCX = rightX + rightW / 2;
+    const rightX = margin + leftW + 10;
+    const rightCX = rightX + (pageW - margin - rightX) / 2;
 
-    // --- LEFT COLUMN ---
-    let cy = btY;
+    // Text helper (pdf-lib draws from baseline)
+    const dt = (text: string, x: number, y: number, font: typeof hv, size: number, color: typeof black) =>
+      page.drawText(text, { x, y, font, size, color });
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Approval For Attached Job For Film Output", margin, cy);
-    cy += 11;
+    // Word-wrap helper
+    const wrap = (text: string, maxW: number, font: typeof hv, size: number): string[] => {
+      const words = text.split(" ");
+      const lines: string[] = [];
+      let cur = "";
+      for (const word of words) {
+        const test = cur ? cur + " " + word : word;
+        if (font.widthOfTextAtSize(test, size) > maxW && cur) {
+          lines.push(cur); cur = word;
+        } else { cur = test; }
+      }
+      if (cur) lines.push(cur);
+      return lines;
+    };
 
-    doc.setFont("helvetica", "bolditalic");
-    doc.text("Sign & Email Back This Proof", margin, cy);
-    cy += 10;
+    // Draw lines top-down; ty starts at btTop and decreases
+    let ty = btTop - 10;
+    dt("Approval For Attached Job For Film Output", margin, ty, hvBold, 8.5, black); ty -= 11;
+    dt("Sign & Email Back This Proof", margin, ty, hvBI, 8.5, black); ty -= 11;
+    dt("Review & carefully proofread Artwork.", margin, ty, hv, 7, red); ty -= 9;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(220, 38, 38);
-    doc.text("Review & carefully proofread Artwork.", margin, cy);
-    cy += 9;
+    const p1 = "Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener\u2019s specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing.";
+    for (const ln of wrap(p1, leftW - 10, hv, 7)) { dt(ln, margin, ty, hv, 7, black); ty -= 8; }
 
-    doc.setTextColor(0, 0, 0);
-    const p1 =
-      "Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener\u2019s specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing.";
-    const l1 = doc.splitTextToSize(p1, leftW - 8);
-    doc.text(l1, margin, cy);
-    cy += l1.length * 7.5;
+    dt("Artwork that you send is what you will receive on film.", margin, ty, hv, 7, red); ty -= 9;
 
-    doc.setTextColor(220, 38, 38);
-    doc.text("Artwork that you send is what you will receive on film.", margin, cy);
-    cy += 9;
+    const p2 = "We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.";
+    for (const ln of wrap(p2, leftW - 10, hv, 7)) { dt(ln, margin, ty, hv, 7, black); ty -= 8; }
 
-    doc.setTextColor(0, 0, 0);
-    const p2 =
-      "We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.";
-    const l2 = doc.splitTextToSize(p2, leftW - 8);
-    doc.text(l2, margin, cy);
-    cy += l2.length * 7.5 + 4;
+    ty -= 3;
+    const w1 = "IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES & PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.";
+    for (const ln of wrap(w1, leftW - 10, hvBold, 7)) { dt(ln, margin, ty, hvBold, 7, red); ty -= 8; }
 
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(220, 38, 38);
-    const w1 = doc.splitTextToSize(
-      "IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES & PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.",
-      leftW - 8
-    );
-    doc.text(w1, margin, cy);
-    cy += w1.length * 7.5 + 2;
+    dt("FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.", margin, ty, hvBold, 7, black); ty -= 14;
 
-    doc.setTextColor(0, 0, 0);
-    doc.text("FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.", margin, cy);
-    cy += 14;
+    page.drawLine({ start: { x: margin, y: ty }, end: { x: margin + 150, y: ty }, thickness: 0.4, color: black });
+    page.drawLine({ start: { x: margin + 170, y: ty }, end: { x: margin + 230, y: ty }, thickness: 0.4, color: black });
+    dt("Customer Signature", margin, ty - 8, hv, 6.5, black);
+    dt("Date", margin + 170, ty - 8, hv, 6.5, black);
 
-    // Signature line
-    doc.setLineWidth(0.4);
-    doc.line(margin, cy, margin + 150, cy);
-    doc.line(margin + 170, cy, margin + 230, cy);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.text("Customer Signature", margin, cy + 7);
-    doc.text("Date", margin + 170, cy + 7);
+    // ── RIGHT COLUMN ──────────────────────────────────────────────────────
+    const centerText = (text: string, cx: number, y: number, font: typeof hv, size: number, color: typeof black) => {
+      const w = font.widthOfTextAtSize(text, size);
+      page.drawText(text, { x: cx - w / 2, y, font, size, color });
+    };
 
-    // --- RIGHT COLUMN ---
-    doc.setFont("times", "italic");
-    doc.setFontSize(15);
-    doc.setTextColor(0, 0, 0);
-    const sizeText = `Size: ${specs.width || "\u2014"} x ${specs.height || "\u2014"} inches`;
-    const colorText = `Color: ${specs.colors || "\u2014"}`;
-    doc.text(sizeText, rightCX, btY + 14, { align: "center" });
-    doc.text(colorText, rightCX, btY + 30, { align: "center" });
+    const sizeStr  = `Size: ${specs.width || "\u2014"} x ${specs.height || "\u2014"} inches`;
+    const colorStr = `Color: ${specs.colors || "\u2014"}`;
+    centerText(sizeStr,  rightCX, btTop - 12, tmI, 15, black);
+    centerText(colorStr, rightCX, btTop - 28, tmI, 15, black);
+    centerText("DIELINE DOES NOT PRINT", rightCX, btTop - 44, tmI, 12, red);
+    centerText(`${numFilmsDisplay} FILMS`, rightCX, btTop - 95, hvBold, 52, black);
 
-    doc.setFont("times", "italic");
-    doc.setFontSize(12);
-    doc.setTextColor(220, 38, 38);
-    doc.text("DIELINE DOES NOT PRINT", rightCX, btY + 46, { align: "center" });
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(52);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`${numFilmsDisplay} FILMS`, rightCX, btY + 95, { align: "center" });
-
-    return doc;
+    return proofDoc.save();
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     try {
-      const doc = generateProofPdf();
+      const bytes = await generateProofPdf();
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
       const date = new Date().toISOString().slice(0, 10);
       const name = clientName.replace(/\s+/g, "_") || "proof";
-      doc.save(`proof_${name}_${date}.pdf`);
-    } catch {
+      a.download = `proof_${name}_${date}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
       toast({ title: "Failed to generate PDF", variant: "destructive" });
     }
   };
@@ -499,8 +540,14 @@ export default function Proofs() {
     if (!clientEmail) return;
     setSending(true);
     try {
-      const doc = generateProofPdf();
-      const pdfBase64 = doc.output("datauristring").split(",")[1];
+      const bytes = await generateProofPdf();
+      // Convert Uint8Array → base64
+      let binary = "";
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const pdfBase64 = btoa(binary);
       const res = await fetch(SEND_PROOF_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -508,7 +555,8 @@ export default function Proofs() {
       });
       if (!res.ok) throw new Error("Send failed");
       toast({ title: `Proof sent to ${clientEmail}!` });
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast({ title: "Failed to send proof", variant: "destructive" });
     } finally {
       setSending(false);
