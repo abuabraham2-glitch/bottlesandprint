@@ -378,28 +378,29 @@ export default function Proofs() {
     if (originalPdfBytes) {
       try {
         const clientDoc = await PDFDocument.load(originalPdfBytes);
-        const srcPage = clientDoc.getPages()[0];
-        const srcW = srcPage.getWidth();
-        const srcH = srcPage.getHeight();
+        const clientPage = clientDoc.getPages()[0];
+        const clientW = clientPage.getWidth();
+        const clientH = clientPage.getHeight();
 
-        // Convert normalised cropRegion → points on the source page
-        // pdf-lib embedPages clip box: left/bottom/right/top in source page points (y from bottom)
-        const clipLeft   = cropRegion.x * srcW;
-        const clipBottom = (1 - cropRegion.y - cropRegion.h) * srcH;
-        const clipRight  = (cropRegion.x + cropRegion.w) * srcW;
-        const clipTop    = (1 - cropRegion.y) * srcH;
+        // Set MediaBox/CropBox on the source page to the cropped region before embedding
+        // This is the most reliable way to crop with pdf-lib — no clip parameter needed
+        const cropX1 = cropRegion.x * clientW;
+        const cropY1 = (1 - cropRegion.y - cropRegion.h) * clientH;
+        const cropX2 = (cropRegion.x + cropRegion.w) * clientW;
+        const cropY2 = (1 - cropRegion.y) * clientH;
 
-        const [embedded] = await proofDoc.embedPages([srcPage], [{
-          left: clipLeft,
-          bottom: clipBottom,
-          right: clipRight,
-          top: clipTop,
-        }]);
+        clientPage.setMediaBox(cropX1, cropY1, cropX2 - cropX1, cropY2 - cropY1);
+        clientPage.setCropBox(cropX1, cropY1, cropX2 - cropX1, cropY2 - cropY1);
+
+        // Now embed — it will only contain the cropped area
+        const [embedded] = await proofDoc.embedPages([clientPage]);
+
+        console.log('cropRegion:', cropRegion);
+        console.log('clientW:', clientW, 'clientH:', clientH);
+        console.log('embeddedPage dims:', embedded.width, embedded.height);
 
         // Scale embedded art to fit inside box maintaining aspect ratio
-        const artW = embedded.width;
-        const artH = embedded.height;
-        const artAspect = artW / artH;
+        const artAspect = embedded.width / embedded.height;
         const boxAspect = boxW / boxH;
         let drawW: number, drawH: number;
         if (artAspect > boxAspect) {
