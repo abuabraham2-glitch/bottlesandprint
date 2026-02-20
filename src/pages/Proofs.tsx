@@ -5,13 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import * as pdfjsLib from "pdfjs-dist";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
-// Lock worker to a stable CDN build
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+// PDF.js is loaded from CDN in index.html — accessed via window.pdfjsLib
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pdfjsLib: any;
+  }
+}
 
 const SPEC_EXTRACTOR_URL =
   "https://bottlesandprint.app.n8n.cloud/webhook/proof-extract-specs";
@@ -52,25 +55,26 @@ export default function Proofs() {
       return;
     }
     setFileName(file.name);
+    setArtworkImage(null);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer }).promise;
+      const pdfjs = window.pdfjsLib;
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2 });
+      const viewport = page.getViewport({ scale: 2.0 });
+
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const ctx = canvas.getContext("2d")!;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await page.render({ canvasContext: ctx as any, viewport }).promise;
+      await page.render({ canvasContext: ctx, viewport }).promise;
 
       const dataUrl = canvas.toDataURL("image/png");
       setArtworkImage(dataUrl);
 
-      // Strip the data URI prefix — send only raw base64
-      const rawBase64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      // Strip prefix — send only raw base64
+      const rawBase64 = dataUrl.replace("data:image/png;base64,", "");
 
       setAnalyzing(true);
       try {
@@ -98,8 +102,9 @@ export default function Proofs() {
       } finally {
         setAnalyzing(false);
       }
-    } catch {
-      toast({ title: "Failed to read PDF.", variant: "destructive" });
+    } catch (err) {
+      console.error("PDF error:", err);
+      toast({ title: "Failed to read PDF. Make sure the file is a valid PDF and try again.", variant: "destructive" });
     }
   }, []);
 
