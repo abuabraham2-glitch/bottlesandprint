@@ -70,6 +70,7 @@ export default function Proofs() {
   });
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [subject, setSubject] = useState("Artwork Proof – Please Review & Sign");
 
   // PDF page size in inches (from PDF.js metadata)
@@ -359,7 +360,7 @@ export default function Proofs() {
   const generateProofPdf = async (): Promise<Uint8Array> => {
     if (!originalPdfBytes) throw new Error("No artwork uploaded");
 
-    // Convert ArrayBuffer → base64
+    // Convert ArrayBuffer → base64 (chunked to avoid stack overflow)
     const uint8 = new Uint8Array(originalPdfBytes);
     let binary = "";
     const chunk = 8192;
@@ -370,6 +371,11 @@ export default function Proofs() {
 
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const url = `https://${projectId}.supabase.co/functions/v1/generate-proof`;
+
+    console.log("[generate-proof] Sending request to:", url);
+    console.log("[generate-proof] cropRegion:", cropRegion);
+    console.log("[generate-proof] specs:", specs);
+    console.log("[generate-proof] artworkBase64 length:", artworkBase64.length);
 
     const res = await fetch(url, {
       method: "POST",
@@ -387,13 +393,26 @@ export default function Proofs() {
       }),
     });
 
-    const data = await res.json();
+    console.log("[generate-proof] HTTP status:", res.status);
+
+    // Read raw text first so we can show it even if JSON parse fails
+    const rawText = await res.text();
+    console.log("[generate-proof] Raw response:", rawText);
+
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(`HTTP ${res.status} — non-JSON response:\n${rawText}`);
+    }
+
     if (!res.ok || !data.success) {
-      throw new Error(data.error || "Edge function failed");
+      const errMsg = typeof data.error === "string" ? data.error : JSON.stringify(data);
+      throw new Error(`HTTP ${res.status} — ${errMsg}`);
     }
 
     // Decode base64 PDF back to Uint8Array
-    const pdfBinary = atob(data.pdfBase64);
+    const pdfBinary = atob(data.pdfBase64 as string);
     const pdfBytes = new Uint8Array(pdfBinary.length);
     for (let i = 0; i < pdfBinary.length; i++) {
       pdfBytes[i] = pdfBinary.charCodeAt(i);
@@ -402,6 +421,7 @@ export default function Proofs() {
   };
 
   const handleDownload = async () => {
+    setPdfError(null);
     try {
       const bytes = await generateProofPdf();
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
@@ -414,9 +434,12 @@ export default function Proofs() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      console.error(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      toast({ title: "PDF generation failed", description: msg, variant: "destructive" });
+      console.error("[generate-proof] Error:", e);
+      const msg = e instanceof Error
+        ? `${e.message}${e.stack ? `\n\nStack trace:\n${e.stack}` : ""}`
+        : String(e);
+      setPdfError(msg);
+      toast({ title: "PDF generation failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -776,6 +799,17 @@ export default function Proofs() {
               />
             </div>
           </div>
+
+          {/* Error detail box */}
+          {pdfError && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-destructive">PDF Generation Error</p>
+                <button onClick={() => setPdfError(null)} className="text-destructive/60 hover:text-destructive text-xs">✕ dismiss</button>
+              </div>
+              <pre className="text-xs text-destructive whitespace-pre-wrap break-all font-mono overflow-auto max-h-60">{pdfError}</pre>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col gap-2">
