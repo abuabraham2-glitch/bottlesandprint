@@ -24,8 +24,16 @@ serve(async (req) => {
       numFilms,        // number of films (integer)
     } = await req.json();
 
-    // Decode the artwork PDF
-    const artworkBytes = Uint8Array.from(atob(artworkBase64), c => c.charCodeAt(0));
+    // Decode the artwork PDF (safe chunked method to avoid stack overflow)
+    function base64ToUint8Array(base64: string): Uint8Array {
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
+    }
+    const artworkBytes = base64ToUint8Array(artworkBase64);
 
     // Load the client artwork PDF — throwOnInvalidObject:false tolerates minor PDF quirks
     const clientPdfDoc = await PDFDocument.load(artworkBytes, {
