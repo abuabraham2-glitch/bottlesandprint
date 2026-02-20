@@ -15,6 +15,7 @@ import { Send, Edit, MessageSquare, X, ThumbsDown, Check, ChevronDown, ChevronUp
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 
 const CATEGORY_COLORS: Record<string, string> = {
   SALES: "bg-emerald-100 text-emerald-700",
@@ -91,6 +92,8 @@ export default function Inbox() {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [composeEmailRef, setComposeEmailRef] = useState<Email | null>(null);
+  const [composeAttachments, setComposeAttachments] = useState<AttachedFile[]>([]);
+  const [editAttachments, setEditAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState<string | null>(null);
   const [detailEmail, setDetailEmail] = useState<Email | null>(null);
   const [showFollowUps, setShowFollowUps] = useState(false);
@@ -261,6 +264,7 @@ export default function Inbox() {
         draft: stripN8nFooter(email.draft_response),
         gmail_id: email.gmail_id || undefined,
         email_id: email.id,
+        attachments: [],
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
       await scheduleFollowUps(email);
@@ -285,11 +289,13 @@ export default function Inbox() {
         draft: html,
         gmail_id: gmailId || undefined,
         email_id: email.id,
+        attachments: editAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any, draft_response: html });
       await scheduleFollowUps(email);
       toast.success("Email sent");
       setEditDraftId(null);
+      setEditAttachments([]);
     } catch {
       toast.error("Failed to send");
     }
@@ -379,6 +385,7 @@ export default function Inbox() {
         subject: composeSubject,
         draft: htmlContent,
         cc: composeCc || undefined,
+        attachments: composeAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
       };
 
       if (isNewEmail) {
@@ -407,6 +414,7 @@ export default function Inbox() {
       setComposeSubject("");
       setComposeBody("");
       setComposeEmailRef(null);
+      setComposeAttachments([]);
     } catch (err) {
       console.error("Compose send error:", err);
       toast.error("Failed to send");
@@ -519,11 +527,12 @@ export default function Inbox() {
               className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
               dangerouslySetInnerHTML={{ __html: editDraftText }}
             />
+            <AttachmentPicker files={editAttachments} onChange={setEditAttachments} />
             <div className="flex gap-2">
               <Button size="sm" className="rounded-xl text-xs" onClick={() => handleSendEdited(email, email.from_email || "", email.subject || "", email.gmail_id || undefined)} disabled={sending === email.id}>
                 <Send size={12} /> Send Edited
               </Button>
-              <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>
+              <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => { setEditDraftId(null); setEditAttachments([]); }}>
                 Cancel
               </Button>
             </div>
@@ -798,7 +807,7 @@ export default function Inbox() {
                         <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail, detailEmail.from_email || "", detailEmail.subject || "", detailEmail.gmail_id || undefined)} disabled={sending === detailEmail.id}>
                           <Send size={12} /> Send Edited
                         </Button>
-                        <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>
+                        <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => { setEditDraftId(null); setEditAttachments([]); }}>Cancel</Button>
                       </>
                     ) : (
                       <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs"
@@ -910,9 +919,10 @@ export default function Inbox() {
                 className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] max-h-[40vh] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
                 dangerouslySetInnerHTML={{ __html: composeBody }} />
             </div>
+            <AttachmentPicker files={composeAttachments} onChange={setComposeAttachments} />
           </div>
           <DialogFooter className="shrink-0">
-            <Button variant="ghost" onClick={() => setComposeOpen(false)} className="rounded-xl">Cancel</Button>
+            <Button variant="ghost" onClick={() => { setComposeOpen(false); setComposeAttachments([]); }} className="rounded-xl">Cancel</Button>
             <Button className="rounded-xl gap-1" onClick={handleComposeSend} disabled={sending === "compose"}>
               <Send size={14} /> Send
             </Button>

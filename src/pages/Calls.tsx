@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
+import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
@@ -48,6 +49,7 @@ export default function Calls() {
   const [generatingQuote, setGeneratingQuote] = useState(false);
   const [sendingQuote, setSendingQuote] = useState(false);
   const [editableEmail, setEditableEmail] = useState("");
+  const [quoteAttachments, setQuoteAttachments] = useState<AttachedFile[]>([]);
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Sync editable email when selectedCall changes
@@ -117,6 +119,7 @@ export default function Calls() {
           to_email: call.email,
           subject: "Quote from Bottles & Print",
           draft: call.draft_response,
+          attachments: quoteAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         }),
       });
       if (!res.ok) throw new Error("Send failed");
@@ -165,6 +168,7 @@ export default function Calls() {
 
       await updateCall.mutateAsync({ id: call.id, status: "resolved" as any, resolved_at: new Date().toISOString() });
       queryClient.invalidateQueries({ queryKey: ["emails"] });
+      setQuoteAttachments([]);
       toast.success("Quote sent and call resolved");
       setSelectedCall(null);
     } catch {
@@ -438,6 +442,14 @@ export default function Calls() {
                       className="text-sm font-sans bg-muted/30 rounded-lg p-4 border border-border prose prose-sm max-w-none focus:outline-none focus:ring-1 focus:ring-primary/30 min-h-[120px]"
                       dangerouslySetInnerHTML={{ __html: selectedCall.draft_response }}
                     />
+                  </div>
+                )}
+
+                {/* Attachments for quote */}
+                {selectedCall.draft_response && (
+                  <div>
+                    <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Attachments</h3>
+                    <AttachmentPicker files={quoteAttachments} onChange={setQuoteAttachments} />
                   </div>
                 )}
 
