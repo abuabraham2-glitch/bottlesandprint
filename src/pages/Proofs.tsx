@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // PDF.js is loaded from CDN in index.html — accessed via window.pdfjsLib
 declare global {
@@ -52,8 +53,8 @@ export default function Proofs() {
   const [rawPreviewUrl, setRawPreviewUrl] = useState<string | null>(null);
   // highResCanvas: the raw scale-4 canvas element — kept so we can crop at full resolution for preview
   const highResCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // originalPdfBytes: the raw ArrayBuffer of the uploaded file — used for vector PDF embedding
-  const [originalPdfBytes, setOriginalPdfBytes] = useState<ArrayBuffer | null>(null);
+  // artworkStoragePath: the path in 'proofs' storage bucket for the uploaded file
+  const [artworkStoragePath, setArtworkStoragePath] = useState<string | null>(null);
   // cropRegion: normalised 0-1 region of the PDF page to embed. Full page = {x:0,y:0,w:1,h:1}
   const [cropRegion, setCropRegion] = useState<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 1, h: 1 });
 
@@ -220,14 +221,23 @@ export default function Proofs() {
     setArtworkDataUrl(null);
     setRawPreviewUrl(null);
     highResCanvasRef.current = null;
-    setOriginalPdfBytes(null);
+    setArtworkStoragePath(null);
     setCropRegion({ x: 0, y: 0, w: 1, h: 1 });
     setShowCrop(false);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      // Store a copy BEFORE passing to PDF.js — PDF.js detaches the original ArrayBuffer
-      setOriginalPdfBytes(arrayBuffer.slice(0));
+
+      // Upload raw file bytes to Supabase Storage in the 'proofs' bucket
+      const storagePath = `artwork_${Date.now()}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from("proofs")
+        .upload(storagePath, new Blob([arrayBuffer], { type: "application/pdf" }), {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+      setArtworkStoragePath(storagePath);
 
       const uint8 = new Uint8Array(arrayBuffer);
       const lib = window.pdfjsLib;
@@ -341,7 +351,7 @@ export default function Proofs() {
     setArtworkDataUrl(null);
     setRawPreviewUrl(null);
     highResCanvasRef.current = null;
-    setOriginalPdfBytes(null);
+    setArtworkStoragePath(null);
     setCropRegion({ x: 0, y: 0, w: 1, h: 1 });
     setFileName("");
     setShowCrop(false);
@@ -355,27 +365,19 @@ export default function Proofs() {
 
   /**
    * Call the generate-proof edge function to build the proof PDF server-side.
+   * Uploads the file to storage first, then sends only the storage path.
    * Returns the PDF bytes as a Uint8Array.
    */
   const generateProofPdf = async (): Promise<Uint8Array> => {
-    if (!originalPdfBytes) throw new Error("No artwork uploaded");
-
-    // Convert ArrayBuffer → base64 (chunked to avoid stack overflow)
-    const uint8 = new Uint8Array(originalPdfBytes);
-    let binary = "";
-    const chunk = 8192;
-    for (let i = 0; i < uint8.length; i += chunk) {
-      binary += String.fromCharCode(...uint8.subarray(i, i + chunk));
-    }
-    const artworkBase64 = btoa(binary);
+    if (!artworkStoragePath) throw new Error("No artwork uploaded");
 
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     const url = `https://${projectId}.supabase.co/functions/v1/generate-proof`;
 
     console.log("[generate-proof] Sending request to:", url);
+    console.log("[generate-proof] artworkPath:", artworkStoragePath);
     console.log("[generate-proof] cropRegion:", cropRegion);
     console.log("[generate-proof] specs:", specs);
-    console.log("[generate-proof] artworkBase64 length:", artworkBase64.length);
 
     const res = await fetch(url, {
       method: "POST",
@@ -384,7 +386,7 @@ export default function Proofs() {
         "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       },
       body: JSON.stringify({
-        artworkBase64,
+        artworkPath: artworkStoragePath,
         cropRegion: { x: cropRegion.x, y: cropRegion.y, width: cropRegion.w, height: cropRegion.h },
         width: specs.width,
         height: specs.height,
@@ -411,12 +413,16 @@ export default function Proofs() {
       throw new Error(`HTTP ${res.status} — ${errMsg}`);
     }
 
-    // Decode base64 PDF back to Uint8Array
+    // Decode base64 PDF back to Uint8Array (chunked to avoid stack overflow)
     const pdfBinary = atob(data.pdfBase64 as string);
     const pdfBytes = new Uint8Array(pdfBinary.length);
     for (let i = 0; i < pdfBinary.length; i++) {
       pdfBytes[i] = pdfBinary.charCodeAt(i);
     }
+
+    // Clear the storage path since the edge function deleted the temp file
+    setArtworkStoragePath(null);
+
     return pdfBytes;
   };
 

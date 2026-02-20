@@ -9,6 +9,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -16,7 +19,7 @@ serve(async (req) => {
 
   try {
     const {
-      artworkBase64,   // base64 string of the client's PDF file (raw file bytes)
+      artworkPath,     // storage path in 'proofs' bucket e.g. "artwork_1234567890.pdf"
       cropRegion,      // { x, y, width, height } as 0-1 percentages. null = no crop
       width,           // artwork width in inches (string or number)
       height,          // artwork height in inches
@@ -24,16 +27,24 @@ serve(async (req) => {
       numFilms,        // number of films (integer)
     } = await req.json();
 
-    // Decode the artwork PDF (safe chunked method to avoid stack overflow)
-    function base64ToUint8Array(base64: string): Uint8Array {
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      return bytes;
+    if (!artworkPath) {
+      throw new Error("artworkPath is required");
     }
-    const artworkBytes = base64ToUint8Array(artworkBase64);
+
+    // Fetch the artwork file directly from Supabase Storage
+    const storageUrl = `${SUPABASE_URL}/storage/v1/object/proofs/${artworkPath}`;
+    console.log("[generate-proof] Fetching artwork from storage:", storageUrl);
+
+    const fileRes = await fetch(storageUrl, {
+      headers: { "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+
+    if (!fileRes.ok) {
+      throw new Error(`Failed to fetch artwork from storage: HTTP ${fileRes.status} ${await fileRes.text()}`);
+    }
+
+    const artworkBytes = new Uint8Array(await fileRes.arrayBuffer());
+    console.log("[generate-proof] Artwork bytes length:", artworkBytes.length);
 
     // Load the client artwork PDF — throwOnInvalidObject:false tolerates minor PDF quirks
     const clientPdfDoc = await PDFDocument.load(artworkBytes, {
@@ -189,7 +200,25 @@ serve(async (req) => {
 
     // Serialize
     const pdfBytes = await proofDoc.save();
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+
+    // Chunked base64 encoding to avoid stack overflow
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...pdfBytes.subarray(i, i + chunkSize));
+    }
+    const pdfBase64 = btoa(binary);
+
+    // Clean up: delete the temp artwork file from storage
+    try {
+      await fetch(`${SUPABASE_URL}/storage/v1/object/proofs/${artworkPath}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      });
+      console.log("[generate-proof] Deleted temp file:", artworkPath);
+    } catch (cleanupErr) {
+      console.warn("[generate-proof] Failed to delete temp file:", cleanupErr);
+    }
 
     return new Response(
       JSON.stringify({ success: true, pdfBase64 }),
