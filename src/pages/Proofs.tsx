@@ -58,17 +58,19 @@ export default function Proofs() {
     setArtworkImage(null);
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfjs = window.pdfjsLib;
-      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      const buffer = await file.arrayBuffer();
+      const uint8 = new Uint8Array(buffer);
+      const lib = window.pdfjsLib;
+      if (!lib) throw new Error("PDF.js not loaded");
+      const loadingTask = lib.getDocument({ data: uint8 });
+      const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2.0 });
+      const viewport = page.getViewport({ scale: 2 });
 
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      const ctx = canvas.getContext("2d")!;
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
 
       const dataUrl = canvas.toDataURL("image/png");
       setArtworkImage(dataUrl);
@@ -454,18 +456,20 @@ export default function Proofs() {
                         Review &amp; carefully proofread Artwork.
                       </div>
 
-                      {/* Black disclaimer body */}
-                      <div style={{ color: "#000", marginBottom: "4px" }}>
-                        Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener's specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing. Artwork that you send is what you will receive on film. We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.
-                      </div>
+                       {/* Black disclaimer body with red sentence */}
+                       <div style={{ color: "#000", marginBottom: "4px" }}>
+                         Please check that artwork is set to the correct size, fonts (outlined), and PMS color(s) above and will fit (bottle, jar, gallon, ect.) properly and will be suitable to the Silkscreener's specifications. We will not be responsible for any artwork that is not set to size or does not meet the required specifications for printing.{" "}
+                         <span style={{ color: "#DC2626" }}>Artwork that you send is what you will receive on film.</span>{" "}
+                         We will not accept liability for any errors overlooked at this stage of proofing. Any changes from your previously approved copy will be charged extra according to both time and materials. I understand that by signing this proof, I am authorizing to output film from the artwork above and agree to the terms stated up above.
+                       </div>
 
-                      {/* Bold red warnings */}
-                      <div style={{ fontWeight: "bold", color: "#DC2626", marginBottom: "2px" }}>
-                        IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES &amp; PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.
-                      </div>
-                      <div style={{ fontWeight: "bold", color: "#DC2626", marginBottom: "8px" }}>
-                        FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.
-                      </div>
+                       {/* Bold warnings */}
+                       <div style={{ fontWeight: "bold", color: "#DC2626", marginBottom: "2px" }}>
+                         IF CREDIT ACCOUNT HAS NOT BEEN ESTABLISHED WITH BOTTLES &amp; PRINT, PAYMENT IN FULL WILL BE REQUIRED BEFORE FILM AND/OR ARTWORK IS PRODUCED.
+                       </div>
+                       <div style={{ fontWeight: "bold", color: "#000", marginBottom: "8px" }}>
+                         FILM WILL NOT BE PRODUCED WITHOUT A SIGNATURE BY THE CUSTOMER.
+                       </div>
 
                       {/* Horizontal rule */}
                       <div style={{ borderTop: "1px solid #000", marginBottom: "5px" }} />
