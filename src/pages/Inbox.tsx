@@ -213,6 +213,44 @@ export default function Inbox() {
     setShowCcSuggestions(false);
   };
 
+  const scheduleFollowUps = async (email: Email) => {
+    if (email.category !== "SALES") return;
+    // Check if follow-ups already exist for this email
+    const { data: existing } = await supabase
+      .from("follow_ups")
+      .select("id")
+      .eq("email_id", email.id)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    const now = new Date();
+    const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const fourteenDays = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    await supabase.from("follow_ups").insert([
+      {
+        email_id: email.id,
+        client_email: email.from_email,
+        client_name: email.from_name,
+        subject: email.subject,
+        follow_up_number: 1,
+        scheduled_for: sevenDays,
+        sent: false,
+        cancelled: false,
+      },
+      {
+        email_id: email.id,
+        client_email: email.from_email,
+        client_name: email.from_name,
+        subject: email.subject,
+        follow_up_number: 2,
+        scheduled_for: fourteenDays,
+        sent: false,
+        cancelled: false,
+      },
+    ] as any);
+  };
+
   const doSendDraft = async (email: Email) => {
     if (!email.from_email || !email.draft_response) return;
     setSending(email.id);
@@ -225,6 +263,7 @@ export default function Inbox() {
         email_id: email.id,
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
+      await scheduleFollowUps(email);
       toast.success("Email sent");
     } catch {
       toast.error("Failed to send");
@@ -236,18 +275,19 @@ export default function Inbox() {
     setConfirmSend({ action: () => doSendDraft(email) });
   };
 
-  const doSendEdited = async (emailId: string, toEmail: string, subject: string, gmailId?: string) => {
+  const doSendEdited = async (email: Email, toEmail: string, subject: string, gmailId?: string) => {
     const html = stripN8nFooter(editRef.current?.innerHTML || editDraftText);
-    setSending(emailId);
+    setSending(email.id);
     try {
       await sendEmailViaWebhook({
         to_email: toEmail,
         subject: `Re: ${subject || ""}`,
         draft: html,
         gmail_id: gmailId || undefined,
-        email_id: emailId,
+        email_id: email.id,
       });
-      await updateEmail.mutateAsync({ id: emailId, status: "approved_sent" as any, draft_response: html });
+      await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any, draft_response: html });
+      await scheduleFollowUps(email);
       toast.success("Email sent");
       setEditDraftId(null);
     } catch {
@@ -256,8 +296,8 @@ export default function Inbox() {
     setSending(null);
   };
 
-  const handleSendEdited = (emailId: string, toEmail: string, subject: string, gmailId?: string) => {
-    setConfirmSend({ action: () => doSendEdited(emailId, toEmail, subject, gmailId) });
+  const handleSendEdited = (email: Email, toEmail: string, subject: string, gmailId?: string) => {
+    setConfirmSend({ action: () => doSendEdited(email, toEmail, subject, gmailId) });
   };
 
   const pendingDismissals = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -480,7 +520,7 @@ export default function Inbox() {
               dangerouslySetInnerHTML={{ __html: editDraftText }}
             />
             <div className="flex gap-2">
-              <Button size="sm" className="rounded-xl text-xs" onClick={() => handleSendEdited(email.id, email.from_email || "", email.subject || "", email.gmail_id || undefined)} disabled={sending === email.id}>
+              <Button size="sm" className="rounded-xl text-xs" onClick={() => handleSendEdited(email, email.from_email || "", email.subject || "", email.gmail_id || undefined)} disabled={sending === email.id}>
                 <Send size={12} /> Send Edited
               </Button>
               <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>
@@ -755,7 +795,7 @@ export default function Inbox() {
                     </Button>
                     {editDraftId === detailEmail.id ? (
                       <>
-                        <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail.id, detailEmail.from_email || "", detailEmail.subject || "", detailEmail.gmail_id || undefined)} disabled={sending === detailEmail.id}>
+                        <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => handleSendEdited(detailEmail, detailEmail.from_email || "", detailEmail.subject || "", detailEmail.gmail_id || undefined)} disabled={sending === detailEmail.id}>
                           <Send size={12} /> Send Edited
                         </Button>
                         <Button size="sm" variant="ghost" className="rounded-xl text-xs" onClick={() => setEditDraftId(null)}>Cancel</Button>

@@ -134,6 +134,35 @@ export default function Calls() {
         body: call.draft_response,
       } as any);
 
+      // Schedule follow-ups if call has an email address
+      if (call.email) {
+        const now = new Date();
+        const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const fourteenDays = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        await supabase.from("follow_ups").insert([
+          {
+            email_id: null,
+            client_email: call.email,
+            client_name: call.caller_name,
+            subject: "Quote from Bottles & Print",
+            follow_up_number: 1,
+            scheduled_for: sevenDays,
+            sent: false,
+            cancelled: false,
+          },
+          {
+            email_id: null,
+            client_email: call.email,
+            client_name: call.caller_name,
+            subject: "Quote from Bottles & Print",
+            follow_up_number: 2,
+            scheduled_for: fourteenDays,
+            sent: false,
+            cancelled: false,
+          },
+        ] as any);
+      }
+
       await updateCall.mutateAsync({ id: call.id, status: "resolved" as any, resolved_at: new Date().toISOString() });
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success("Quote sent and call resolved");
