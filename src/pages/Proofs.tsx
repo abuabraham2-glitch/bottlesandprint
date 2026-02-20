@@ -73,6 +73,12 @@ export default function Proofs() {
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
 
+      // Read actual page dimensions from PDF metadata (stored in points, divide by 72 for inches)
+      const defaultViewport = page.getViewport({ scale: 1.0 });
+      const widthInches = parseFloat((defaultViewport.width / 72).toFixed(3));
+      const heightInches = parseFloat((defaultViewport.height / 72).toFixed(3));
+      setSpecs((s) => ({ ...s, width: String(widthInches), height: String(heightInches) }));
+
       // Scale 2 for on-screen preview
       const viewport2 = page.getViewport({ scale: 2 });
       const canvas2 = document.createElement("canvas");
@@ -103,18 +109,18 @@ export default function Proofs() {
         });
         if (!res.ok) throw new Error("Bad response");
         const data = await res.json();
-        setSpecs({
-          width: String(data.width ?? ""),
-          height: String(data.height ?? ""),
+        // Only update colors/films from webhook — dimensions already set from PDF metadata
+        setSpecs((s) => ({
+          ...s,
           colors: Array.isArray(data.colors)
             ? data.colors.join(" & ")
-            : String(data.colors ?? ""),
-          numFilms: String(data.numColors ?? data.numFilms ?? "1"),
-          isVector: data.isVector ?? null,
-        });
+            : String(data.colors ?? s.colors),
+          numFilms: String(data.numColors ?? data.numFilms ?? s.numFilms),
+          isVector: data.isVector ?? s.isVector,
+        }));
       } catch {
         toast({
-          title: "Could not auto-read specs. Please fill in manually.",
+          title: "Could not auto-read colors. Please fill in manually.",
           variant: "destructive",
         });
       } finally {
