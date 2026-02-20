@@ -415,7 +415,8 @@ export default function Proofs() {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
-      toast({ title: "Failed to generate PDF", variant: "destructive" });
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: "PDF generation failed", description: msg, variant: "destructive" });
     }
   };
 
@@ -424,7 +425,6 @@ export default function Proofs() {
     setSending(true);
     try {
       const bytes = await generateProofPdf();
-      // Convert Uint8Array → base64
       let binary = "";
       const chunk = 8192;
       for (let i = 0; i < bytes.length; i += chunk) {
@@ -440,11 +440,13 @@ export default function Proofs() {
       toast({ title: `Proof sent to ${clientEmail}!` });
     } catch (e) {
       console.error(e);
-      toast({ title: "Failed to send proof", variant: "destructive" });
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: "Failed to send proof", description: msg, variant: "destructive" });
     } finally {
       setSending(false);
     }
   };
+
 
   // ── Crop UI helpers ──────────────────────────────────────────────────────
   // Render 8 resize handles + drag area as absolute positioned divs
