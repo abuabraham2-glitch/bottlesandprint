@@ -50,8 +50,14 @@ export default function Proofs() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFile = useCallback(async (file: File) => {
-    if (!file || file.type !== "application/pdf") {
-      toast({ title: "Please upload a PDF file.", variant: "destructive" });
+    const isValidFile =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".ai") ||
+      file.type === "application/illustrator" ||
+      file.type === "application/postscript";
+
+    if (!isValidFile) {
+      toast({ title: "Please upload a PDF or AI file.", variant: "destructive" });
       return;
     }
     setFileName(file.name);
@@ -106,7 +112,13 @@ export default function Proofs() {
       }
     } catch (err) {
       console.error("PDF error:", err);
-      toast({ title: "Failed to read PDF. Make sure the file is a valid PDF and try again.", variant: "destructive" });
+      const isAi = file.name.toLowerCase().endsWith(".ai");
+      toast({
+        title: isAi
+          ? "Could not read this AI file. Try saving it as PDF from Illustrator (File → Save As → PDF) and uploading that instead."
+          : "Failed to read PDF. Make sure the file is a valid PDF and try again.",
+        variant: "destructive",
+      });
     }
   }, []);
 
@@ -236,8 +248,8 @@ export default function Proofs() {
               >
                 <Upload size={28} className="text-muted-foreground" />
                 <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Drop PDF here or click to browse</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">PDF files only</p>
+                  <p className="text-sm text-muted-foreground">Drop PDF or AI file here, or click to browse</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">PDF or AI files accepted</p>
                 </div>
               </div>
             )}
@@ -245,7 +257,7 @@ export default function Proofs() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="application/pdf"
+              accept="application/pdf,.ai,application/illustrator,application/postscript"
               className="hidden"
               onChange={handleFileInputChange}
             />
