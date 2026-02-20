@@ -27,11 +27,23 @@ serve(async (req) => {
     // Decode the artwork PDF
     const artworkBytes = Uint8Array.from(atob(artworkBase64), c => c.charCodeAt(0));
 
-    // Load the client artwork PDF
-    const clientPdfDoc = await PDFDocument.load(artworkBytes, { ignoreEncryption: true });
+    // Load the client artwork PDF — throwOnInvalidObject:false tolerates minor PDF quirks
+    const clientPdfDoc = await PDFDocument.load(artworkBytes, {
+      ignoreEncryption: true,
+      throwOnInvalidObject: false,
+    });
     const clientPage = clientPdfDoc.getPages()[0];
     const clientW = clientPage.getWidth();
     const clientH = clientPage.getHeight();
+
+    // Ensure the page has a Contents stream — pdf-lib refuses to embed pages without one
+    // deno-lint-ignore no-explicit-any
+    if (!(clientPage.node as any).Contents()) {
+      const emptyStream = clientPdfDoc.context.stream(new Uint8Array(0));
+      const emptyRef = clientPdfDoc.context.register(emptyStream);
+      // deno-lint-ignore no-explicit-any
+      (clientPage.node as any).set(clientPdfDoc.context.obj("Contents"), emptyRef);
+    }
 
     // Apply crop by setting MediaBox and CropBox on the source page
     const crop = cropRegion || { x: 0, y: 0, width: 1, height: 1 };
