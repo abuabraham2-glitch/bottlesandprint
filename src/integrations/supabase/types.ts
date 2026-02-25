@@ -253,6 +253,33 @@ export type Database = {
         }
         Relationships: []
       }
+      corrections: {
+        Row: {
+          category: string | null
+          created_at: string
+          edited_draft: string | null
+          email_id: string | null
+          id: string
+          original_draft: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          edited_draft?: string | null
+          email_id?: string | null
+          id?: string
+          original_draft?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          edited_draft?: string | null
+          email_id?: string | null
+          id?: string
+          original_draft?: string | null
+        }
+        Relationships: []
+      }
       emails: {
         Row: {
           acknowledged: boolean | null
