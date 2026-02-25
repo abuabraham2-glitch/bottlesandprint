@@ -92,7 +92,7 @@ export default function Clients() {
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
   return (
-    <div className="p-6 space-y-4 max-w-[1400px]">
+    <div className="p-4 md:p-6 space-y-4 max-w-[1400px]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Clients</h1>
         <div className="flex items-center gap-4">
@@ -113,7 +113,7 @@ export default function Clients() {
       <div className="flex flex-wrap gap-1">
         <button
           onClick={() => setActiveTab("active")}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+          className={`px-3 py-2 text-xs font-medium rounded-md transition-colors min-h-[44px] ${
             activeTab === "active"
               ? "bg-primary text-primary-foreground"
               : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -123,7 +123,7 @@ export default function Clients() {
         </button>
         <button
           onClick={() => setActiveTab("archived")}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+          className={`px-3 py-2 text-xs font-medium rounded-md transition-colors min-h-[44px] ${
             activeTab === "archived"
               ? "bg-primary text-primary-foreground"
               : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -150,16 +150,16 @@ export default function Clients() {
                 </div>
                 <div className="flex items-center gap-1">
                   {activeTab === "active" && (
-                    <button onClick={e => handleArchiveClick(client.id, client.company, e)} className="text-muted-foreground hover:text-foreground p-1" title="Archive">
+                    <button onClick={e => handleArchiveClick(client.id, client.company, e)} className="text-muted-foreground hover:text-foreground p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" title="Archive">
                       <Archive size={16} />
                     </button>
                   )}
                   {activeTab === "archived" && (
-                    <button onClick={e => restoreClient(client.id, e)} className="text-muted-foreground hover:text-foreground p-1" title="Restore">
+                    <button onClick={e => restoreClient(client.id, e)} className="text-muted-foreground hover:text-foreground p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" title="Restore">
                       <RotateCcw size={16} />
                     </button>
                   )}
-                  <button onClick={e => handleDeleteClick(client.id, client.company, e)} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
+                  <button onClick={e => handleDeleteClick(client.id, client.company, e)} className="text-muted-foreground hover:text-destructive p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" title="Delete">
                     <Trash2 size={16} />
                   </button>
                 </div>

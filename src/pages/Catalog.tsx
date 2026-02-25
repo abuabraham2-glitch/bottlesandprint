@@ -183,7 +183,7 @@ export default function Catalog() {
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
   return (
-    <div className="p-6 space-y-4 max-w-[1600px]">
+    <div className="p-4 md:p-6 space-y-4 max-w-[1600px]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Product Catalog</h1>
         <Button variant="outline" onClick={exportToExcel}>Export to Excel</Button>
@@ -213,8 +213,8 @@ export default function Catalog() {
         </button>
       </div>
 
-      <div className="bg-card rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-card rounded-lg border overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="text-left p-3 font-medium cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort("client")}>

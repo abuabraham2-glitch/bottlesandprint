@@ -53,7 +53,7 @@ export default function Orders({ searchQuery }: OrdersProps) {
   };
 
   return (
-    <div className="p-6 space-y-4 max-w-[1400px]">
+    <div className="p-4 md:p-6 space-y-4 max-w-[1400px]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Orders</h1>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -72,8 +72,8 @@ export default function Orders({ searchQuery }: OrdersProps) {
       {isLoading ? (
         <div className="text-muted-foreground">Loading...</div>
       ) : (
-        <div className="bg-card rounded-lg border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-card rounded-lg border overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 font-medium">Client PO</th>

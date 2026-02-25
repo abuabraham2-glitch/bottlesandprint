@@ -125,11 +125,11 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   };
 
   return (
-    <div className="p-6 space-y-5 max-w-[1600px]">
+    <div className="p-4 md:p-6 space-y-5 max-w-[1600px]">
       <h1 className="text-2xl font-serif font-normal">Dashboard</h1>
 
       {/* Stage Count Cards */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {stageCounts.map((s) => (
           <div key={s.key} className={`rounded-2xl border p-4 ${stageColorMap[s.key] || "bg-card"}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -143,13 +143,13 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
       </div>
 
       {/* Main content: Pipeline + Calendar side by side */}
-      <div className="grid grid-cols-[1fr_280px] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
         {/* Left: Pipeline + Priority */}
         <div className="space-y-5">
           {/* Kanban Board */}
           <div className="floating-card">
             <h2 className="text-lg font-serif mb-4">Order Pipeline</h2>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 overflow-x-auto">
               {STAGES.map((stage) => {
                 const stageOrders = filtered.filter(o => o.stage === stage.key);
                 return (
@@ -224,8 +224,8 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           {priorityOrders.length > 0 && (
             <div className="floating-card">
               <h2 className="text-lg font-serif mb-4">Priority List — W.I.P. & Completed</h2>
-              <div className="overflow-hidden rounded-xl">
-                <table className="w-full text-sm font-sans">
+              <div className="overflow-x-auto rounded-xl">
+                <table className="w-full text-sm font-sans min-w-[700px]">
                   <thead>
                     <tr className="border-b bg-muted/40">
                       <th className="text-left p-3 font-medium text-muted-foreground">#</th>

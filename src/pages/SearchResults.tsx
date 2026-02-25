@@ -173,7 +173,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
 
   if (!searchQuery.trim()) {
     return (
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-4 md:p-6 max-w-[1400px]">
         <h1 className="text-2xl font-serif mb-4">Search</h1>
         <p className="text-muted-foreground font-sans">Type in the search bar to find orders, clients, emails, calls, products, and more.</p>
       </div>
@@ -188,7 +188,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
   ) : null;
 
   return (
-    <div className="p-6 space-y-6 max-w-[1400px]">
+    <div className="p-4 md:p-6 space-y-6 max-w-[1400px]">
       <div className="flex items-center gap-2">
         <Search size={20} className="text-muted-foreground" />
         <h1 className="text-2xl font-serif">Results for "{searchQuery}"</h1>

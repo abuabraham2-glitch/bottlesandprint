@@ -555,8 +555,8 @@ export default function Inbox() {
   const loading = loadingAction;
 
   return (
-    <div className="p-6 space-y-5 max-w-[1200px]">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h1 className="text-2xl font-serif font-normal">Inbox</h1>
         <div className="flex items-center gap-2">
           {showFollowUps ? (
@@ -568,7 +568,7 @@ export default function Inbox() {
               <button onClick={() => setShowFollowUps(true)} className="text-xs text-muted-foreground hover:text-foreground font-sans underline">
                 View scheduled follow-ups
               </button>
-              <Button size="sm" className="rounded-xl gap-1" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
+              <Button size="sm" className="rounded-xl gap-1 min-h-[44px]" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
                 <Plus size={14} /> Compose
               </Button>
             </>
@@ -582,8 +582,8 @@ export default function Inbox() {
           {followUps.length === 0 ? (
             <p className="text-sm text-muted-foreground">No follow-ups scheduled.</p>
           ) : (
-            <div className="overflow-hidden rounded-xl">
-              <table className="w-full text-sm font-sans">
+            <div className="overflow-x-auto rounded-xl">
+              <table className="w-full text-sm font-sans min-w-[500px]">
                 <thead>
                   <tr className="border-b bg-muted/40">
                     <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
@@ -614,7 +614,7 @@ export default function Inbox() {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
+          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit overflow-x-auto">
             {[
               { key: "action" as Tab, label: "Action Needed", count: actionEmails.length },
               { key: "auto" as Tab, label: "Auto-Handled", count: todayAutoCount },
@@ -623,7 +623,7 @@ export default function Inbox() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-sans font-medium transition-colors ${
+                className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] whitespace-nowrap ${
                   tab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -641,7 +641,7 @@ export default function Inbox() {
                 <button
                   key={cat}
                   onClick={() => setActionCategoryFilter(cat)}
-                  className={`px-3 py-1 rounded-lg text-xs font-sans font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-xs font-sans font-medium transition-colors min-h-[44px] ${
                     actionCategoryFilter === cat ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:text-foreground"
                   }`}
                 >
