@@ -48,7 +48,7 @@ export default function ClientDetail() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px]">
+    <div className="p-4 md:p-6 space-y-6 max-w-[1200px]">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
         <h1 className="text-2xl font-bold">{client.company}</h1>

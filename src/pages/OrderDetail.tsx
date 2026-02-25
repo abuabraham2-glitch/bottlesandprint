@@ -468,7 +468,7 @@ export default function OrderDetail() {
   const showDaysInPreflight = order.stage === "preflight";
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px]">
+    <div className="p-4 md:p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
@@ -574,7 +574,7 @@ export default function OrderDetail() {
       </div>
 
       {/* Two Column Layout */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Checklist */}
         <div className="bg-card rounded-lg border p-5">
           <div className="flex items-center justify-between mb-4">
@@ -693,7 +693,7 @@ export default function OrderDetail() {
       </div>
 
       {/* PO/Invoice + Shipping */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-4">PO & Invoice</h3>
           <div className="space-y-2 text-sm">

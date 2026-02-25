@@ -41,7 +41,7 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="p-6 max-w-md">
+    <div className="p-4 md:p-6 max-w-md">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft size={16} />

@@ -220,7 +220,7 @@ export default function Calls() {
   ];
 
   return (
-    <div className="p-6 space-y-5 max-w-[1200px]">
+    <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
       <h1 className="text-2xl font-serif font-normal">Calls</h1>
 
       {/* Status tabs */}
@@ -232,7 +232,7 @@ export default function Calls() {
           <button
             key={t.key}
             onClick={() => setStatusTab(t.key)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-sans font-medium transition-colors ${
+            className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] ${
               statusTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -250,7 +250,7 @@ export default function Calls() {
           <button
             key={t.key}
             onClick={() => setCategoryFilter(t.key)}
-            className={`px-3 py-1 rounded-full text-xs font-sans font-medium border transition-colors ${
+            className={`px-3 py-2 rounded-full text-xs font-sans font-medium border transition-colors min-h-[44px] ${
               categoryFilter === t.key
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-card text-muted-foreground border-border hover:text-foreground"
@@ -265,7 +265,7 @@ export default function Calls() {
         placeholder="Search calls..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="rounded-xl h-8 text-sm w-64"
+        className="rounded-xl h-10 text-sm w-full sm:w-64"
       />
 
       <p className="text-[11px] text-muted-foreground font-sans">Call logs are automatically deleted after 1 year.</p>
