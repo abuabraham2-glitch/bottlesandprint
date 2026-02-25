@@ -63,6 +63,7 @@ export type Database = {
           category: string | null
           company_name: string | null
           created_at: string | null
+          cross_match_note: string | null
           draft_response: string | null
           email: string | null
           holding_sent_at: string | null
@@ -82,6 +83,7 @@ export type Database = {
           category?: string | null
           company_name?: string | null
           created_at?: string | null
+          cross_match_note?: string | null
           draft_response?: string | null
           email?: string | null
           holding_sent_at?: string | null
@@ -101,6 +103,7 @@ export type Database = {
           category?: string | null
           company_name?: string | null
           created_at?: string | null
+          cross_match_note?: string | null
           draft_response?: string | null
           email?: string | null
           holding_sent_at?: string | null
@@ -261,6 +264,7 @@ export type Database = {
           cc_recipients: string | null
           client_id: string | null
           created_at: string | null
+          cross_match_note: string | null
           draft_response: string | null
           from_email: string | null
           from_name: string | null
@@ -287,6 +291,7 @@ export type Database = {
           cc_recipients?: string | null
           client_id?: string | null
           created_at?: string | null
+          cross_match_note?: string | null
           draft_response?: string | null
           from_email?: string | null
           from_name?: string | null
@@ -313,6 +318,7 @@ export type Database = {
           cc_recipients?: string | null
           client_id?: string | null
           created_at?: string | null
+          cross_match_note?: string | null
           draft_response?: string | null
           from_email?: string | null
           from_name?: string | null
