@@ -270,6 +270,7 @@ export default function Inbox() {
         gmail_id: email.gmail_id || undefined,
         email_id: email.id,
         attachments: [],
+        original_draft: email.draft_response || undefined,
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
       await scheduleFollowUps(email);
@@ -295,6 +296,7 @@ export default function Inbox() {
         gmail_id: gmailId || undefined,
         email_id: email.id,
         attachments: editAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
+        original_draft: email.draft_response || undefined,
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any, draft_response: html });
       await scheduleFollowUps(email);
