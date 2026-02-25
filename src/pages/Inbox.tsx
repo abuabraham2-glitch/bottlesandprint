@@ -259,10 +259,14 @@ export default function Inbox() {
     if (!email.from_email || !email.draft_response) return;
     setSending(email.id);
     try {
+      // Use editor content if editing this email, otherwise fall back to DB value
+      const draftContent = (editDraftId === email.id && editRef.current)
+        ? editRef.current.innerHTML
+        : email.draft_response;
       await sendEmailViaWebhook({
         to_email: email.from_email,
         subject: `Re: ${email.subject || ""}`,
-        draft: stripN8nFooter(email.draft_response),
+        draft: stripN8nFooter(draftContent),
         gmail_id: email.gmail_id || undefined,
         email_id: email.id,
         attachments: [],
