@@ -216,11 +216,16 @@ export async function sendEmailViaWebhook(params: {
   order_id?: string;
   cc?: string;
   attachments?: { filename: string; mimeType: string; data: string }[];
+  original_draft?: string;
 }) {
+  const { original_draft, ...rest } = params;
+  const body: any = { action: "send_email", ...rest, attachments: params.attachments ?? [] };
+  // Only include original_draft for send_email actions (not send_new)
+  if (original_draft) body.original_draft = original_draft;
   const response = await fetch(WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "send_email", ...params, attachments: params.attachments ?? [] }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error("Failed to send email");
   return response.json();
