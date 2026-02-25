@@ -17,7 +17,7 @@ import ChangePassword from "@/pages/ChangePassword";
 import SearchResults from "@/pages/SearchResults";
 import Inbox from "@/pages/Inbox";
 import CallsPage from "@/pages/Calls";
-import Proofs from "@/pages/Proofs";
+
 import Login from "@/pages/Login";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
@@ -59,7 +59,7 @@ function ProtectedApp() {
         <Route path="/clients" element={<Clients />} />
         <Route path="/clients/:id" element={<ClientDetail />} />
         <Route path="/catalog" element={<Catalog />} />
-        <Route path="/proofs" element={<Proofs />} />
+        
         <Route path="/completed" element={<CompletedData />} />
         <Route path="/search" element={<SearchResults searchQuery={searchQuery} />} />
         <Route path="/change-password" element={<ChangePassword />} />
