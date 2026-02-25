@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
+import { FormattingToolbar } from "@/components/FormattingToolbar";
 
 const CATEGORY_COLORS: Record<string, string> = {
   SALES: "bg-emerald-100 text-emerald-700",
@@ -520,6 +521,7 @@ export default function Inbox() {
 
         {editDraftId === email.id && (
           <div className="mt-3 space-y-2 border-t pt-3">
+            <FormattingToolbar />
             <div
               ref={editRef}
               contentEditable
@@ -752,9 +754,12 @@ export default function Inbox() {
                     <div>
                       <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
                       {editDraftId === detailEmail.id ? (
-                        <div ref={editRef} contentEditable suppressContentEditableWarning
-                          className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
-                          dangerouslySetInnerHTML={{ __html: editDraftText }} />
+                        <>
+                          <FormattingToolbar />
+                          <div ref={editRef} contentEditable suppressContentEditableWarning
+                            className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
+                            dangerouslySetInnerHTML={{ __html: editDraftText }} />
+                        </>
                       ) : (
                         <div className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none" dangerouslySetInnerHTML={{ __html: draftPart }} />
                       )}
@@ -915,6 +920,7 @@ export default function Inbox() {
             </div>
             <div>
               <label className="text-xs font-sans text-muted-foreground">Body</label>
+              <FormattingToolbar />
               <div ref={composeBodyRef} contentEditable suppressContentEditableWarning
                 className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] max-h-[40vh] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
                 dangerouslySetInnerHTML={{ __html: composeBody }} />
