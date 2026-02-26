@@ -72,6 +72,7 @@ export type Database = {
           is_urgent: boolean | null
           phone_number: string | null
           quote_details: Json | null
+          related_messages: Json | null
           resolved_at: string | null
           status: string | null
           summary: string | null
@@ -92,6 +93,7 @@ export type Database = {
           is_urgent?: boolean | null
           phone_number?: string | null
           quote_details?: Json | null
+          related_messages?: Json | null
           resolved_at?: string | null
           status?: string | null
           summary?: string | null
@@ -112,6 +114,7 @@ export type Database = {
           is_urgent?: boolean | null
           phone_number?: string | null
           quote_details?: Json | null
+          related_messages?: Json | null
           resolved_at?: string | null
           status?: string | null
           summary?: string | null
@@ -302,6 +305,7 @@ export type Database = {
           incoming_summary: string | null
           po_received_at: string | null
           quote_data: Json | null
+          related_messages: Json | null
           resolved_at: string | null
           status: string | null
           subject: string | null
@@ -331,6 +335,7 @@ export type Database = {
           incoming_summary?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
+          related_messages?: Json | null
           resolved_at?: string | null
           status?: string | null
           subject?: string | null
@@ -360,6 +365,7 @@ export type Database = {
           incoming_summary?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
+          related_messages?: Json | null
           resolved_at?: string | null
           status?: string | null
           subject?: string | null
