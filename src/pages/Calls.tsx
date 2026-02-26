@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
+import { RelatedMessagesBanner } from "@/components/RelatedMessagesBanner";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
@@ -356,6 +357,8 @@ export default function Calls() {
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Related messages banner */}
+                <RelatedMessagesBanner relatedMessages={(selectedCall as any).related_messages} onCloseSheet={() => setSelectedCall(null)} />
                 {/* Cross-match banner */}
                 <CallCrossMatchBanner
                   call={selectedCall}
