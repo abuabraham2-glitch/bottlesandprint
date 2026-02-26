@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
+import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 
 const CATEGORY_COLORS: Record<string, string> = {
   SALES: "bg-emerald-100 text-emerald-700",
@@ -709,6 +710,9 @@ export default function Inbox() {
                 </div>
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Cross-match banner */}
+                <EmailCrossMatchBanner email={detailEmail} onClose={() => setDetailEmail(null)} />
+
                 {/* Client info */}
                 {(() => {
                   const client = clients.find(c => c.email === detailEmail.from_email);
