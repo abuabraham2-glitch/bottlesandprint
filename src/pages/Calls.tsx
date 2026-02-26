@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
+import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
@@ -355,6 +356,15 @@ export default function Calls() {
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Cross-match banner */}
+                <CallCrossMatchBanner
+                  call={selectedCall}
+                  onNavigateToEmail={(emailId) => {
+                    setSelectedCall(null);
+                    navigate("/inbox", { state: { openEmailId: emailId } });
+                  }}
+                />
+
                 {/* Contact info */}
                 <div className="flex items-center gap-4">
                   {selectedCall.phone_number && (
