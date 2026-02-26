@@ -2,92 +2,81 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { format, startOfMonth, subMonths } from "date-fns";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
-interface MonthlyStats {
-  id: string;
-  month_start: string;
-  quotes_sent: number;
-  po_received: number;
-  conversion_pct: number;
-  avg_days_to_close: number;
-  insights: string;
-  created_at: string;
-}
+const SALES_STATUSES = ["approved_sent", "converted"];
+const SALES_CATEGORIES = ["SALES"];
 
-function useCurrentMonthLive() {
+function useStatsData() {
   return useQuery({
-    queryKey: ["stats", "current_month_live"],
+    queryKey: ["stats", "live"],
     queryFn: async () => {
-      const monthStart = startOfMonth(new Date()).toISOString();
-      const { count: quotes } = await supabase
+      const now = new Date();
+      const twelveMonthsAgo = subMonths(now, 12).toISOString();
+
+      // All SALES quotes
+      const { data: allQuotes } = await supabase
         .from("emails")
-        .select("*", { count: "exact", head: true })
+        .select("id, created_at, po_received_at, converted, status")
         .eq("category", "SALES")
-        .in("status", ["approved_sent", "converted"])
-        .gte("created_at", monthStart);
+        .in("status", SALES_STATUSES);
 
-      const { data: convertedEmails } = await supabase
-        .from("emails")
-        .select("created_at, po_received_at")
-        .eq("converted", true)
-        .gte("po_received_at", monthStart);
+      const quotes = allQuotes || [];
 
-      const converted = convertedEmails?.length || 0;
-      const rate = quotes ? Math.round((converted / quotes) * 10000) / 100 : 0;
+      // Trailing 12
+      const t12Quotes = quotes.filter(q => q.created_at && q.created_at >= twelveMonthsAgo);
+      const t12POs = quotes.filter(q => q.converted && q.po_received_at && q.po_received_at >= twelveMonthsAgo);
 
-      let avgDays = 0;
-      if (convertedEmails && convertedEmails.length > 0) {
-        const totalDays = convertedEmails.reduce((sum, e) => {
-          if (e.created_at && e.po_received_at) {
-            return sum + (new Date(e.po_received_at).getTime() - new Date(e.created_at).getTime()) / (1000 * 60 * 60 * 24);
-          }
-          return sum;
-        }, 0);
-        avgDays = Math.round((totalDays / convertedEmails.length) * 10) / 10;
+      // All time
+      const allPOs = quotes.filter(q => q.converted);
+
+      // Avg days to close
+      const withBoth = quotes.filter(q => q.created_at && q.po_received_at);
+      const t12WithBoth = withBoth.filter(q => q.po_received_at! >= twelveMonthsAgo);
+
+      const calcAvg = (arr: typeof withBoth) => {
+        if (!arr.length) return 0;
+        const total = arr.reduce((s, e) => s + (new Date(e.po_received_at!).getTime() - new Date(e.created_at!).getTime()) / 86400000, 0);
+        return Math.round((total / arr.length) * 10) / 10;
+      };
+
+      // Monthly data for chart + table (last 12 months)
+      const months: { label: string; monthStart: Date; monthEnd: Date }[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const ms = startOfMonth(subMonths(now, i));
+        months.push({ label: format(ms, "MMM"), monthStart: ms, monthEnd: endOfMonth(ms) });
       }
 
-      return { quotes: quotes || 0, converted, rate, avgDays };
+      const monthlyData = months.map(m => {
+        const msISO = m.monthStart.toISOString();
+        const meISO = m.monthEnd.toISOString();
+        const sent = quotes.filter(q => q.created_at && q.created_at >= msISO && q.created_at <= meISO).length;
+        const received = quotes.filter(q => q.converted && q.po_received_at && q.po_received_at >= msISO && q.po_received_at <= meISO).length;
+        return { month: m.label, quotesSent: sent, posReceived: received };
+      });
+
+      return {
+        t12: { quotes: t12Quotes.length, pos: t12POs.length },
+        allTime: { quotes: quotes.length, pos: allPOs.length },
+        avgDays: { t12: calcAvg(t12WithBoth), allTime: calcAvg(withBoth) },
+        monthlyData,
+      };
     },
   });
 }
 
-function useMonthlyStats() {
+function useInsights() {
   return useQuery({
-    queryKey: ["stats", "monthly_stats"],
+    queryKey: ["stats", "insights"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("monthly_stats")
-        .select("*")
+        .select("insights")
         .order("month_start", { ascending: false })
-        .limit(12);
-      if (error) throw error;
-      return (data || []) as unknown as MonthlyStats[];
-    },
-  });
-}
-
-function useAllTimeStats() {
-  return useQuery({
-    queryKey: ["stats", "all_time"],
-    queryFn: async () => {
-      const { data: convertedEmails } = await supabase
-        .from("emails")
-        .select("created_at, po_received_at")
-        .eq("converted", true);
-
-      let avgDays = 0;
-      if (convertedEmails && convertedEmails.length > 0) {
-        const totalDays = convertedEmails.reduce((sum, e) => {
-          if (e.created_at && e.po_received_at) {
-            return sum + (new Date(e.po_received_at).getTime() - new Date(e.created_at).getTime()) / (1000 * 60 * 60 * 24);
-          }
-          return sum;
-        }, 0);
-        avgDays = Math.round((totalDays / convertedEmails.length) * 10) / 10;
-      }
-
-      return { avgDays };
+        .limit(1);
+      return data?.[0]?.insights?.trim() || null;
     },
   });
 }
@@ -98,60 +87,36 @@ function rateColor(rate: number) {
   return "text-red-600";
 }
 
+function pct(n: number, d: number) {
+  return d ? Math.round((n / d) * 10000) / 100 : 0;
+}
+
+const chartConfig = {
+  quotesSent: { label: "Quotes Sent", color: "#3B82F6" },
+  posReceived: { label: "POs Received", color: "#22C55E" },
+};
+
 export default function Stats() {
-  const { data: currentMonth } = useCurrentMonthLive();
-  const { data: monthlyStats = [] } = useMonthlyStats();
-  const { data: allTime } = useAllTimeStats();
+  const { data } = useStatsData();
+  const { data: insights } = useInsights();
 
-  // Trailing 12 from monthly_stats
-  const trailing12 = monthlyStats.reduce(
-    (acc, m) => ({
-      quotes: acc.quotes + (m.quotes_sent || 0),
-      converted: acc.converted + (m.po_received || 0),
-    }),
-    { quotes: 0, converted: 0 }
-  );
-  // Add current month live data to trailing 12 and all time
-  const t12Quotes = trailing12.quotes + (currentMonth?.quotes || 0);
-  const t12Converted = trailing12.converted + (currentMonth?.converted || 0);
-  const t12Rate = t12Quotes ? Math.round((t12Converted / t12Quotes) * 10000) / 100 : 0;
-
-  const allQuotes = t12Quotes; // monthly_stats already covers history + current month
-  const allConverted = t12Converted;
-  const allRate = allQuotes ? Math.round((allConverted / allQuotes) * 10000) / 100 : 0;
-
-  // Trailing 12 avg days
-  const t12AvgDays = monthlyStats.length > 0
-    ? Math.round(monthlyStats.reduce((s, m) => s + (m.avg_days_to_close || 0), 0) / monthlyStats.length * 10) / 10
-    : 0;
-
-  const latestInsights = monthlyStats.find(m => m.insights && m.insights.trim())?.insights;
+  const t12Rate = data ? pct(data.t12.pos, data.t12.quotes) : 0;
+  const allRate = data ? pct(data.allTime.pos, data.allTime.quotes) : 0;
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl">
       <h1 className="text-xl font-serif font-semibold">📊 Sales Stats</h1>
 
-      {/* Key Metrics */}
+      {/* Top Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-sans text-muted-foreground">This Month</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <p className="text-sm font-sans">Quotes: <strong>{currentMonth?.quotes || 0}</strong> &nbsp;|&nbsp; Converted: <strong>{currentMonth?.converted || 0}</strong></p>
-            <p className={`text-lg font-bold ${rateColor(currentMonth?.rate || 0)}`}>{currentMonth?.rate || 0}%</p>
-            <p className="text-xs text-muted-foreground">Avg days to close: {currentMonth?.avgDays || "—"}</p>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-sans text-muted-foreground">Trailing 12 Months</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <p className="text-sm font-sans">Quotes: <strong>{t12Quotes}</strong> &nbsp;|&nbsp; Converted: <strong>{t12Converted}</strong></p>
+            <p className="text-sm font-sans">Quotes Sent: <strong>{data?.t12.quotes ?? 0}</strong></p>
+            <p className="text-sm font-sans">POs Received: <strong>{data?.t12.pos ?? 0}</strong></p>
             <p className={`text-lg font-bold ${rateColor(t12Rate)}`}>{t12Rate}%</p>
-            <p className="text-xs text-muted-foreground">Avg days to close: {t12AvgDays || "—"}</p>
           </CardContent>
         </Card>
 
@@ -160,12 +125,43 @@ export default function Stats() {
             <CardTitle className="text-sm font-sans text-muted-foreground">All Time</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <p className="text-sm font-sans">Quotes: <strong>{allQuotes}</strong> &nbsp;|&nbsp; Converted: <strong>{allConverted}</strong></p>
+            <p className="text-sm font-sans">Quotes Sent: <strong>{data?.allTime.quotes ?? 0}</strong></p>
+            <p className="text-sm font-sans">POs Received: <strong>{data?.allTime.pos ?? 0}</strong></p>
             <p className={`text-lg font-bold ${rateColor(allRate)}`}>{allRate}%</p>
-            <p className="text-xs text-muted-foreground">Avg days to close: {allTime?.avgDays || "—"}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-sans text-muted-foreground">Avg Days to Close</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <p className="text-sm font-sans">Trailing 12: <strong>{data?.avgDays.t12 || "—"}</strong> days</p>
+            <p className="text-sm font-sans">All Time: <strong>{data?.avgDays.allTime || "—"}</strong> days</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Monthly Trend Chart */}
+      {data?.monthlyData && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-sans">Monthly Trend (Last 12 Months)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <LineChart data={data.monthlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line type="monotone" dataKey="quotesSent" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="posReceived" stroke="#22C55E" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* AI Insights */}
       <Card>
@@ -174,13 +170,13 @@ export default function Stats() {
         </CardHeader>
         <CardContent>
           <p className="text-sm font-sans text-muted-foreground whitespace-pre-wrap">
-            {latestInsights || "Insights will appear after the first monthly stats run."}
+            {insights || "Insights will appear after the first monthly stats run."}
           </p>
         </CardContent>
       </Card>
 
       {/* Monthly History Table */}
-      {monthlyStats.length > 0 && (
+      {data?.monthlyData && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-sans">Monthly History</CardTitle>
@@ -192,18 +188,14 @@ export default function Stats() {
                   <TableHead className="font-sans text-xs">Month</TableHead>
                   <TableHead className="font-sans text-xs">Quotes Sent</TableHead>
                   <TableHead className="font-sans text-xs">POs Received</TableHead>
-                  <TableHead className="font-sans text-xs">Conversion %</TableHead>
-                  <TableHead className="font-sans text-xs">Avg Days</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {monthlyStats.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-sans text-sm">{format(new Date(m.month_start), "MMM yyyy")}</TableCell>
-                    <TableCell className="font-sans text-sm">{m.quotes_sent}</TableCell>
-                    <TableCell className="font-sans text-sm">{m.po_received}</TableCell>
-                    <TableCell className={`font-sans text-sm font-medium ${rateColor(m.conversion_pct)}`}>{m.conversion_pct}%</TableCell>
-                    <TableCell className="font-sans text-sm">{m.avg_days_to_close || "—"}</TableCell>
+                {[...data.monthlyData].reverse().map((m) => (
+                  <TableRow key={m.month}>
+                    <TableCell className="font-sans text-sm">{m.month}</TableCell>
+                    <TableCell className="font-sans text-sm">{m.quotesSent}</TableCell>
+                    <TableCell className="font-sans text-sm">{m.posReceived}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
