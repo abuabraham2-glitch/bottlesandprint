@@ -713,6 +713,35 @@ export default function Inbox() {
                 {/* Cross-match banner */}
                 <EmailCrossMatchBanner email={detailEmail} onClose={() => setDetailEmail(null)} />
 
+                {/* PO Received button / Converted badge */}
+                {detailEmail.category === "SALES" && detailEmail.status === "approved_sent" && !(detailEmail as any).converted && !(detailEmail as any).po_received_at && (
+                  <div>
+                    <Button
+                      size="sm"
+                      className="rounded-xl gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
+                      onClick={async () => {
+                        if (!confirm("Mark this quote as converted? This means the client sent a PO.")) return;
+                        try {
+                          await supabase.from("emails").update({
+                            po_received_at: new Date().toISOString(),
+                            converted: true,
+                            status: "converted",
+                          } as any).eq("id", detailEmail.id);
+                          setDetailEmail({ ...detailEmail, status: "converted", po_received_at: new Date().toISOString(), converted: true } as any);
+                          toast.success("Marked as converted");
+                        } catch { toast.error("Failed to update"); }
+                      }}
+                    >
+                      ✅ PO Received
+                    </Button>
+                  </div>
+                )}
+                {(detailEmail as any).converted && (detailEmail as any).po_received_at && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-medium font-sans">
+                    ✅ Converted on {format(new Date((detailEmail as any).po_received_at), "MMM d, yyyy")}
+                  </div>
+                )}
+
                 {/* Client info */}
                 {(() => {
                   const client = clients.find(c => c.email === detailEmail.from_email);

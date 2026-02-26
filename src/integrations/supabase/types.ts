@@ -290,6 +290,7 @@ export type Database = {
           cc_emails: string | null
           cc_recipients: string | null
           client_id: string | null
+          converted: boolean | null
           created_at: string | null
           cross_match_note: string | null
           draft_response: string | null
@@ -299,6 +300,7 @@ export type Database = {
           holding_sent_at: string | null
           id: string
           incoming_summary: string | null
+          po_received_at: string | null
           quote_data: Json | null
           resolved_at: string | null
           status: string | null
@@ -317,6 +319,7 @@ export type Database = {
           cc_emails?: string | null
           cc_recipients?: string | null
           client_id?: string | null
+          converted?: boolean | null
           created_at?: string | null
           cross_match_note?: string | null
           draft_response?: string | null
@@ -326,6 +329,7 @@ export type Database = {
           holding_sent_at?: string | null
           id?: string
           incoming_summary?: string | null
+          po_received_at?: string | null
           quote_data?: Json | null
           resolved_at?: string | null
           status?: string | null
@@ -344,6 +348,7 @@ export type Database = {
           cc_emails?: string | null
           cc_recipients?: string | null
           client_id?: string | null
+          converted?: boolean | null
           created_at?: string | null
           cross_match_note?: string | null
           draft_response?: string | null
@@ -353,6 +358,7 @@ export type Database = {
           holding_sent_at?: string | null
           id?: string
           incoming_summary?: string | null
+          po_received_at?: string | null
           quote_data?: Json | null
           resolved_at?: string | null
           status?: string | null
@@ -421,6 +427,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      monthly_stats: {
+        Row: {
+          avg_days_to_close: number | null
+          conversion_pct: number | null
+          created_at: string | null
+          id: string
+          insights: string | null
+          month_start: string
+          po_received: number | null
+          quotes_sent: number | null
+        }
+        Insert: {
+          avg_days_to_close?: number | null
+          conversion_pct?: number | null
+          created_at?: string | null
+          id?: string
+          insights?: string | null
+          month_start: string
+          po_received?: number | null
+          quotes_sent?: number | null
+        }
+        Update: {
+          avg_days_to_close?: number | null
+          conversion_pct?: number | null
+          created_at?: string | null
+          id?: string
+          insights?: string | null
+          month_start?: string
+          po_received?: number | null
+          quotes_sent?: number | null
+        }
+        Relationships: []
       }
       order_documents: {
         Row: {
