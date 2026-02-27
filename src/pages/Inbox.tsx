@@ -473,6 +473,21 @@ export default function Inbox() {
                   {email.category}
                 </span>
               )}
+              {(() => {
+                const mta = (email as any).multi_topic_alert;
+                if (!mta) return null;
+                try {
+                  const parsed = JSON.parse(mta);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    return (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                        {parsed.length + 1} topics
+                      </span>
+                    );
+                  }
+                } catch {}
+                return null;
+              })()}
               {email.tier === "TIER_3" && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-sans font-medium">
                   Holding Sent
@@ -506,7 +521,6 @@ export default function Inbox() {
             dangerouslySetInnerHTML={{ __html: stripN8nFooter(email.draft_response) }}
           />
         )}
-
 
         {showActions && (
           <div className="flex items-center gap-2 mt-3 flex-wrap">
