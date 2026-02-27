@@ -1,0 +1,1 @@
+ALTER TABLE public.emails ADD COLUMN multi_topic_alert text;
