@@ -305,8 +305,11 @@ export type Database = {
           incoming_summary: string | null
           po_received_at: string | null
           quote_data: Json | null
-          related_messages: Json | null
           resolved_at: string | null
+          same_company_alert: string | null
+          same_company_link_id: string | null
+          skip_alert: string | null
+          skip_link_id: string | null
           status: string | null
           subject: string | null
           thread_id: string | null
@@ -335,8 +338,11 @@ export type Database = {
           incoming_summary?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
-          related_messages?: Json | null
           resolved_at?: string | null
+          same_company_alert?: string | null
+          same_company_link_id?: string | null
+          skip_alert?: string | null
+          skip_link_id?: string | null
           status?: string | null
           subject?: string | null
           thread_id?: string | null
@@ -365,8 +371,11 @@ export type Database = {
           incoming_summary?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
-          related_messages?: Json | null
           resolved_at?: string | null
+          same_company_alert?: string | null
+          same_company_link_id?: string | null
+          skip_alert?: string | null
+          skip_link_id?: string | null
           status?: string | null
           subject?: string | null
           thread_id?: string | null
