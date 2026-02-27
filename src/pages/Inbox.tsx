@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useActionNeededEmails, useAutoHandledEmails, useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, useFollowUps, Email } from "@/lib/emailData";
 import { useClients } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,6 +121,7 @@ export default function Inbox() {
   const updateEmail = useUpdateEmail();
   const createFeedback = useCreateTriageFeedback();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const todayAutoCount = autoEmails.filter(e => {
     if (!e.auto_sent_at) return false;
@@ -741,12 +743,79 @@ export default function Inbox() {
                 )}
 
                 {/* Multi-topic alert banner */}
-                {(detailEmail as any).multi_topic_alert && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}>
-                    <AlertTriangle size={16} className="shrink-0" style={{ color: '#D97706' }} />
-                    <span className="flex-1" style={{ color: '#92400E' }}>{(detailEmail as any).multi_topic_alert}</span>
-                  </div>
-                )}
+                {(detailEmail as any).multi_topic_alert && (() => {
+                  let topics: { id: string; summary: string; date: string; subject: string }[] | null = null;
+                  try {
+                    const parsed = JSON.parse((detailEmail as any).multi_topic_alert);
+                    if (Array.isArray(parsed)) topics = parsed;
+                  } catch {}
+
+                  if (!topics) {
+                    // Backwards compat: plain text
+                    return (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                        <AlertTriangle size={16} className="shrink-0" style={{ color: '#D97706' }} />
+                        <span className="flex-1" style={{ color: '#92400E' }}>{(detailEmail as any).multi_topic_alert}</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertTriangle size={16} className="shrink-0" style={{ color: '#D97706' }} />
+                        <span className="font-medium" style={{ color: '#92400E' }}>{topics.length} other pending topic{topics.length !== 1 ? 's' : ''} from this sender:</span>
+                      </div>
+                      <ul className="ml-6 space-y-1">
+                        {topics.map((t) => (
+                          <li key={t.id} className="flex items-start justify-between gap-2">
+                            <span style={{ color: '#92400E' }}>• {t.summary} <span className="opacity-70">({t.date})</span></span>
+                            <button
+                              className="inline-flex items-center gap-0.5 text-xs font-medium whitespace-nowrap shrink-0"
+                              style={{ color: '#D97706' }}
+                              onClick={() => {
+                                setDetailEmail(null);
+                                setTimeout(() => {
+                                  const target = [...(actionEmails || []), ...(autoEmails || []), ...(allEmails || [])].find(e => e.id === t.id);
+                                  if (target) setDetailEmail(target);
+                                  else {
+                                    supabase.from("emails").select("*").eq("id", t.id).single().then(({ data }) => {
+                                      if (data) setDetailEmail(data as any);
+                                    });
+                                  }
+                                }, 100);
+                              }}
+                            >
+                              View <ArrowRight size={10} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="flex justify-end mt-2">
+                        <button
+                          className="text-xs font-medium px-3 py-1 rounded-md disabled:opacity-50"
+                          style={{ backgroundColor: '#92400E', color: '#FFF7ED' }}
+                          onClick={async (e) => {
+                            const btn = e.currentTarget;
+                            btn.textContent = 'Resolving...';
+                            btn.disabled = true;
+                            const now = new Date().toISOString();
+                            const ids = topics!.map(t => t.id);
+                            for (const id of ids) {
+                              await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", id);
+                            }
+                            toast.success(`${ids.length} email${ids.length !== 1 ? 's' : ''} resolved`);
+                            queryClient.invalidateQueries({ queryKey: ["emails"] });
+                            btn.textContent = 'Resolve All';
+                            btn.disabled = false;
+                          }}
+                        >
+                          Resolve All
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Same company alert banner */}
                 {(detailEmail as any).same_company_alert && (
