@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
-import { AlertCircle, UsersRound, ArrowRight } from "lucide-react";
+import { AlertCircle, AlertTriangle, UsersRound, ArrowRight } from "lucide-react";
 
 const CATEGORY_COLORS: Record<string, string> = {
   SALES: "bg-emerald-100 text-emerald-700",
@@ -737,6 +737,14 @@ export default function Inbox() {
                         Go to Latest <ArrowRight size={12} />
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* Multi-topic alert banner */}
+                {(detailEmail as any).multi_topic_alert && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                    <AlertTriangle size={16} className="shrink-0" style={{ color: '#D97706' }} />
+                    <span className="flex-1" style={{ color: '#92400E' }}>{(detailEmail as any).multi_topic_alert}</span>
                   </div>
                 )}
 
