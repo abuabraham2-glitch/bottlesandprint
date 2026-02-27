@@ -259,6 +259,24 @@ export default function Inbox() {
     ] as any);
   };
 
+  const resolveMultiTopicRelated = async (email: Email): Promise<number> => {
+    const mta = (email as any).multi_topic_alert;
+    if (!mta) return 0;
+    try {
+      const parsed = JSON.parse(mta);
+      if (!Array.isArray(parsed) || parsed.length === 0) return 0;
+      const ids = parsed.map((t: any) => t.id).filter(Boolean);
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      return ids.length;
+    } catch {
+      return 0;
+    }
+  };
+
   const doSendDraft = async (email: Email) => {
     if (!email.from_email || !email.draft_response) return;
     setSending(email.id);
@@ -278,7 +296,8 @@ export default function Inbox() {
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
       await scheduleFollowUps(email);
-      toast.success("Email sent");
+      const resolvedCount = await resolveMultiTopicRelated(email);
+      toast.success(resolvedCount > 0 ? `Email sent + ${resolvedCount} related emails resolved` : "Email sent");
     } catch {
       toast.error("Failed to send");
     }
@@ -304,7 +323,8 @@ export default function Inbox() {
       });
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any, draft_response: html });
       await scheduleFollowUps(email);
-      toast.success("Email sent");
+      const resolvedCount = await resolveMultiTopicRelated(email);
+      toast.success(resolvedCount > 0 ? `Email sent + ${resolvedCount} related emails resolved` : "Email sent");
       setEditDraftId(null);
       setEditAttachments([]);
     } catch {
