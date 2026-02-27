@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
-import { RelatedMessagesBanner } from "@/components/RelatedMessagesBanner";
+import { AlertCircle, UsersRound, ArrowRight } from "lucide-react";
 
 const CATEGORY_COLORS: Record<string, string> = {
   SALES: "bg-emerald-100 text-emerald-700",
@@ -711,8 +711,64 @@ export default function Inbox() {
                 </div>
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                {/* Related messages banner */}
-                <RelatedMessagesBanner relatedMessages={(detailEmail as any).related_messages} onCloseSheet={() => setDetailEmail(null)} />
+                {/* Skip alert banner */}
+                {(detailEmail as any).skip_alert && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FEE2E2', border: '1px solid #FECACA' }}>
+                    <AlertCircle size={16} className="shrink-0" style={{ color: '#DC2626' }} />
+                    <span className="flex-1" style={{ color: '#991B1B' }}>{(detailEmail as any).skip_alert}</span>
+                    {(detailEmail as any).skip_link_id && (
+                      <button
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap"
+                        style={{ backgroundColor: '#DC2626', color: '#fff' }}
+                        onClick={() => {
+                          const linkId = (detailEmail as any).skip_link_id;
+                          setDetailEmail(null);
+                          setTimeout(() => {
+                            const target = [...(actionEmails || []), ...(autoEmails || []), ...(allEmails || [])].find(e => e.id === linkId);
+                            if (target) setDetailEmail(target);
+                            else {
+                              supabase.from("emails").select("*").eq("id", linkId).single().then(({ data }) => {
+                                if (data) setDetailEmail(data as any);
+                              });
+                            }
+                          }, 100);
+                        }}
+                      >
+                        Go to Latest <ArrowRight size={12} />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Same company alert banner */}
+                {(detailEmail as any).same_company_alert && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#DBEAFE', border: '1px solid #BFDBFE' }}>
+                    <UsersRound size={16} className="shrink-0" style={{ color: '#2563EB' }} />
+                    <span className="flex-1" style={{ color: '#1E3A5F' }}>{(detailEmail as any).same_company_alert}</span>
+                    {(detailEmail as any).same_company_link_id && (
+                      <button
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap"
+                        style={{ backgroundColor: '#2563EB', color: '#fff' }}
+                        onClick={() => {
+                          const linkId = (detailEmail as any).same_company_link_id;
+                          setDetailEmail(null);
+                          setTimeout(() => {
+                            const target = [...(actionEmails || []), ...(autoEmails || []), ...(allEmails || [])].find(e => e.id === linkId);
+                            if (target) setDetailEmail(target);
+                            else {
+                              supabase.from("emails").select("*").eq("id", linkId).single().then(({ data }) => {
+                                if (data) setDetailEmail(data as any);
+                              });
+                            }
+                          }, 100);
+                        }}
+                      >
+                        View <ArrowRight size={12} />
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Cross-match banner */}
                 <EmailCrossMatchBanner email={detailEmail} onClose={() => setDetailEmail(null)} />
 
