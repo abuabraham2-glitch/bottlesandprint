@@ -303,6 +303,7 @@ export type Database = {
           holding_sent_at: string | null
           id: string
           incoming_summary: string | null
+          multi_topic_alert: string | null
           po_received_at: string | null
           quote_data: Json | null
           resolved_at: string | null
@@ -336,6 +337,7 @@ export type Database = {
           holding_sent_at?: string | null
           id?: string
           incoming_summary?: string | null
+          multi_topic_alert?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
           resolved_at?: string | null
@@ -369,6 +371,7 @@ export type Database = {
           holding_sent_at?: string | null
           id?: string
           incoming_summary?: string | null
+          multi_topic_alert?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
           resolved_at?: string | null
