@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Mail, Clock, Plus, Paperclip, BookUser, Trash2, FileText } from "lucide-react";
+import { Send, Mail, Clock, Plus, Paperclip, BookUser, Trash2, FileText, CheckSquare, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -50,6 +51,7 @@ export default function Inbox() {
   const [contacts, setContacts] = useState<{id: string; email: string; name: string | null}[]>([]);
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactName, setNewContactName] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
@@ -75,6 +77,9 @@ export default function Inbox() {
     allEmails.filter(e => e.draft_response && (e.status === "needs_response" || e.status === "pending")),
     [allEmails]
   );
+
+  // Clear selection when switching tabs
+  useEffect(() => { setSelectedIds(new Set()); }, [mainTab]);
 
   // Contacts
   const loadContacts = useCallback(async () => {
@@ -136,38 +141,27 @@ export default function Inbox() {
     setComposeEmailRef(email);
   };
 
-  const pendingDismissals = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-
-  const handleDismiss = (id: string) => {
-    updateEmail.mutate({ id, status: "pending_dismiss" as any });
-    const timeoutId = setTimeout(async () => {
-      pendingDismissals.current.delete(id);
-      try { await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() }); } catch {}
-    }, 8000);
-    pendingDismissals.current.set(id, timeoutId);
-    toast("Email dismissed", {
-      duration: 8000,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          const tid = pendingDismissals.current.get(id);
-          if (tid) { clearTimeout(tid); pendingDismissals.current.delete(id); }
-          updateEmail.mutate({ id, status: "needs_response" as any });
-          toast.success("Email restored");
-        },
-      },
-    });
+  // Cascade resolve: resolve the email + all pending emails from same sender
+  const cascadeResolve = async (emailRecord: Email) => {
+    const now = new Date().toISOString();
+    // Update the target email
+    await supabase.from("emails").update({ status: "resolved", resolved_at: now } as any).eq("id", emailRecord.id);
+    // Cascade: resolve all pending/needs_response from same sender + clear drafts
+    if (emailRecord.from_email) {
+      await supabase.from("emails")
+        .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
+        .eq("from_email", emailRecord.from_email)
+        .in("status", ["pending", "needs_response"]);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
   };
 
-  useEffect(() => {
-    return () => {
-      pendingDismissals.current.forEach(async (tid, id) => {
-        clearTimeout(tid);
-        try { await updateEmail.mutateAsync({ id, status: "resolved" as any, resolved_at: new Date().toISOString() }); } catch {}
-      });
-      pendingDismissals.current.clear();
-    };
-  }, []);
+  const handleDismiss = async (id: string) => {
+    const emailRecord = allEmails.find(e => e.id === id);
+    if (!emailRecord) return;
+    await cascadeResolve(emailRecord);
+    toast.success("Email dismissed");
+  };
 
   const handleComposeSend = async () => {
     if (!composeTo.trim() || !composeSubject.trim()) { toast.error("Please fill in To and Subject"); return; }
@@ -203,6 +197,22 @@ export default function Inbox() {
     }, 100);
   };
 
+  const resolveMultiTopicRelated = async (email: Email): Promise<number> => {
+    const mta = (email as any).multi_topic_alert;
+    if (!mta) return 0;
+    try {
+      const parsed = JSON.parse(mta);
+      if (!Array.isArray(parsed) || parsed.length === 0) return 0;
+      const ids = parsed.map((t: any) => t.id).filter(Boolean);
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      return ids.length;
+    } catch { return 0; }
+  };
+
   const handleSendDraftFromThread = (email: Email) => {
     setConfirmSend({
       action: async () => {
@@ -215,7 +225,9 @@ export default function Inbox() {
             email_id: email.id, attachments: [], original_draft: email.draft_response || undefined,
           });
           await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
-          toast.success("Email sent"); setThreadEmail(null);
+          const resolvedCount = await resolveMultiTopicRelated(email);
+          toast.success(resolvedCount > 0 ? `Email sent + ${resolvedCount} related emails resolved` : "Email sent");
+          setThreadEmail(null);
         } catch { toast.error("Failed to send"); }
         setSending(null);
       }
@@ -225,6 +237,47 @@ export default function Inbox() {
   const handleEditSendFromThread = (email: Email) => {
     setThreadEmail(null);
     setTimeout(() => setDraftEmail(email), 150);
+  };
+
+  // Bulk actions
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const bulkResolve = async () => {
+    const now = new Date().toISOString();
+    for (const id of selectedIds) {
+      await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`${selectedIds.size} emails resolved`);
+    setSelectedIds(new Set());
+  };
+
+  const bulkDelete = async () => {
+    if (!confirm(`Delete ${selectedIds.size} emails permanently?`)) return;
+    for (const id of selectedIds) {
+      await supabase.from("emails").delete().eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`${selectedIds.size} emails deleted`);
+    setSelectedIds(new Set());
+  };
+
+  const bulkSetCategory = async (category: string) => {
+    const now = new Date().toISOString();
+    const updates: any = { category };
+    if (category === "SPAM") { updates.status = "resolved"; updates.resolved_at = now; }
+    for (const id of selectedIds) {
+      await supabase.from("emails").update(updates).eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`${selectedIds.size} emails marked as ${category}`);
+    setSelectedIds(new Set());
   };
 
   const displayedEmails = mainTab === "inbox" ? inboxEmails : draftEmails;
@@ -338,11 +391,15 @@ export default function Inbox() {
               {displayedEmails.map(email => {
                 const atts = parseAttachments(email.attachments);
                 const topicCount = parseMultiTopicCount((email as any).multi_topic_alert);
+                const isSelected = selectedIds.has(email.id);
                 return (
                   <div key={email.id}
-                    className="floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors"
+                    className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
                     onClick={() => setThreadEmail(email)}>
                     <div className="flex items-start gap-3">
+                      <div className="pt-0.5" onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
+                        <Checkbox checked={isSelected} className="h-4 w-4" />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           <span className="font-medium text-sm font-sans truncate">{email.from_name || email.from_email}</span>
@@ -386,11 +443,15 @@ export default function Inbox() {
             <div className="space-y-1">
               {displayedEmails.map(email => {
                 const age = formatAge(email.created_at);
+                const isSelected = selectedIds.has(email.id);
                 return (
                   <div key={email.id}
-                    className="floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors"
+                    className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
                     onClick={() => setDraftEmail(email)}>
                     <div className="flex items-start gap-3">
+                      <div className="pt-0.5" onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
+                        <Checkbox checked={isSelected} className="h-4 w-4" />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           <span className="font-medium text-sm font-sans truncate">{email.from_name || email.from_email}</span>
@@ -415,6 +476,31 @@ export default function Inbox() {
               })}
             </div>
           )}
+
+          {/* Bulk action bar */}
+          {selectedIds.size > 0 && (
+            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-sans font-medium">{selectedIds.size} selected</span>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkResolve}>
+                <CheckSquare size={12} /> Resolve
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={bulkDelete}>
+                <Trash2 size={12} /> Delete
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SALES")}>
+                Mark Sales
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SUPPORT")}>
+                Mark Support
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SPAM")}>
+                Mark Spam
+              </Button>
+              <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>
+                Clear
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -424,7 +510,7 @@ export default function Inbox() {
         onClose={() => setThreadEmail(null)}
         onOpenDraft={(e) => { setMainTab("drafts"); setDraftEmail(e); }}
         onReply={openReply}
-        onDismiss={handleDismiss}
+        onDismiss={(id) => handleDismiss(id)}
         onFeedback={(id) => setFeedbackEmailId(id)}
         onNavigateToEmail={navigateToEmailById}
         sending={sending}

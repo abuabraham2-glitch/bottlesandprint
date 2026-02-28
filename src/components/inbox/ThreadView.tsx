@@ -1,21 +1,18 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Email, useUpdateEmail, sendEmailViaWebhook } from "@/lib/emailData";
+import React, { useState, useEffect } from "react";
+import { Email, useUpdateEmail } from "@/lib/emailData";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Send, Edit, Mail, Users, X, ThumbsDown, Paperclip, ChevronDown } from "lucide-react";
+import { Send, Edit, Mail, Users, X, ThumbsDown, Paperclip, ChevronDown, Download } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
-import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
-import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { AlertBanners } from "./AlertBanners";
 import {
   CATEGORY_COLORS, STATUS_COLORS, splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml,
-  formatTimeFull, parseAttachments, getReplyAllCc, SIGNATURE,
+  formatTimeFull, parseAttachments, getAttachmentUrl, SIGNATURE,
 } from "./InboxHelpers";
 import { useClients } from "@/lib/data";
 
@@ -36,6 +33,8 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
   const { data: clients = [] } = useClients();
   const [conversationEmails, setConversationEmails] = useState<Email[]>([]);
   const [expandedConvo, setExpandedConvo] = useState<Set<string>>(new Set());
+  const updateEmail = useUpdateEmail();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!email?.from_email) { setConversationEmails([]); return; }
@@ -54,6 +53,14 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
   const hasDraft = !!email.draft_response;
   const isActionable = email.status === "needs_response" || email.status === "pending";
 
+  const handleChangeCategory = async (newCategory: string) => {
+    const updates: any = { category: newCategory };
+    if (newCategory === "SPAM") { updates.status = "resolved"; updates.resolved_at = new Date().toISOString(); }
+    await updateEmail.mutateAsync({ id: email.id, ...updates });
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`Category changed to ${newCategory}`);
+  };
+
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full">
@@ -67,11 +74,13 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
             <span>{formatTimeFull(email.created_at)}</span>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {email.category && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
-                {email.category}
-              </span>
-            )}
+            {/* Category pills - clickable to change */}
+            {(["SALES", "SUPPORT", "SPAM"] as const).map(cat => (
+              <button key={cat} onClick={() => handleChangeCategory(cat)}
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium transition-opacity ${CATEGORY_COLORS[cat]} ${email.category === cat ? "ring-1 ring-offset-1 ring-current opacity-100" : "opacity-40 hover:opacity-70"}`}>
+                {cat}
+              </button>
+            ))}
             {email.status && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${STATUS_COLORS[email.status] || "bg-muted text-muted-foreground"}`}>
                 {email.status.replace(/_/g, " ")}
@@ -129,12 +138,13 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
               <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Attachments</span>
               <div className="flex flex-wrap gap-2">
                 {atts.map((att: any, i: number) => {
-                  const url = `https://abu-n8n.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(email.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`;
+                  const url = getAttachmentUrl(att);
                   return (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border">
                       <Paperclip size={12} className="text-muted-foreground" />
-                      <span className="truncate max-w-[160px]">{att.name}</span>
+                      <span className="truncate max-w-[160px]">{att.name || "Attachment"}</span>
+                      <Download size={10} className="text-muted-foreground" />
                     </a>
                   );
                 })}
