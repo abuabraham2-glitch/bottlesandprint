@@ -421,7 +421,7 @@ export default function Inbox() {
 
       if (isNewEmail) {
         payload.action = "send_new";
-        if (composeEmailRef?.id) payload.email_id = composeEmailRef.id;
+        payload.email_id = composeEmailRef?.id || "";
       } else {
         payload.gmail_id = composeEmailRef?.gmail_id;
         payload.email_id = composeEmailRef?.id;

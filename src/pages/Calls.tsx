@@ -121,6 +121,7 @@ export default function Calls() {
           to_email: call.email,
           subject: "Quote from Bottles & Print",
           draft: call.draft_response,
+          email_id: "",
           attachments: quoteAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         }),
       });
