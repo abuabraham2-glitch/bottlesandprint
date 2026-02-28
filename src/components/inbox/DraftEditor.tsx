@@ -4,14 +4,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Send, X, Paperclip } from "lucide-react";
+import { Send, X, Paperclip, Download } from "lucide-react";
 import { toast } from "sonner";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { AlertBanners } from "./AlertBanners";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import {
-  CATEGORY_COLORS, splitDraftAtHr, stripN8nFooter, formatTimeFull, formatAge, parseAttachments,
+  CATEGORY_COLORS, splitDraftAtHr, stripN8nFooter, formatTimeFull, formatAge, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
 
 interface DraftEditorProps {
@@ -36,6 +36,14 @@ export function DraftEditor({ email, onClose, onOpenThread, onNavigateToEmail, o
   const { draftPart, quotedPart } = splitDraftAtHr(cleaned);
   const age = formatAge(email.created_at);
   const atts = parseAttachments(email.attachments);
+
+  const cascadeResolve = async (senderEmail: string) => {
+    const now = new Date().toISOString();
+    await supabase.from("emails")
+      .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
+      .eq("from_email", senderEmail)
+      .in("status", ["pending", "needs_response"]);
+  };
 
   const resolveMultiTopicRelated = async (): Promise<number> => {
     const mta = (email as any).multi_topic_alert;
@@ -93,9 +101,22 @@ export function DraftEditor({ email, onClose, onOpenThread, onNavigateToEmail, o
   };
 
   const handleDismiss = async () => {
-    await updateEmail.mutateAsync({ id: email.id, status: "resolved" as any, resolved_at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    await updateEmail.mutateAsync({ id: email.id, status: "resolved" as any, resolved_at: now });
+    if (email.from_email) {
+      await cascadeResolve(email.from_email);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success("Email dismissed");
     onClose();
+  };
+
+  const handleChangeCategory = async (newCategory: string) => {
+    const updates: any = { category: newCategory };
+    if (newCategory === "SPAM") { updates.status = "resolved"; updates.resolved_at = new Date().toISOString(); }
+    await updateEmail.mutateAsync({ id: email.id, ...updates });
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`Category changed to ${newCategory}`);
   };
 
   return (
@@ -114,11 +135,13 @@ export function DraftEditor({ email, onClose, onOpenThread, onNavigateToEmail, o
           </div>
           <div className="text-xs text-muted-foreground font-sans">{email.subject}</div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {email.category && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || "bg-muted text-muted-foreground"}`}>
-                {email.category}
-              </span>
-            )}
+            {/* Category pills - clickable */}
+            {(["SALES", "SUPPORT", "SPAM"] as const).map(cat => (
+              <button key={cat} onClick={() => handleChangeCategory(cat)}
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium transition-opacity ${CATEGORY_COLORS[cat]} ${email.category === cat ? "ring-1 ring-offset-1 ring-current opacity-100" : "opacity-40 hover:opacity-70"}`}>
+                {cat}
+              </button>
+            ))}
             <span className={`text-xs font-sans ${age.color}`}>{age.text}</span>
           </div>
         </SheetHeader>
@@ -137,15 +160,21 @@ export function DraftEditor({ email, onClose, onOpenThread, onNavigateToEmail, o
 
           {/* Incoming attachments */}
           {atts.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {atts.map((att: any, i: number) => (
-                <a key={i} href={`https://abu-n8n.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(email.gmail_id || "")}&filename=${encodeURIComponent(att.name || "")}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium border">
-                  <Paperclip size={12} className="text-muted-foreground" />
-                  <span className="truncate max-w-[160px]">{att.name}</span>
-                </a>
-              ))}
+            <div>
+              <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Attachments</span>
+              <div className="flex flex-wrap gap-2">
+                {atts.map((att: any, i: number) => {
+                  const url = getAttachmentUrl(att);
+                  return (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium border">
+                      <Paperclip size={12} className="text-muted-foreground" />
+                      <span className="truncate max-w-[160px]">{att.name || "Attachment"}</span>
+                      <Download size={10} className="text-muted-foreground" />
+                    </a>
+                  );
+                })}
+              </div>
             </div>
           )}
 

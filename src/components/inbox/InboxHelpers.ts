@@ -82,6 +82,12 @@ export function parseAttachments(att: any): any[] {
   return [];
 }
 
+export function getAttachmentUrl(att: any): string {
+  if (att.url) return att.url;
+  if (att.driveId) return `https://drive.google.com/file/d/${att.driveId}/view`;
+  return "#";
+}
+
 export function parseMultiTopicCount(mta: string | null | undefined): number | null {
   if (!mta) return null;
   try {
