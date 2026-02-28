@@ -5,7 +5,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   SALES: "bg-blue-100 text-blue-700",
   SUPPORT: "bg-green-100 text-green-700",
   SPAM: "bg-gray-100 text-gray-500",
-  ORDER_UPDATE: "bg-purple-100 text-purple-700",
+  OTHER: "bg-neutral-200 text-neutral-700",
   UNKNOWN: "bg-muted text-muted-foreground",
 };
 
@@ -17,6 +17,8 @@ export const STATUS_COLORS: Record<string, string> = {
   resolved: "bg-gray-100 text-gray-500",
   converted: "bg-emerald-100 text-emerald-700",
 };
+
+export const CATEGORIES = ["SALES", "SUPPORT", "SPAM", "OTHER"] as const;
 
 export const SIGNATURE = `<br><br><span style="font-family: Georgia, serif; font-size: 14pt; color: #263652;">Thanks,<br><br><b>Abu Mathew Abraham</b><br><b>BOTTLES &amp; PRINT</b><br>Tel: (951) 725-1786<br><br><a href="https://www.bottlesandprint.com" style="color: #0563C1;">www.bottlesandprint.com</a></span>`;
 
@@ -54,6 +56,11 @@ export function formatEmailBodyAsHtml(body: string): string {
 export function formatTime(dateStr: string | null): string {
   if (!dateStr) return "";
   const d = new Date(dateStr);
+  const hoursAgo = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+  if (hoursAgo < 1) return `${Math.round(hoursAgo * 60)}m ago`;
+  if (hoursAgo < 24) return `${Math.round(hoursAgo)}h ago`;
+  if (hoursAgo < 48) return "1d ago";
+  if (hoursAgo < 168) return `${Math.round(hoursAgo / 24)}d ago`;
   if (isToday(d)) return format(d, "h:mm a");
   return format(d, "MMM d");
 }
@@ -95,4 +102,10 @@ export function parseMultiTopicCount(mta: string | null | undefined): number | n
     if (Array.isArray(parsed) && parsed.length > 0) return parsed.length + 1;
   } catch {}
   return null;
+}
+
+export function displaySenderName(from_name: string | null, from_email: string | null): string {
+  const name = from_name || from_email || "Unknown";
+  if (name.includes("@")) return name.split("@")[0];
+  return name;
 }
