@@ -4,30 +4,25 @@ import { useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebh
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Mail, Clock, Plus, Paperclip, BookUser, Trash2, FileText, CheckSquare, X as XIcon } from "lucide-react";
+import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { ThreadView } from "@/components/inbox/ThreadView";
 import { DraftEditor } from "@/components/inbox/DraftEditor";
 import {
-  CATEGORY_COLORS, STATUS_COLORS, formatTime, formatAge, parseAttachments,
+  CATEGORY_COLORS, displaySenderName, formatTime, formatAge, parseAttachments,
   parseMultiTopicCount, stripN8nFooter, getReplyAllCc, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
 
-type MainTab = "inbox" | "drafts";
-type InboxFilter = "all" | "sales" | "support" | "pending" | "resolved";
+type MainTab = "inbox" | "drafts" | "archive";
 
 export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
-  const [inboxFilter, setInboxFilter] = useState<InboxFilter>("all");
   const [threadEmail, setThreadEmail] = useState<Email | null>(null);
   const [draftEmail, setDraftEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -38,10 +33,6 @@ export default function Inbox() {
   const [composeEmailRef, setComposeEmailRef] = useState<Email | null>(null);
   const [composeAttachments, setComposeAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState<string | null>(null);
-  const [feedbackEmailId, setFeedbackEmailId] = useState<string | null>(null);
-  const [feedbackType, setFeedbackType] = useState("");
-  const [feedbackNotes, setFeedbackNotes] = useState("");
-  const [confirmSend, setConfirmSend] = useState<{ action: () => Promise<void> } | null>(null);
   const [showFollowUps, setShowFollowUps] = useState(false);
   const [toSuggestions, setToSuggestions] = useState<{email: string; name?: string}[]>([]);
   const [ccSuggestions, setCcSuggestions] = useState<{email: string; name?: string}[]>([]);
@@ -56,25 +47,21 @@ export default function Inbox() {
 
   const { data: allEmails = [], isLoading } = useAllEmails();
   const { data: followUps = [] } = useFollowUps();
-  const updateEmail = useUpdateEmail();
-  const createFeedback = useCreateTriageFeedback();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Filtered lists
-  const inboxEmails = React.useMemo(() => {
-    let filtered = allEmails;
-    switch (inboxFilter) {
-      case "sales": filtered = filtered.filter(e => e.category === "SALES"); break;
-      case "support": filtered = filtered.filter(e => e.category === "SUPPORT"); break;
-      case "pending": filtered = filtered.filter(e => e.status === "pending" || e.status === "needs_response"); break;
-      case "resolved": filtered = filtered.filter(e => e.status === "resolved"); break;
-    }
-    return filtered;
-  }, [allEmails, inboxFilter]);
+  // Derived lists
+  const activeEmails = React.useMemo(() =>
+    allEmails.filter(e => e.status === "pending" || e.status === "needs_response"),
+    [allEmails]
+  );
 
   const draftEmails = React.useMemo(() =>
-    allEmails.filter(e => e.draft_response && (e.status === "needs_response" || e.status === "pending")),
+    allEmails.filter(e => e.draft_response && (e.status === "pending" || e.status === "needs_response")),
+    [allEmails]
+  );
+
+  const archivedEmails = React.useMemo(() =>
+    allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent").slice(0, 50),
     [allEmails]
   );
 
@@ -95,7 +82,7 @@ export default function Inbox() {
   };
   const deleteContact = async (id: string) => { await supabase.from("contacts").delete().eq("id", id); loadContacts(); toast.success("Contact removed"); };
 
-  // Email + contacts autocomplete
+  // Autocomplete
   const searchEmailsAndContacts = useCallback(async (query: string) => {
     if (query.length < 2) return [];
     const [emailRes, contactRes] = await Promise.all([
@@ -126,43 +113,6 @@ export default function Inbox() {
     setComposeCc(parts.join(", ")); setShowCcSuggestions(false);
   };
 
-  const isSentEmail = (email: Email) => email.status === "approved_sent" || email.status === "auto_sent";
-
-  const openReply = (email: Email, replyAll: boolean) => {
-    setComposeOpen(true); setComposeTo(email.from_email || "");
-    setComposeCc(replyAll ? getReplyAllCc(email) : "");
-    setComposeSubject(`Re: ${email.subject || ""}`);
-    if (isSentEmail(email)) {
-      const quotedContent = stripN8nFooter(email.draft_response || email.body || "");
-      setComposeBody(SIGNATURE + `<br><br><div style="border-left: 3px solid #ccc; padding-left: 12px; margin-top: 10px; color: #555;"><strong>On ${format(new Date(email.created_at || ""), "MMM d, h:mm a")}, you wrote:</strong><br>${quotedContent}</div>`);
-    } else {
-      setComposeBody(stripN8nFooter(email.draft_response || ""));
-    }
-    setComposeEmailRef(email);
-  };
-
-  // Cascade resolve: resolve the email + all pending emails from same sender
-  const cascadeResolve = async (emailRecord: Email) => {
-    const now = new Date().toISOString();
-    // Update the target email
-    await supabase.from("emails").update({ status: "resolved", resolved_at: now } as any).eq("id", emailRecord.id);
-    // Cascade: resolve all pending/needs_response from same sender + clear drafts
-    if (emailRecord.from_email) {
-      await supabase.from("emails")
-        .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
-        .eq("from_email", emailRecord.from_email)
-        .in("status", ["pending", "needs_response"]);
-    }
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
-  };
-
-  const handleDismiss = async (id: string) => {
-    const emailRecord = allEmails.find(e => e.id === id);
-    if (!emailRecord) return;
-    await cascadeResolve(emailRecord);
-    toast.success("Email dismissed");
-  };
-
   const handleComposeSend = async () => {
     if (!composeTo.trim() || !composeSubject.trim()) { toast.error("Please fill in To and Subject"); return; }
     setSending("compose");
@@ -181,12 +131,6 @@ export default function Inbox() {
     setSending(null);
   };
 
-  const handleFeedbackSubmit = async () => {
-    if (!feedbackEmailId || !feedbackType) return;
-    await createFeedback.mutateAsync({ email_id: feedbackEmailId, feedback_type: feedbackType, notes: feedbackNotes || undefined });
-    toast.success("Feedback submitted"); setFeedbackEmailId(null); setFeedbackType(""); setFeedbackNotes("");
-  };
-
   const navigateToEmailById = async (id: string) => {
     setThreadEmail(null); setDraftEmail(null);
     setTimeout(async () => {
@@ -197,90 +141,34 @@ export default function Inbox() {
     }, 100);
   };
 
-  const resolveMultiTopicRelated = async (email: Email): Promise<number> => {
-    const mta = (email as any).multi_topic_alert;
-    if (!mta) return 0;
-    try {
-      const parsed = JSON.parse(mta);
-      if (!Array.isArray(parsed) || parsed.length === 0) return 0;
-      const ids = parsed.map((t: any) => t.id).filter(Boolean);
-      const now = new Date().toISOString();
-      for (const id of ids) {
-        await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", id);
-      }
-      queryClient.invalidateQueries({ queryKey: ["emails"] });
-      return ids.length;
-    } catch { return 0; }
-  };
-
-  const handleSendDraftFromThread = (email: Email) => {
-    setConfirmSend({
-      action: async () => {
-        if (!email.from_email || !email.draft_response) return;
-        setSending(email.id);
-        try {
-          await sendEmailViaWebhook({
-            to_email: email.from_email, subject: `Re: ${email.subject || ""}`,
-            draft: stripN8nFooter(email.draft_response), gmail_id: email.gmail_id || undefined,
-            email_id: email.id, attachments: [], original_draft: email.draft_response || undefined,
-          });
-          await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
-          const resolvedCount = await resolveMultiTopicRelated(email);
-          toast.success(resolvedCount > 0 ? `Email sent + ${resolvedCount} related emails resolved` : "Email sent");
-          setThreadEmail(null);
-        } catch { toast.error("Failed to send"); }
-        setSending(null);
-      }
-    });
-  };
-
-  const handleEditSendFromThread = (email: Email) => {
-    setThreadEmail(null);
-    setTimeout(() => setDraftEmail(email), 150);
-  };
-
   // Bulk actions
   const toggleSelected = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   };
 
-  const bulkResolve = async () => {
+  const bulkArchive = async () => {
     const now = new Date().toISOString();
     for (const id of selectedIds) {
       await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", id);
     }
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`${selectedIds.size} emails resolved`);
-    setSelectedIds(new Set());
-  };
-
-  const bulkDelete = async () => {
-    if (!confirm(`Delete ${selectedIds.size} emails permanently?`)) return;
-    for (const id of selectedIds) {
-      await supabase.from("emails").delete().eq("id", id);
-    }
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`${selectedIds.size} emails deleted`);
+    toast.success(`Archived ${selectedIds.size} emails`);
     setSelectedIds(new Set());
   };
 
   const bulkSetCategory = async (category: string) => {
     const now = new Date().toISOString();
     const updates: any = { category };
-    if (category === "SPAM") { updates.status = "resolved"; updates.resolved_at = now; }
+    if (category === "SPAM") { updates.status = "resolved"; updates.resolved_at = now; updates.draft_response = null; }
     for (const id of selectedIds) {
       await supabase.from("emails").update(updates).eq("id", id);
     }
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`${selectedIds.size} emails marked as ${category}`);
+    toast.success(`${selectedIds.size} → ${category}`);
     setSelectedIds(new Set());
   };
 
-  const displayedEmails = mainTab === "inbox" ? inboxEmails : draftEmails;
+  const displayedEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
@@ -339,43 +227,24 @@ export default function Inbox() {
         </div>
       ) : (
         <>
-          {/* Main tabs: INBOX | DRAFTS */}
+          {/* THREE TABS: INBOX | DRAFTS | ARCHIVE */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
-            <button
-              onClick={() => setMainTab("inbox")}
-              className={`px-4 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] whitespace-nowrap flex items-center gap-1.5 ${
-                mainTab === "inbox" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Mail size={15} /> Inbox
-              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{allEmails.length}</span>
-            </button>
-            <button
-              onClick={() => setMainTab("drafts")}
-              className={`px-4 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] whitespace-nowrap flex items-center gap-1.5 ${
-                mainTab === "drafts" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <FileText size={15} /> Drafts
-              {draftEmails.length > 0 && (
-                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{draftEmails.length}</span>
-              )}
-            </button>
+            {[
+              { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary" },
+              { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700" },
+              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground" },
+            ].map(tab => (
+              <button key={tab.key}
+                onClick={() => setMainTab(tab.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] whitespace-nowrap flex items-center gap-1.5 ${
+                  mainTab === tab.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}>
+                <tab.icon size={15} />
+                {tab.label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab.countClass}`}>{tab.count}</span>
+              </button>
+            ))}
           </div>
-
-          {/* Inbox filters */}
-          {mainTab === "inbox" && (
-            <div className="flex gap-1 flex-wrap">
-              {(["all", "sales", "support", "pending", "resolved"] as InboxFilter[]).map(f => (
-                <button key={f} onClick={() => setInboxFilter(f)}
-                  className={`px-3 py-2 rounded-lg text-xs font-sans font-medium transition-colors min-h-[44px] capitalize ${
-                    inboxFilter === f ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:text-foreground"
-                  }`}>
-                  {f}
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Email list */}
           {isLoading ? (
@@ -383,92 +252,46 @@ export default function Inbox() {
           ) : displayedEmails.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Mail size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="font-sans text-sm">{mainTab === "inbox" ? "No emails match this filter." : "No drafts waiting for review."}</p>
+              <p className="font-sans text-sm">
+                {mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : "No archived emails."}
+              </p>
             </div>
-          ) : mainTab === "inbox" ? (
-            /* INBOX LIST */
+          ) : (
             <div className="space-y-1">
               {displayedEmails.map(email => {
                 const atts = parseAttachments(email.attachments);
-                const topicCount = parseMultiTopicCount((email as any).multi_topic_alert);
-                const isSelected = selectedIds.has(email.id);
-                return (
-                  <div key={email.id}
-                    className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
-                    onClick={() => setThreadEmail(email)}>
-                    <div className="flex items-start gap-3">
-                      <div className="pt-0.5" onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
-                        <Checkbox checked={isSelected} className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="font-medium text-sm font-sans truncate">{email.from_name || email.from_email}</span>
-                          {email.category && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
-                              {email.category}
-                            </span>
-                          )}
-                          {email.status && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${STATUS_COLORS[email.status] || "bg-muted text-muted-foreground"}`}>
-                              {email.status.replace(/_/g, " ")}
-                            </span>
-                          )}
-                          {topicCount && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
-                              {topicCount} topics
-                            </span>
-                          )}
-                          {atts.length > 0 && (
-                            <span className="inline-flex items-center"><Paperclip size={12} className="text-muted-foreground" /></span>
-                          )}
-                        </div>
-                        <div className="text-sm font-sans truncate text-muted-foreground">{email.subject}</div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.created_at)}</span>
-                        {email.draft_response && (
-                          <button className="text-[11px] text-primary font-sans font-medium hover:underline whitespace-nowrap"
-                            onClick={(ev) => { ev.stopPropagation(); setMainTab("drafts"); setTimeout(() => setDraftEmail(email), 100); }}>
-                            View Draft →
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* DRAFTS LIST */
-            <div className="space-y-1">
-              {displayedEmails.map(email => {
                 const age = formatAge(email.created_at);
                 const isSelected = selectedIds.has(email.id);
+
                 return (
                   <div key={email.id}
                     className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
-                    onClick={() => setDraftEmail(email)}>
+                    onClick={() => mainTab === "drafts" ? setDraftEmail(email) : setThreadEmail(email)}>
                     <div className="flex items-start gap-3">
                       <div className="pt-0.5" onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
                         <Checkbox checked={isSelected} className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="font-medium text-sm font-sans truncate">{email.from_name || email.from_email}</span>
+                          <span className="font-medium text-sm font-sans truncate">{displaySenderName(email.from_name, email.from_email)}</span>
                           {email.category && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
                               {email.category}
                             </span>
                           )}
+                          {atts.length > 0 && <Paperclip size={12} className="text-muted-foreground" />}
+                          {email.draft_response && mainTab === "inbox" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
+                          )}
                         </div>
                         <div className="text-sm font-sans truncate text-muted-foreground">{email.subject}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className={`text-xs font-sans font-medium ${age.color}`}>{age.text}</span>
-                        <button className="text-[11px] text-primary font-sans font-medium hover:underline whitespace-nowrap"
-                          onClick={(ev) => { ev.stopPropagation(); setMainTab("inbox"); setTimeout(() => setThreadEmail(email), 100); }}>
-                          View Thread ↗
-                        </button>
+                        {mainTab === "drafts" ? (
+                          <span className={`text-xs font-sans font-medium ${age.color}`}>{age.text}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.created_at)}</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -480,12 +303,9 @@ export default function Inbox() {
           {/* Bulk action bar */}
           {selectedIds.size > 0 && (
             <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-sans font-medium">{selectedIds.size} selected</span>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkResolve}>
-                <CheckSquare size={12} /> Resolve
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={bulkDelete}>
-                <Trash2 size={12} /> Delete
+              <span className="text-sm font-sans font-medium">✓ {selectedIds.size} selected</span>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkArchive}>
+                <Archive size={12} /> Archive
               </Button>
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SALES")}>
                 Mark Sales
@@ -495,6 +315,9 @@ export default function Inbox() {
               </Button>
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SPAM")}>
                 Mark Spam
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("OTHER")}>
+                Mark Other
               </Button>
               <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>
                 Clear
@@ -508,63 +331,16 @@ export default function Inbox() {
       <ThreadView
         email={threadEmail}
         onClose={() => setThreadEmail(null)}
-        onOpenDraft={(e) => { setMainTab("drafts"); setDraftEmail(e); }}
-        onReply={openReply}
-        onDismiss={(id) => handleDismiss(id)}
-        onFeedback={(id) => setFeedbackEmailId(id)}
+        onOpenDraft={(e) => { setThreadEmail(null); setTimeout(() => setDraftEmail(e), 150); }}
         onNavigateToEmail={navigateToEmailById}
-        sending={sending}
-        onSendDraft={handleSendDraftFromThread}
-        onEditSend={handleEditSendFromThread}
       />
 
       {/* Draft Editor */}
       <DraftEditor
         email={draftEmail}
         onClose={() => setDraftEmail(null)}
-        onOpenThread={(e) => { setMainTab("inbox"); setThreadEmail(e); }}
         onNavigateToEmail={navigateToEmailById}
-        onSendSuccess={() => queryClient.invalidateQueries({ queryKey: ["emails"] })}
       />
-
-      {/* Send Confirmation Dialog */}
-      <Dialog open={!!confirmSend} onOpenChange={() => setConfirmSend(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-serif">Confirm Send</DialogTitle>
-            <DialogDescription className="text-sm font-sans">Are you sure you want to send this email?</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" className="rounded-xl" onClick={() => setConfirmSend(null)}>Cancel</Button>
-            <Button className="rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={async () => { if (confirmSend) { await confirmSend.action(); setConfirmSend(null); } }}>
-              <Send size={14} /> Yes, Send
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Feedback Dialog */}
-      <Dialog open={!!feedbackEmailId} onOpenChange={() => setFeedbackEmailId(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="font-serif">Triage Feedback</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <Select value={feedbackType} onValueChange={setFeedbackType}>
-              <SelectTrigger className="rounded-xl"><SelectValue placeholder="What went wrong?" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="wrong_category">Wrong category</SelectItem>
-                <SelectItem value="wrong_template">Wrong template</SelectItem>
-                <SelectItem value="should_not_reply">Should not have replied</SelectItem>
-                <SelectItem value="should_ask_me">Should have asked me</SelectItem>
-                <SelectItem value="wrong_tone">Wrong tone</SelectItem>
-              </SelectContent>
-            </Select>
-            <Textarea placeholder="Additional notes..." value={feedbackNotes} onChange={e => setFeedbackNotes(e.target.value)} className="rounded-xl" />
-          </div>
-          <DialogFooter>
-            <Button size="sm" className="rounded-xl" onClick={handleFeedbackSubmit}>Submit</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Compose Dialog */}
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>

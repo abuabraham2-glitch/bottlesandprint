@@ -1,39 +1,30 @@
 import React, { useState, useEffect } from "react";
-import { Email, useUpdateEmail } from "@/lib/emailData";
+import { Email } from "@/lib/emailData";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Send, Edit, Mail, Users, X, ThumbsDown, Paperclip, ChevronDown, Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Archive, FileText, Paperclip, ChevronDown, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { AlertBanners } from "./AlertBanners";
 import {
-  CATEGORY_COLORS, STATUS_COLORS, splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml,
-  formatTimeFull, parseAttachments, getAttachmentUrl, SIGNATURE,
+  CATEGORY_COLORS, CATEGORIES, displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
+  formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
-import { useClients } from "@/lib/data";
 
 interface ThreadViewProps {
   email: Email | null;
   onClose: () => void;
   onOpenDraft: (email: Email) => void;
-  onReply: (email: Email, replyAll: boolean) => void;
-  onDismiss: (id: string) => void;
-  onFeedback: (id: string) => void;
   onNavigateToEmail: (id: string) => void;
-  sending: string | null;
-  onSendDraft: (email: Email) => void;
-  onEditSend: (email: Email) => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, onFeedback, onNavigateToEmail, sending, onSendDraft, onEditSend }: ThreadViewProps) {
-  const { data: clients = [] } = useClients();
+export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
   const [conversationEmails, setConversationEmails] = useState<Email[]>([]);
   const [expandedConvo, setExpandedConvo] = useState<Set<string>>(new Set());
-  const updateEmail = useUpdateEmail();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -42,23 +33,42 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
       .eq("from_email", email.from_email)
       .neq("id", email.id)
       .order("created_at", { ascending: false })
-      .limit(20)
+      .limit(10)
       .then(({ data }) => setConversationEmails((data || []) as unknown as Email[]));
   }, [email?.id, email?.from_email]);
 
   if (!email) return null;
 
-  const client = clients.find(c => c.email === email.from_email);
   const atts = parseAttachments(email.attachments);
   const hasDraft = !!email.draft_response;
-  const isActionable = email.status === "needs_response" || email.status === "pending";
 
   const handleChangeCategory = async (newCategory: string) => {
     const updates: any = { category: newCategory };
-    if (newCategory === "SPAM") { updates.status = "resolved"; updates.resolved_at = new Date().toISOString(); }
-    await updateEmail.mutateAsync({ id: email.id, ...updates });
+    if (newCategory === "SPAM") {
+      updates.status = "resolved";
+      updates.resolved_at = new Date().toISOString();
+    }
+    await supabase.from("emails").update(updates).eq("id", email.id);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`Category changed to ${newCategory}`);
+    toast.success(`Category → ${newCategory}`);
+    if (newCategory === "SPAM") onClose();
+  };
+
+  const handleArchive = async () => {
+    const now = new Date().toISOString();
+    // Archive this email
+    await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
+    // Cascade: archive same thread
+    if (email.thread_id) {
+      await supabase.from("emails")
+        .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
+        .eq("thread_id", email.thread_id)
+        .in("status", ["pending", "needs_response"])
+        .neq("id", email.id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success("Archived");
+    onClose();
   };
 
   return (
@@ -66,86 +76,72 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
       <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full">
         {/* Header */}
         <SheetHeader className="p-5 pb-4 border-b shrink-0">
-          <SheetTitle className="font-serif text-lg leading-tight">{email.subject}</SheetTitle>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans flex-wrap">
-            <span className="font-medium text-foreground">{email.from_name}</span>
-            <span>&lt;{email.from_email}&gt;</span>
-            <span>•</span>
-            <span>{formatTimeFull(email.created_at)}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {/* Category pills - clickable to change */}
-            {(["SALES", "SUPPORT", "SPAM"] as const).map(cat => (
-              <button key={cat} onClick={() => handleChangeCategory(cat)}
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium transition-opacity ${CATEGORY_COLORS[cat]} ${email.category === cat ? "ring-1 ring-offset-1 ring-current opacity-100" : "opacity-40 hover:opacity-70"}`}>
-                {cat}
-              </button>
-            ))}
-            {email.status && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${STATUS_COLORS[email.status] || "bg-muted text-muted-foreground"}`}>
-                {email.status.replace(/_/g, " ")}
-              </span>
-            )}
-            {hasDraft && (
-              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-7" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
-                Go to Draft →
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <SheetTitle className="font-serif text-lg leading-tight mb-1">{email.subject}</SheetTitle>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans flex-wrap">
+                <span className="font-medium text-foreground">{displaySenderName(email.from_name, email.from_email)}</span>
+                <span className="text-xs">&lt;{email.from_email}&gt;</span>
+                <span>•</span>
+                <span className="text-xs">{formatTimeFull(email.created_at)}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {hasDraft && (
+                <Button size="sm" variant="default" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
+                  <FileText size={12} /> View Draft →
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
+                <Archive size={12} /> Archive
               </Button>
-            )}
+            </div>
+          </div>
+          {/* Category dropdown */}
+          <div className="flex items-center gap-2 mt-2">
+            <Select value={email.category || "OTHER"} onValueChange={handleChangeCategory}>
+              <SelectTrigger className="w-[130px] h-7 text-xs rounded-lg">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map(cat => (
+                  <SelectItem key={cat} value={cat}>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[cat]}`}>{cat}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* AI Summary */}
+          {email.incoming_summary && (
+            <div className="text-sm font-sans rounded-lg px-3 py-2 bg-blue-50 text-blue-800 border border-blue-200">
+              🤖 {email.incoming_summary}
+            </div>
+          )}
+
           {/* Alert banners */}
           <AlertBanners email={email} onNavigateToEmail={onNavigateToEmail} />
           <EmailCrossMatchBanner email={email} onClose={onClose} />
 
-          {/* PO Received / Converted */}
-          {email.category === "SALES" && email.status === "approved_sent" && !(email as any).converted && (
-            <Button size="sm" className="rounded-xl gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
-              onClick={async () => {
-                if (!confirm("Mark as converted?")) return;
-                await supabase.from("emails").update({ po_received_at: new Date().toISOString(), converted: true, status: "converted" } as any).eq("id", email.id);
-                toast.success("Marked as converted");
-                onClose();
-              }}>
-              ✅ PO Received
-            </Button>
-          )}
-          {(email as any).converted && (email as any).po_received_at && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-medium font-sans">
-              ✅ Converted on {format(new Date((email as any).po_received_at), "MMM d, yyyy")}
-            </div>
-          )}
-
-          {/* Client info */}
-          {client && (
-            <div className="bg-muted/30 rounded-xl p-3 text-sm font-sans">
-              <span className="font-medium">{client.company}</span>
-              {client.phone && <span className="ml-3 text-muted-foreground">{client.phone}</span>}
-            </div>
-          )}
-
-          {/* Incoming summary */}
-          {email.incoming_summary && (
-            <div className="text-sm font-sans font-medium rounded-lg px-3 py-2" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
-              💬 {email.incoming_summary}
-            </div>
-          )}
-
           {/* Attachments */}
           {atts.length > 0 && (
             <div>
-              <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Attachments</span>
+              <span className="text-xs font-medium text-muted-foreground font-sans block mb-1.5">📎 Attachments</span>
               <div className="flex flex-wrap gap-2">
                 {atts.map((att: any, i: number) => {
                   const url = getAttachmentUrl(att);
                   return (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs font-sans font-medium text-foreground transition-colors border">
-                      <Paperclip size={12} className="text-muted-foreground" />
-                      <span className="truncate max-w-[160px]">{att.name || "Attachment"}</span>
-                      <Download size={10} className="text-muted-foreground" />
-                    </a>
+                    <div key={i} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border text-xs font-sans">
+                      <Paperclip size={12} className="text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[160px] font-medium">{att.name || "Attachment"}</span>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline whitespace-nowrap">Open</a>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                        <ExternalLink size={11} />
+                      </a>
+                    </div>
                   );
                 })}
               </div>
@@ -159,40 +155,17 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
               dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
           </div>
 
-          {/* Draft preview */}
-          {hasDraft && (() => {
-            const cleaned = stripN8nFooter(email.draft_response!);
-            const { draftPart, quotedPart } = splitDraftAtHr(cleaned);
-            return (
-              <div>
-                <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">AI Draft Response</span>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
-                  dangerouslySetInnerHTML={{ __html: draftPart }} />
-                {quotedPart && (
-                  <Accordion type="single" collapsible className="w-full mt-2">
-                    <AccordionItem value="quoted" className="border rounded-xl">
-                      <AccordionTrigger className="px-4 py-2 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Quoted Original</AccordionTrigger>
-                      <AccordionContent className="px-4 pb-3">
-                        <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', color: '#555' }}
-                          dangerouslySetInnerHTML={{ __html: quotedPart }} />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Conversation history */}
+          {/* Conversation History */}
           {conversationEmails.length > 0 && (
             <div>
               <span className="text-xs font-medium text-muted-foreground font-sans block mb-2">
-                Conversation History ({conversationEmails.length} previous)
+                Previous emails from this sender ({conversationEmails.length})
               </span>
               <div className="space-y-2">
                 {conversationEmails.map(ce => {
                   const isExpanded = expandedConvo.has(ce.id);
                   const preview = (ce.body || "").replace(/<[^>]*>/g, "").substring(0, 120);
+                  const ceAtts = parseAttachments(ce.attachments);
                   return (
                     <div key={ce.id} className="border rounded-xl overflow-hidden">
                       <button className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-muted/30 transition-colors"
@@ -204,49 +177,37 @@ export function ThreadView({ email, onClose, onOpenDraft, onReply, onDismiss, on
                           <div className="flex items-center gap-2 text-xs">
                             <span className="font-medium">{formatTimeFull(ce.created_at)}</span>
                             <span className="text-muted-foreground truncate">{ce.subject}</span>
+                            {ce.status && (
+                              <span className={`text-[10px] px-1 py-0.5 rounded-full ${ce.status === "resolved" || ce.status === "approved_sent" ? "bg-gray-100 text-gray-500" : "bg-yellow-100 text-yellow-700"}`}>
+                                {ce.status.replace(/_/g, " ")}
+                              </span>
+                            )}
+                            {ceAtts.length > 0 && <Paperclip size={10} className="text-muted-foreground" />}
                           </div>
                           {!isExpanded && <p className="text-xs text-muted-foreground truncate mt-0.5">{preview}…</p>}
                         </div>
                       </button>
                       {isExpanded && (
-                        <div className="px-3 pb-3 text-sm font-sans email-html-content max-w-none border-t pt-3"
-                          dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(ce.body || "")) }} />
+                        <div className="px-3 pb-3 border-t pt-3 space-y-2">
+                          <div className="text-sm font-sans email-html-content max-w-none"
+                            dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(ce.body || "")) }} />
+                          {ceAtts.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {ceAtts.map((att: any, j: number) => (
+                                <a key={j} href={getAttachmentUrl(att)} target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-muted/50 text-[11px] font-sans border hover:bg-muted">
+                                  <Paperclip size={10} /> {att.name || "Attachment"}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
                 })}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Sticky actions */}
-        <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
-          {isActionable && (
-            <>
-              <Button size="sm" className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => onSendDraft(email)} disabled={sending === email.id || !hasDraft}>
-                <Send size={12} /> Send
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs"
-                onClick={() => onEditSend(email)}>
-                <Edit size={12} /> Edit & Send
-              </Button>
-            </>
-          )}
-          <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { onClose(); onReply(email, false); }}>
-            <Mail size={12} /> Reply
-          </Button>
-          <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => { onClose(); onReply(email, true); }}>
-            <Users size={12} /> Reply All
-          </Button>
-          <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => { onDismiss(email.id); onClose(); }}>
-            <X size={12} /> Dismiss
-          </Button>
-          {isActionable && (
-            <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs text-muted-foreground" onClick={() => { onFeedback(email.id); onClose(); }}>
-              <ThumbsDown size={12} />
-            </Button>
           )}
         </div>
       </SheetContent>
