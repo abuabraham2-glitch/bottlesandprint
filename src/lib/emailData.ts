@@ -272,6 +272,17 @@ export function useInboxCounts() {
         .select("*", { count: "exact", head: true })
         .or("status.eq.needs_response,and(status.eq.pending,tier.eq.TIER_2)");
 
+      const { count: activeInbox } = await supabase
+        .from("emails")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["pending", "needs_response"]);
+
+      const { count: draftsToReview } = await supabase
+        .from("emails")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["pending", "needs_response"])
+        .not("draft_response", "is", null);
+
       const { count: autoHandledToday } = await supabase
         .from("emails")
         .select("*", { count: "exact", head: true })
@@ -281,10 +292,12 @@ export function useInboxCounts() {
       const { count: newCalls } = await supabase
         .from("calls")
         .select("*", { count: "exact", head: true })
-        .eq("status", "pending");
+        .neq("status", "resolved");
 
       return {
         actionNeeded: actionNeeded || 0,
+        activeInbox: activeInbox || 0,
+        draftsToReview: draftsToReview || 0,
         autoHandledToday: autoHandledToday || 0,
         newCalls: newCalls || 0,
       };
