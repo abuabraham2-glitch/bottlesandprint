@@ -125,6 +125,7 @@ export type Database = {
       catalog: {
         Row: {
           archived: boolean
+          artwork_url: string | null
           client_id: string
           component: string | null
           container_color: string | null
@@ -140,6 +141,7 @@ export type Database = {
         }
         Insert: {
           archived?: boolean
+          artwork_url?: string | null
           client_id: string
           component?: string | null
           container_color?: string | null
@@ -155,6 +157,7 @@ export type Database = {
         }
         Update: {
           archived?: boolean
+          artwork_url?: string | null
           client_id?: string
           component?: string | null
           container_color?: string | null

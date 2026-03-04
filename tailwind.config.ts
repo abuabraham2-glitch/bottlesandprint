@@ -14,8 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"DM Sans"', 'sans-serif'],
-        serif: ['"DM Serif Display"', 'serif'],
+        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -23,6 +22,10 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        surface: "hsl(var(--surface))",
+        "surface-header": "hsl(var(--surface-header))",
+        "border-mid": "hsl(var(--border-mid))",
+        "text-light": "hsl(var(--text-light))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -70,6 +73,11 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        "stage-new": "hsl(var(--stage-new))",
+        "stage-wip": "hsl(var(--stage-wip))",
+        "stage-completed": "hsl(var(--stage-completed))",
+        "stage-ship": "hsl(var(--stage-ship))",
+        "stage-close": "hsl(var(--stage-close))",
       },
       borderRadius: {
         lg: "var(--radius)",
