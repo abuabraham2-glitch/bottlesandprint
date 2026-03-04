@@ -221,4 +221,24 @@
   .animate-pulse-dot {
     animation: pulse-dot 1.8s ease-in-out infinite;
   }
+
+  /* Hide scrollbar for mobile pipeline strip */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Mobile: disable hover lift on floating cards */
+  @media (max-width: 767px) {
+    .floating-card:hover {
+      transform: none !important;
+      box-shadow: 0 4px 16px rgba(60,40,20,0.09), 0 1px 4px rgba(60,40,20,0.05) !important;
+    }
+    .dark .floating-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15) !important;
+    }
+  }
 }
