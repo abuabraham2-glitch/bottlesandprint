@@ -3,66 +3,55 @@ import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { StickyNote, Link2, ClipboardList, Mail, PhoneCall, Zap } from "lucide-react";
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { X } from "lucide-react";
+import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface DashboardProps {
   searchQuery: string;
 }
 
-const stageCardColors: Record<string, string> = {
-  preflight: "bg-sky-100 text-sky-900",
-  wip: "hsl-wip",
-  completed: "hsl-completed",
-  to_ship: "hsl-toship",
-  close: "bg-stone-200 text-stone-700",
-};
+const SESSION_KEY_NOTES = "dashboard_quick_notes";
 
-const SESSION_KEY_NOTIFS = "dashboard_dismissed_notifs";
-const SESSION_KEY_QB = "dashboard_dismissed_qb";
-const SESSION_KEY_NOTIFS_COUNTS = "dashboard_notifs_counts";
+const stageColors: Record<string, { border: string; text: string; bg: string; stripe: string }> = {
+  preflight: { border: "border-stage-new", text: "text-stage-new", bg: "bg-stage-new", stripe: "bg-stage-new" },
+  wip: { border: "border-stage-wip", text: "text-stage-wip", bg: "bg-stage-wip", stripe: "bg-stage-wip" },
+  completed: { border: "border-stage-completed", text: "text-stage-completed", bg: "bg-stage-completed", stripe: "bg-stage-completed" },
+  to_ship: { border: "border-stage-ship", text: "text-stage-ship", bg: "bg-stage-ship", stripe: "bg-stage-ship" },
+  close: { border: "border-stage-close", text: "text-stage-close", bg: "bg-stage-close", stripe: "bg-stage-close" },
+};
 
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
-  
-  // Dismissable card state — persisted in sessionStorage
-  const [dismissedNotifs, setDismissedNotifs] = useState(() => sessionStorage.getItem(SESSION_KEY_NOTIFS) === "true");
-  const [dismissedQb, setDismissedQb] = useState(() => sessionStorage.getItem(SESSION_KEY_QB) === "true");
-  const [fadingNotifs, setFadingNotifs] = useState(false);
-  const [fadingQb, setFadingQb] = useState(false);
+  const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
 
-  // Persist dismissed state
-  useEffect(() => { sessionStorage.setItem(SESSION_KEY_NOTIFS, String(dismissedNotifs)); }, [dismissedNotifs]);
-  useEffect(() => { sessionStorage.setItem(SESSION_KEY_QB, String(dismissedQb)); }, [dismissedQb]);
+  // Notifications panel
+  const [notifsOpen, setNotifsOpen] = useState(true);
+  const [dismissedNotifItems, setDismissedNotifItems] = useState<Set<string>>(new Set());
+  const [clearNotifsDialog, setClearNotifsDialog] = useState(false);
 
-  // Re-show cards when new activity comes in
+  // Quick notes
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [notes, setNotes] = useState<{ id: string; text: string; color: string }[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
+  });
+  const [newNote, setNewNote] = useState("");
+  const [clearNotesDialog, setClearNotesDialog] = useState(false);
+  const noteColors = ["text-warning", "text-destructive", "text-primary"];
+
   useEffect(() => {
-    if (!inboxCounts) return;
-    const prev = sessionStorage.getItem(SESSION_KEY_NOTIFS_COUNTS);
-    const prevCounts = prev ? JSON.parse(prev) : null;
-    
-    if (prevCounts) {
-      if (inboxCounts.actionNeeded > prevCounts.actionNeeded || inboxCounts.autoHandledToday > prevCounts.autoHandledToday || inboxCounts.newCalls > prevCounts.newCalls) {
-        setDismissedNotifs(false);
-      }
-    }
-    sessionStorage.setItem(SESSION_KEY_NOTIFS_COUNTS, JSON.stringify(inboxCounts));
-  }, [inboxCounts]);
+    sessionStorage.setItem(SESSION_KEY_NOTES, JSON.stringify(notes));
+  }, [notes]);
 
-  const dismissCard = (card: "notifs" | "qb") => {
-    if (card === "notifs") {
-      setFadingNotifs(true);
-      setTimeout(() => { setDismissedNotifs(true); setFadingNotifs(false); }, 300);
-    } else {
-      setFadingQb(true);
-      setTimeout(() => { setDismissedQb(true); setFadingQb(false); }, 300);
-    }
+  const addNote = () => {
+    if (!newNote.trim()) return;
+    setNotes(prev => [...prev, { id: Date.now().toString(), text: newNote.trim(), color: noteColors[prev.length % 3] }]);
+    setNewNote("");
   };
 
   const filtered = searchQuery
@@ -77,9 +66,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const poGroupCounts = useMemo(() => {
     const map = new Map<string, number>();
     for (const o of orders) {
-      if (o.client_po && !o.archived) {
-        map.set(o.client_po, (map.get(o.client_po) || 0) + 1);
-      }
+      if (o.client_po && !o.archived) map.set(o.client_po, (map.get(o.client_po) || 0) + 1);
     }
     return map;
   }, [orders]);
@@ -98,262 +85,349 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     count: filtered.filter(o => o.stage === s.key).length,
   }));
 
-  const priorityOrders = filtered
-    .filter(o => o.stage === "wip" || o.stage === "completed")
-    .sort((a, b) => {
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+  const toggleStage = (key: string) => {
+    setExpandedStages(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
     });
+  };
+
+  // QB review data
+  const invoicesToReview = filtered.filter(o => o.invoice_num && !o.invoice_reviewed).length;
+  const vendorPosToReview = filtered.filter(o => o.vendor_po && !o.vendor_po_reviewed).length;
+  const qbAllClear = invoicesToReview === 0 && vendorPosToReview === 0;
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
-  const stageColorMap: Record<string, string> = {
-    preflight: "bg-sky-50 border-sky-200",
-    wip: "bg-orange-50 border-orange-200",
-    completed: "bg-emerald-50 border-emerald-200",
-    to_ship: "bg-blue-50 border-blue-200",
-    close: "bg-stone-100 border-stone-200",
-  };
+  const now = new Date();
+  const dateStr = format(now, "EEEE · MMMM dd · yyyy").toUpperCase();
 
-  const stageTextMap: Record<string, string> = {
-    preflight: "text-sky-800",
-    wip: "text-orange-800",
-    completed: "text-emerald-800",
-    to_ship: "text-blue-800",
-    close: "text-stone-700",
-  };
+  // Notification items
+  const notifItems = [
+    inboxCounts && inboxCounts.actionNeeded > 0 && {
+      id: "action",
+      icon: <Mail size={14} className="text-primary shrink-0" />,
+      text: `${inboxCounts.actionNeeded} email${inboxCounts.actionNeeded !== 1 ? 's' : ''} need attention`,
+      onClick: () => navigate("/inbox"),
+    },
+    inboxCounts && inboxCounts.autoHandledToday > 0 && {
+      id: "auto",
+      icon: <Zap size={14} className="text-success shrink-0" />,
+      text: `${inboxCounts.autoHandledToday} auto-handled today`,
+      onClick: () => navigate("/inbox"),
+    },
+    inboxCounts && inboxCounts.newCalls > 0 && {
+      id: "calls",
+      icon: <PhoneCall size={14} className="text-warning shrink-0" />,
+      text: `${inboxCounts.newCalls} call${inboxCounts.newCalls !== 1 ? 's' : ''} to return`,
+      onClick: () => navigate("/calls"),
+    },
+  ].filter(Boolean) as { id: string; icon: React.ReactNode; text: string; onClick: () => void }[];
+
+  const visibleNotifs = notifItems.filter(n => !dismissedNotifItems.has(n.id));
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1600px]">
-      <h1 className="text-2xl font-serif font-normal">Dashboard</h1>
-
-      {/* Stage Count Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {stageCounts.map((s) => (
-          <div key={s.key} className={`rounded-2xl border p-4 ${stageColorMap[s.key] || "bg-card"}`}>
-            <div className="flex items-center gap-2 mb-1">
-              <div className={`w-2 h-2 rounded-full ${s.color}`} />
-              <span className={`text-sm font-semibold font-sans ${stageTextMap[s.key] || ""}`}>{s.label}</span>
-            </div>
-            <div className={`text-3xl font-bold font-sans ${stageTextMap[s.key] || ""}`}>{s.count}</div>
-            <p className="text-xs text-muted-foreground mt-1 font-sans">{s.description}</p>
-          </div>
-        ))}
+      {/* Date header */}
+      <div className="flex justify-center">
+        <div className="inline-block bg-surface border border-border-mid px-6 py-2.5 rounded-[9px] shadow-sm">
+          <span className="text-[15px] font-extrabold tracking-[0.05em] text-foreground">{dateStr}</span>
+        </div>
       </div>
 
-      {/* Main content: Pipeline + Calendar side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
-        {/* Left: Pipeline + Priority */}
-        <div className="space-y-5">
-          {/* Kanban Board */}
-          <div className="floating-card">
-            <h2 className="text-lg font-serif mb-4">Order Pipeline</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 overflow-x-auto">
-              {STAGES.map((stage) => {
-                const stageOrders = filtered.filter(o => o.stage === stage.key);
-                return (
-                  <div key={stage.key} className="space-y-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-2 h-2 rounded-full ${stage.color}`} />
-                      <span className="text-xs font-semibold font-sans">{stage.label}</span>
-                      <span className="text-xs text-muted-foreground">({stageOrders.length})</span>
-                    </div>
-                    <div className="space-y-2 min-h-[80px]">
-                      {stageOrders.map((order) => {
-                        const checked = checklistCount(order);
-                        const daysInPreflight = daysSinceCreated(order.date_entered);
-                        const days = daysUntilDue(order.due_date);
-                        const poPos = getPoPosition(order);
+      {/* Action Feed */}
+      <div className="floating-card !p-0 overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
+          <span className="w-2 h-2 rounded-full bg-destructive animate-pulse-dot" />
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Action Feed — Needs Your Attention</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+          {/* Cell 1: Inbox urgent */}
+          <button onClick={() => navigate("/inbox")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Inbox Urgent</div>
+            <div className="flex items-center gap-2">
+              <span className="bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 rounded-md">
+                {inboxCounts?.actionNeeded || 0}
+              </span>
+              <span className="text-xs text-muted-foreground">need response</span>
+            </div>
+          </button>
 
-                        return (
-                          <div
-                            key={order.id}
-                            onClick={() => navigate(`/orders/${order.id}`)}
-                            className="bg-background/60 border rounded-xl p-3 cursor-pointer hover:shadow-md transition-shadow"
-                          >
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium text-sm font-sans">{order.item_name}</span>
-                              {order.notes && <StickyNote size={11} className="text-warning shrink-0" />}
-                            </div>
-                            <div className="text-xs text-muted-foreground font-sans">{order.clients?.company}</div>
+          {/* Cell 2: Latest sales email */}
+          <button onClick={() => navigate("/inbox")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Latest Sales Draft</div>
+            <span className="text-xs text-foreground">Check drafts tab →</span>
+          </button>
 
-                            {poPos && (
-                              <div className="flex items-center gap-1 mt-1 text-xs text-primary font-sans">
-                                <Link2 size={10} />
-                                <span>{poPos.index} of {poPos.total}</span>
-                              </div>
-                            )}
+          {/* Cell 3: Active WIP */}
+          <button onClick={() => navigate("/orders")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Active WIP Orders</div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-extrabold text-stage-wip">{stageCounts.find(s => s.key === 'wip')?.count || 0}</span>
+              <span className="text-xs text-muted-foreground">in production</span>
+            </div>
+          </button>
 
-                            {stage.key === "preflight" && (
-                              <div className={`text-xs mt-1.5 font-medium font-sans ${daysInPreflight > 14 ? "text-destructive" : daysInPreflight > 7 ? "text-warning" : "text-muted-foreground"}`}>
-                                {daysInPreflight} day{daysInPreflight !== 1 ? "s" : ""} in New Order
-                              </div>
-                            )}
-                            {stage.key === "wip" && days !== null && (
-                              <div className={`text-xs mt-1.5 font-medium font-sans ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
-                                {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
-                              </div>
-                            )}
-                            {stage.key === "completed" && (
-                              <div className={`text-xs mt-1.5 font-medium font-sans ${order.paid ? "text-success" : "text-destructive"}`}>
-                                {order.paid ? "✓ Paid" : "Awaiting Payment"}
-                              </div>
-                            )}
-                            {stage.key === "to_ship" && (
-                              <div className={`text-xs mt-1.5 font-medium font-sans ${order.outgoing_bol ? "text-success" : "text-destructive"}`}>
-                                {order.outgoing_bol ? "✓ BOL Ready" : "BOL Needed"}
-                              </div>
-                            )}
-                            {stage.key === "close" && (
-                              <div className={`text-xs mt-1.5 font-medium font-sans text-success`}>
-                                Ready to Archive
-                              </div>
-                            )}
+          {/* Cell 4: QB Status */}
+          <button onClick={() => navigate("/orders")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">QuickBooks Review</div>
+            {qbAllClear ? (
+              <span className="text-xs font-bold text-success">ALL CLEAR ✓</span>
+            ) : (
+              <span className="text-xs font-bold text-destructive">{invoicesToReview + vendorPosToReview} to review</span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Stage Pipeline Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[11px]">
+        {stageCounts.map((s) => {
+          const colors = stageColors[s.key] || stageColors.close;
+          const isOpen = expandedStages.has(s.key);
+          const stageOrders = filtered.filter(o => o.stage === s.key);
+
+          return (
+            <div key={s.key}
+              className={`floating-card !p-0 overflow-hidden cursor-pointer transition-all duration-[350ms] ${isOpen ? colors.border : ''}`}
+              style={{ borderTopWidth: isOpen ? '1.5px' : '1.5px' }}
+              onClick={() => toggleStage(s.key)}
+            >
+              {/* 3px color stripe */}
+              <div className={`h-[3px] ${colors.stripe}`} />
+
+              <div className="p-4 flex items-start justify-between">
+                <div>
+                  <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{s.label}</div>
+                  <div className={`text-[54px] leading-none font-extrabold ${colors.text}`}>{s.count}</div>
+                  <div className="text-[11.5px] text-muted-foreground mt-1">{s.description}</div>
+                </div>
+                <ChevronRight size={16} className={`text-muted-foreground mt-1 transition-transform duration-300 ${isOpen ? 'rotate-90' : ''}`} />
+              </div>
+
+              {/* Expandable content */}
+              <div className={`overflow-hidden transition-all duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isOpen ? 'max-h-[600px]' : 'max-h-0'}`}
+                style={isOpen && s.key === 'wip' ? { borderLeft: `3px solid hsl(var(--stage-wip))` } : {}}>
+                <div className="px-4 pb-4 space-y-2">
+                  {stageOrders.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic py-2">No orders in this stage</p>
+                  ) : (
+                    stageOrders.map((order) => {
+                      const days = daysUntilDue(order.due_date);
+                      const daysIn = daysSinceCreated(order.date_entered);
+                      const poPos = getPoPosition(order);
+                      return (
+                        <div key={order.id}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}
+                          className="bg-background/60 border rounded-[9px] p-3 cursor-pointer hover:shadow-md hover:-translate-y-[3px] transition-all duration-[180ms]"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-sm">{order.item_name}</span>
+                            {order.notes && <StickyNote size={11} className="text-warning shrink-0" />}
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="text-xs text-muted-foreground">{order.clients?.company}</div>
+                          {poPos && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-primary">
+                              <Link2 size={10} />
+                              <span>{poPos.index} of {poPos.total}</span>
+                            </div>
+                          )}
+                          {s.key === "preflight" && (
+                            <div className={`text-xs mt-1.5 font-medium ${daysIn > 14 ? "text-destructive" : daysIn > 7 ? "text-warning" : "text-muted-foreground"}`}>
+                              {daysIn} day{daysIn !== 1 ? "s" : ""} in New Order
+                            </div>
+                          )}
+                          {s.key === "wip" && days !== null && (
+                            <div className={`text-xs mt-1.5 font-medium ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
+                              {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
+                            </div>
+                          )}
+                          {s.key === "completed" && (
+                            <div className={`text-xs mt-1.5 font-medium ${order.paid ? "text-success" : "text-destructive"}`}>
+                              {order.paid ? "✓ Paid" : "Awaiting Payment"}
+                            </div>
+                          )}
+                          {s.key === "to_ship" && (
+                            <div className={`text-xs mt-1.5 font-medium ${order.outgoing_bol ? "text-success" : "text-destructive"}`}>
+                              {order.outgoing_bol ? "✓ BOL Ready" : "BOL Needed"}
+                            </div>
+                          )}
+                          {s.key === "close" && (
+                            <div className="text-xs mt-1.5 font-medium text-success">Ready to Archive</div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Lower Grid: Email table + Right column */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-[14px]">
+        {/* Left: Recent Inbox */}
+        <div className="floating-card !p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold">Recent Inbox</span>
+              {inboxCounts && inboxCounts.actionNeeded > 0 && (
+                <span className="text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">{inboxCounts.actionNeeded} unread</span>
+              )}
+            </div>
+            <button onClick={() => navigate("/inbox")} className="text-xs font-semibold text-primary hover:underline">View all →</button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs">From</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Subject</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs hidden md:table-cell">Type</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs hidden md:table-cell">Status</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={5} className="p-4 text-center text-xs text-muted-foreground">
+                    <button onClick={() => navigate("/inbox")} className="text-primary hover:underline font-medium">Open Inbox to view emails →</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-[14px]">
+          {/* Notifications & QB */}
+          <div className="floating-card !p-0 overflow-hidden">
+            <button onClick={() => setNotifsOpen(o => !o)}
+              className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+              style={{ borderBottomWidth: '1.5px' }}>
+              <span className="text-sm font-bold">Notifications & QB</span>
+              {visibleNotifs.length > 0 && notifsOpen && (
+                <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
+                  onClick={(e) => { e.stopPropagation(); setClearNotifsDialog(true); }}>Clear all</span>
+              )}
+            </button>
+            <div className={`overflow-hidden transition-all duration-300 ${notifsOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
+              <div className="p-4 space-y-2">
+                {visibleNotifs.map(n => (
+                  <div key={n.id} className="group flex items-center gap-2 text-sm relative">
+                    <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left hover:text-primary transition-colors min-h-[36px]">
+                      {n.icon}
+                      <span className="font-medium">{n.text}</span>
+                    </button>
+                    <button onClick={() => setDismissedNotifItems(prev => new Set([...prev, n.id]))}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <X size={10} />
+                    </button>
                   </div>
-                );
-              })}
+                ))}
+                {visibleNotifs.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No new notifications</p>
+                )}
+
+                {/* QB inline */}
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <ClipboardList size={14} className="text-primary shrink-0" />
+                    {qbAllClear ? (
+                      <span className="font-bold text-success text-xs">QB: All caught up ✓</span>
+                    ) : (
+                      <button onClick={() => navigate("/orders")} className="font-medium text-xs hover:text-primary transition-colors">
+                        {invoicesToReview + vendorPosToReview} QB items to review
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Priority List */}
-          {priorityOrders.length > 0 && (
-            <div className="floating-card">
-              <h2 className="text-lg font-serif mb-4">Priority List — W.I.P. & Completed</h2>
-              <div className="overflow-x-auto rounded-xl">
-                <table className="w-full text-sm font-sans min-w-[700px]">
-                  <thead>
-                    <tr className="border-b bg-muted/40">
-                      <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Customer</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Description</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Size</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Qty.</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Pass</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Stage</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Date In</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Due Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {priorityOrders.map((order, i) => {
-                      const days = daysUntilDue(order.due_date);
-                      return (
-                        <tr
-                          key={order.id}
-                          onClick={() => navigate(`/orders/${order.id}`)}
-                          className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer"
-                        >
-                          <td className="p-3">{i + 1}</td>
-                          <td className="p-3">{order.clients?.company}</td>
-                          <td className="p-3 font-medium">
-                            <span className="flex items-center gap-1">
-                              {order.item_name}
-                              {order.notes && <StickyNote size={12} className="text-warning shrink-0" />}
-                            </span>
-                          </td>
-                          <td className="p-3">{order.bottle_size}</td>
-                          <td className="p-3">{order.quantity?.toLocaleString()}</td>
-                          <td className="p-3">{order.pass}</td>
-                          <td className="p-3">
-                            <Badge variant="secondary" className={`text-xs ${getStageBadgeClass(order.stage)}`}>
-                              {getStageLabel(order.stage)}
-                            </Badge>
-                          </td>
-                          <td className="p-3">{formatDateShort(order.date_entered)}</td>
-                          <td className={`p-3 font-medium ${days !== null && days < 0 ? "text-destructive" : days !== null && days < 7 ? "text-warning" : ""}`}>
-                            {formatDateShort(order.due_date)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: QB Review + Calendar */}
-        <div className="space-y-5">
-          {/* Inbox & Calls Notifications */}
-          {!dismissedNotifs && inboxCounts && (inboxCounts.actionNeeded > 0 || inboxCounts.autoHandledToday > 0 || inboxCounts.newCalls > 0) && (
-            <div className={`floating-card space-y-2 relative transition-opacity duration-300 ${fadingNotifs ? "opacity-0" : "opacity-100"}`}>
-              <button onClick={() => dismissCard("notifs")} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors">
-                <X size={14} />
-              </button>
-              <h3 className="text-base font-serif mb-2">Notifications</h3>
-              {inboxCounts.actionNeeded > 0 && (
-                <button onClick={() => navigate("/inbox")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
-                  <Mail size={14} className="text-primary shrink-0" />
-                  <span className="font-medium">{inboxCounts.actionNeeded} email{inboxCounts.actionNeeded !== 1 ? "s" : ""} need attention</span>
-                </button>
-              )}
-              {inboxCounts.autoHandledToday > 0 && (
-                <button onClick={() => navigate("/inbox")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
-                  <Zap size={14} className="text-success shrink-0" />
-                  <span className="font-medium">{inboxCounts.autoHandledToday} auto-handled today</span>
-                </button>
-              )}
-              {inboxCounts.newCalls > 0 && (
-                <button onClick={() => navigate("/calls")} className="flex items-center gap-2 text-sm font-sans hover:text-primary transition-colors w-full text-left">
-                  <PhoneCall size={14} className="text-warning shrink-0" />
-                  <span className="font-medium">{inboxCounts.newCalls} call{inboxCounts.newCalls !== 1 ? "s" : ""} to return</span>
-                </button>
-              )}
-            </div>
-          )}
-          {/* QuickBooks Review */}
-          {!dismissedQb && (() => {
-            const invoicesToReview = filtered.filter(o => o.invoice_num && !(o as any).invoice_reviewed).length;
-            const vendorPosToReview = filtered.filter(o => o.vendor_po && !(o as any).vendor_po_reviewed).length;
-            return (
-              <div className={`floating-card relative transition-opacity duration-300 ${fadingQb ? "opacity-0" : "opacity-100"}`}>
-                <button onClick={() => dismissCard("qb")} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors">
-                  <X size={14} />
-                </button>
-                <h3 className="text-base font-serif mb-3 flex items-center gap-2">
-                  <ClipboardList size={16} className="text-primary" />
-                  QuickBooks Review
-                </h3>
-                {invoicesToReview === 0 && vendorPosToReview === 0 ? (
-                  <p className="text-sm text-success font-medium">All caught up! ✓</p>
-                ) : (
-                  <div className="space-y-2 text-sm">
-                    {invoicesToReview > 0 && (
-                      <button onClick={() => navigate("/orders")} className="flex items-center gap-2 hover:text-primary transition-colors w-full text-left">
-                        <span className="font-medium">{invoicesToReview} invoice{invoicesToReview !== 1 ? "s" : ""} to review</span>
-                      </button>
-                    )}
-                    {vendorPosToReview > 0 && (
-                      <button onClick={() => navigate("/orders")} className="flex items-center gap-2 hover:text-primary transition-colors w-full text-left">
-                        <span className="font-medium">{vendorPosToReview} vendor PO{vendorPosToReview !== 1 ? "s" : ""} to review</span>
-                      </button>
-                    )}
-                  </div>
+          {/* Quick Notes */}
+          <div className="floating-card !p-0 overflow-hidden">
+            <button onClick={() => setNotesOpen(o => !o)}
+              className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+              style={{ borderBottomWidth: '1.5px' }}>
+              <span className="text-sm font-bold">Quick Notes</span>
+              <div className="flex items-center gap-2">
+                {notes.length > 0 && notesOpen && (
+                  <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
+                    onClick={(e) => { e.stopPropagation(); setClearNotesDialog(true); }}>Clear all</span>
                 )}
               </div>
-            );
-          })()}
+            </button>
+            <div className={`overflow-hidden transition-all duration-300 ${notesOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
+              <div className="p-4 space-y-2">
+                {notes.map((n, i) => (
+                  <div key={n.id} className="group flex items-start gap-2 text-sm">
+                    <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.color === 'text-warning' ? 'bg-warning' : n.color === 'text-destructive' ? 'bg-destructive' : 'bg-primary'}`} />
+                    <span className="flex-1 text-xs">{n.text}</span>
+                    <button onClick={() => setNotes(prev => prev.filter((_, j) => j !== i))}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+                {notes.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">No notes yet</p>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <input
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addNote()}
+                    placeholder="Add a note..."
+                    className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[36px]"
+                  />
+                  <button onClick={addNote} className="text-primary font-bold text-xs px-2 min-h-[36px]">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <div className="floating-card h-fit">
-            <h3 className="text-base font-serif mb-3">Calendar</h3>
-            <p className="text-sm text-muted-foreground font-sans mb-2">
-              {format(calDate || new Date(), "MMMM yyyy")}
-            </p>
-            <Calendar
-              mode="single"
-              selected={calDate}
-              onSelect={setCalDate}
-              className="p-0 pointer-events-auto"
-            />
+          {/* Calendar */}
+          <div className="floating-card">
+            <h3 className="text-sm font-bold mb-3">Calendar</h3>
+            <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
+            <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto" />
           </div>
         </div>
       </div>
+
+      {/* Clear notifications dialog */}
+      <AlertDialog open={clearNotifsDialog} onOpenChange={setClearNotifsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all notifications?</AlertDialogTitle>
+            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setDismissedNotifItems(new Set(notifItems.map(n => n.id))); setClearNotifsDialog(false); }}>Clear All</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear notes dialog */}
+      <AlertDialog open={clearNotesDialog} onOpenChange={setClearNotesDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all notes?</AlertDialogTitle>
+            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setNotes([]); setClearNotesDialog(false); }}>Clear All</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

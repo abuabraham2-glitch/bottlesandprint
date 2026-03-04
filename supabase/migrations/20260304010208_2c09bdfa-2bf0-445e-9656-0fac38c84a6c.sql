@@ -1,0 +1,1 @@
+ALTER TABLE public.catalog ADD COLUMN artwork_url text;
