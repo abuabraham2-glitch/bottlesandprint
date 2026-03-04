@@ -1,9 +1,8 @@
 import { useOrders } from "@/lib/data";
-import { useInboxCounts, useEmails } from "@/lib/emailData";
-import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
+import { useInboxCounts } from "@/lib/emailData";
+import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
-import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X } from "lucide-react";
+import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { format, formatDistanceToNowStrict } from "date-fns";
@@ -59,10 +58,27 @@ function useRecentEmails() {
   });
 }
 
+function useLatestInsightsNotification() {
+  return useQuery({
+    queryKey: ["stats", "latest_insight_notification"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("monthly_stats")
+        .select("insights, month_start")
+        .order("month_start", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const { data: recentEmails = [] } = useRecentEmails();
+  const { data: latestInsight } = useLatestInsightsNotification();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
@@ -70,6 +86,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   // Notifications panel
   const [notifsOpen, setNotifsOpen] = useState(true);
   const [dismissedNotifItems, setDismissedNotifItems] = useState<Set<string>>(new Set());
+  const [dismissingNotifItems, setDismissingNotifItems] = useState<Set<string>>(new Set());
   const [clearNotifsDialog, setClearNotifsDialog] = useState(false);
 
   // Quick notes
@@ -89,6 +106,25 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     if (!newNote.trim()) return;
     setNotes(prev => [...prev, { id: Date.now().toString(), text: newNote.trim(), color: noteColors[prev.length % 3] }]);
     setNewNote("");
+  };
+
+  const dismissNotification = (id: string, delayMs = 0) => {
+    setTimeout(() => {
+      setDismissingNotifItems(prev => new Set([...prev, id]));
+      setTimeout(() => {
+        setDismissedNotifItems(prev => new Set([...prev, id]));
+        setDismissingNotifItems(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, 300);
+    }, delayMs);
+  };
+
+  const clearAllNotifications = () => {
+    visibleNotifs.forEach((n, idx) => dismissNotification(n.id, idx * 80));
+    setClearNotifsDialog(false);
   };
 
   const filtered = searchQuery
@@ -141,12 +177,29 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const dateStr = format(now, "EEEE · MMMM dd · yyyy").toUpperCase();
 
   // Notification items
+  const hasInsightUpdate = Boolean(latestInsight?.insights?.trim());
+  const insightMonthLabel = latestInsight?.month_start
+    ? format(new Date(latestInsight.month_start), "MMMM")
+    : "this month";
+
   const notifItems = [
     inboxCounts && inboxCounts.actionNeeded > 0 && {
       id: "action",
       icon: <Mail size={14} className="text-primary shrink-0" />,
-      text: `${inboxCounts.actionNeeded} email${inboxCounts.actionNeeded !== 1 ? 's' : ''} need attention`,
+      text: `${inboxCounts.actionNeeded} email${inboxCounts.actionNeeded !== 1 ? "s" : ""} need attention`,
       onClick: () => navigate("/inbox"),
+    },
+    inboxCounts && inboxCounts.draftsToReview > 0 && {
+      id: "drafts",
+      icon: <FilePenLine size={14} className="text-warning shrink-0" />,
+      text: `${inboxCounts.draftsToReview} draft${inboxCounts.draftsToReview !== 1 ? "s" : ""} ready to review`,
+      onClick: () => navigate("/inbox?tab=drafts"),
+    },
+    hasInsightUpdate && {
+      id: "insights",
+      icon: <BarChart3 size={14} className="text-primary shrink-0" />,
+      text: `AI insights updated for ${insightMonthLabel}`,
+      onClick: () => navigate("/stats"),
     },
     inboxCounts && inboxCounts.autoHandledToday > 0 && {
       id: "auto",
@@ -157,7 +210,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     inboxCounts && inboxCounts.newCalls > 0 && {
       id: "calls",
       icon: <PhoneCall size={14} className="text-warning shrink-0" />,
-      text: `${inboxCounts.newCalls} call${inboxCounts.newCalls !== 1 ? 's' : ''} to return`,
+      text: `${inboxCounts.newCalls} call${inboxCounts.newCalls !== 1 ? "s" : ""} to return`,
       onClick: () => navigate("/calls"),
     },
   ].filter(Boolean) as { id: string; icon: React.ReactNode; text: string; onClick: () => void }[];
@@ -329,13 +382,19 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             <div className={`overflow-hidden transition-all duration-300 ${notifsOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
               <div className="p-4 space-y-2">
                 {visibleNotifs.map(n => (
-                  <div key={n.id} className="group flex items-center gap-2 text-sm relative transition-all duration-300">
-                    <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left hover:text-primary transition-colors min-h-[36px]">
+                  <div
+                    key={n.id}
+                    className={`group relative flex items-start gap-2 text-sm rounded-[9px] pr-7 transition-all duration-300 ${dismissingNotifItems.has(n.id) ? "opacity-0 translate-x-5" : "opacity-100 translate-x-0"}`}
+                  >
+                    <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left hover:text-primary transition-colors min-h-[44px] py-1">
                       {n.icon}
-                      <span className="font-medium">{n.text}</span>
+                      <span className="font-medium text-xs leading-snug">{n.text}</span>
                     </button>
-                    <button onClick={() => setDismissedNotifItems(prev => new Set([...prev, n.id]))}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                    <button
+                      onClick={() => dismissNotification(n.id)}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-muted flex items-center justify-center"
+                      aria-label="Dismiss notification"
+                    >
                       <X size={10} />
                     </button>
                   </div>
@@ -421,7 +480,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setDismissedNotifItems(new Set(notifItems.map(n => n.id))); setClearNotifsDialog(false); }}>Clear All</AlertDialogAction>
+            <AlertDialogAction onClick={clearAllNotifications}>Clear All</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

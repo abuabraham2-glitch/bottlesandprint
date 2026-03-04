@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useInboxCounts } from "@/lib/emailData";
 
 const navGroup1 = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -53,18 +54,33 @@ function TogglePill({ active, onClick, icon: Icon, label, collapsed }: { active:
   );
 }
 
-function NavItem({ item, active, collapsed, onNavigate }: { item: any; active: boolean; collapsed: boolean; onNavigate?: () => void }) {
+function NavItem({ item, active, collapsed, onNavigate, badgeCount = 0 }: { item: any; active: boolean; collapsed: boolean; onNavigate?: () => void; badgeCount?: number }) {
   const baseClass = `flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
   const activeClass = active ? "bg-primary text-white" : "hover:bg-sidebar-accent";
   const textStyle = active ? {} : { color: 'rgba(255,255,255,0.46)' };
+
+  const content = (
+    <>
+      <item.icon size={17} className="shrink-0" />
+      {!collapsed && (
+        <>
+          <span className="flex-1">{item.label}</span>
+          {badgeCount > 0 && (
+            <span className="text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded-full leading-none">
+              {badgeCount}
+            </span>
+          )}
+        </>
+      )}
+    </>
+  );
 
   if (item.external) {
     return (
       <a href={item.to} target="_blank" rel="noopener noreferrer" onClick={onNavigate}
         className={baseClass + ' ' + activeClass} style={textStyle}
         title={collapsed ? item.label : undefined}>
-        <item.icon size={17} className="shrink-0" />
-        {!collapsed && <span>{item.label}</span>}
+        {content}
       </a>
     );
   }
@@ -72,22 +88,23 @@ function NavItem({ item, active, collapsed, onNavigate }: { item: any; active: b
     <Link to={item.to} onClick={onNavigate}
       className={baseClass + ' ' + activeClass} style={textStyle}
       title={collapsed ? item.label : undefined}>
-      <item.icon size={17} className="shrink-0" />
-      {!collapsed && <span>{item.label}</span>}
+      {content}
     </Link>
   );
 }
 
 function SidebarDivider() {
-  return <div className="my-2 mx-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }} />;
+  return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
-function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark }: {
+function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount }: {
   onNavigate?: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   darkMode: boolean;
   onToggleDark: () => void;
+  inboxCount: number;
+  callsCount: number;
 }) {
   const location = useLocation();
   const { signOut } = useAuth();
@@ -109,7 +126,14 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
       {/* Nav Group 1: Operations */}
       <nav className={`space-y-0.5 mt-2 flex-1 ${collapsed ? 'px-1.5' : 'px-3'}`}>
         {navGroup1.map((item) => (
-          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+          <NavItem
+            key={item.to}
+            item={item}
+            active={location.pathname === item.to}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+            badgeCount={item.to === "/inbox" ? inboxCount : item.to === "/calls" ? callsCount : 0}
+          />
         ))}
 
         <SidebarDivider />
@@ -153,6 +177,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
+  const { data: inboxCounts } = useInboxCounts();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -188,14 +213,29 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
     <div className="flex min-h-screen w-full">
       {/* Desktop Sidebar */}
       <aside className={`hidden md:flex ${sidebarWidth} bg-sidebar text-sidebar-foreground flex-col shrink-0 rounded-2xl m-2 mr-0 overflow-hidden transition-all duration-300`}>
-        <SidebarNav collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)} darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)} />
+        <SidebarNav
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(c => !c)}
+          darkMode={darkMode}
+          onToggleDark={() => setDarkMode(d => !d)}
+          inboxCount={inboxCounts?.activeInbox || 0}
+          callsCount={inboxCounts?.newCalls || 0}
+        />
       </aside>
 
       {/* Mobile Sidebar Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-64 bg-sidebar text-sidebar-foreground p-0 border-0 [&>button]:hidden">
           <div className="flex flex-col h-full">
-            <SidebarNav onNavigate={() => setMobileOpen(false)} collapsed={false} onToggleCollapse={() => {}} darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)} />
+            <SidebarNav
+              onNavigate={() => setMobileOpen(false)}
+              collapsed={false}
+              onToggleCollapse={() => {}}
+              darkMode={darkMode}
+              onToggleDark={() => setDarkMode(d => !d)}
+              inboxCount={inboxCounts?.activeInbox || 0}
+              callsCount={inboxCounts?.newCalls || 0}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -224,7 +264,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="rounded-[9px] gap-1.5 font-bold min-h-[44px] md:min-h-0 shadow-[0_3px_12px_rgba(37,99,235,0.28)]">
                   <Plus size={15} />
-                  <span className="hidden xs:inline">Quick Create</span>
+                  <span>Quick Create</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
