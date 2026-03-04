@@ -83,6 +83,7 @@ interface ProductResult {
   size: string | null;
   material: string | null;
   container_color: string | null;
+  artwork_url: string | null;
   clients: { company: string } | null;
 }
 
@@ -145,10 +146,10 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
           .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term},to_recipients.ilike.${term},cc_recipients.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("calls").select("id, caller_name, company_name, phone_number, call_reason, created_at")
           .or(`caller_name.ilike.${term},company_name.ilike.${term},phone_number.ilike.${term},call_reason.ilike.${term}`).limit(PREVIEW_LIMIT),
-        supabase.from("catalog").select("id, product_name, size, material, container_color, clients(company)")
+        supabase.from("catalog").select("id, product_name, size, material, container_color, artwork_url, clients(company)")
           .or(`product_name.ilike.${term},size.ilike.${term},material.ilike.${term},container_color.ilike.${term}`)
           .eq("archived", false).limit(PREVIEW_LIMIT),
-        supabase.from("catalog").select("id, product_name, size, material, container_color, clients!inner(company)")
+        supabase.from("catalog").select("id, product_name, size, material, container_color, artwork_url, clients!inner(company)")
           .ilike("clients.company" as any, term)
           .eq("archived", false).limit(PREVIEW_LIMIT),
       ]);
@@ -252,7 +253,10 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
             </tr></thead>
             <tbody>{products.map(p => (
               <tr key={p.id} onClick={() => navigate(`/catalog?product=${p.id}`)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
-                <td className="p-3 font-medium">{p.product_name}</td>
+                <td className="p-3 font-medium flex items-center gap-1.5">
+                  {p.artwork_url && <Paperclip size={13} className="text-muted-foreground shrink-0" />}
+                  {p.product_name}
+                </td>
                 <td className="p-3">{p.clients?.company || "—"}</td>
                 <td className="p-3 text-muted-foreground">{p.size || "—"}</td>
                 <td className="p-3 text-muted-foreground">{p.material || "—"}</td>
