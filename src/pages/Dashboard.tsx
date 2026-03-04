@@ -82,21 +82,28 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
+  // Mobile: only one stage expanded at a time
+  const [mobileExpandedStage, setMobileExpandedStage] = useState<string | null>(null);
 
   // Notifications panel
   const [notifsOpen, setNotifsOpen] = useState(true);
+  const [notifsOpenMobile, setNotifsOpenMobile] = useState(false); // collapsed on mobile by default
   const [dismissedNotifItems, setDismissedNotifItems] = useState<Set<string>>(new Set());
   const [dismissingNotifItems, setDismissingNotifItems] = useState<Set<string>>(new Set());
   const [clearNotifsDialog, setClearNotifsDialog] = useState(false);
 
   // Quick notes
   const [notesOpen, setNotesOpen] = useState(true);
+  const [notesOpenMobile, setNotesOpenMobile] = useState(false);
   const [notes, setNotes] = useState<{ id: string; text: string; color: string }[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
   });
   const [newNote, setNewNote] = useState("");
   const [clearNotesDialog, setClearNotesDialog] = useState(false);
   const noteColors = ["text-warning", "text-destructive", "text-primary"];
+
+  // Calendar
+  const [calOpenMobile, setCalOpenMobile] = useState(false);
 
   useEffect(() => {
     sessionStorage.setItem(SESSION_KEY_NOTES, JSON.stringify(notes));
@@ -166,6 +173,10 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     });
   };
 
+  const toggleMobileStage = (key: string) => {
+    setMobileExpandedStage(prev => prev === key ? null : key);
+  };
+
   // QB review data
   const invoicesToReview = filtered.filter(o => o.invoice_num && !o.invoice_reviewed).length;
   const vendorPosToReview = filtered.filter(o => o.vendor_po && !o.vendor_po_reviewed).length;
@@ -217,17 +228,233 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
 
   const visibleNotifs = notifItems.filter(n => !dismissedNotifItems.has(n.id));
 
+  // Determine responsive open state helpers
+  const isNotifsOpen = (isMobile: boolean) => isMobile ? notifsOpenMobile : notifsOpen;
+  const toggleNotifs = (isMobile: boolean) => isMobile ? setNotifsOpenMobile(o => !o) : setNotifsOpen(o => !o);
+  const isNotesOpen = (isMobile: boolean) => isMobile ? notesOpenMobile : notesOpen;
+  const toggleNotes = (isMobile: boolean) => isMobile ? setNotesOpenMobile(o => !o) : setNotesOpen(o => !o);
+
+  // Render notification panel content (shared)
+  const renderNotifPanel = (mobile: boolean) => {
+    const open = mobile ? notifsOpenMobile : notifsOpen;
+    const toggle = () => mobile ? setNotifsOpenMobile(o => !o) : setNotifsOpen(o => !o);
+    return (
+      <div className="floating-card !p-0 overflow-hidden">
+        <button onClick={toggle}
+          className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+          style={{ borderBottomWidth: '1.5px' }}>
+          <span className="text-sm font-bold">
+            Notifications & QB
+            {!open && visibleNotifs.length > 0 && (
+              <span className="ml-2 text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded-full">{visibleNotifs.length}</span>
+            )}
+          </span>
+          {visibleNotifs.length > 0 && open && (
+            <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
+              onClick={(e) => { e.stopPropagation(); setClearNotifsDialog(true); }}>Clear all</span>
+          )}
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
+          <div className="p-3 md:p-4 space-y-2">
+            {visibleNotifs.map(n => (
+              <div key={n.id}
+                className={`group relative flex items-start gap-2 text-sm rounded-[9px] pr-7 transition-all duration-300 ${dismissingNotifItems.has(n.id) ? "opacity-0 translate-x-5" : "opacity-100 translate-x-0"}`}>
+                <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left transition-colors min-h-[44px] py-1">
+                  {n.icon}
+                  <span className="font-medium text-xs leading-snug">{n.text}</span>
+                </button>
+                <button onClick={() => dismissNotification(n.id)}
+                  className={`absolute top-1 right-1 transition-opacity w-7 h-7 md:w-5 md:h-5 rounded-full bg-muted flex items-center justify-center ${mobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  aria-label="Dismiss notification">
+                  <X size={mobile ? 12 : 10} />
+                </button>
+              </div>
+            ))}
+            {visibleNotifs.length === 0 && (
+              <p className="text-xs text-muted-foreground">No new notifications</p>
+            )}
+            <div className="border-t pt-2 mt-2">
+              <div className="flex items-center gap-2 text-sm">
+                <ClipboardList size={14} className="text-primary shrink-0" />
+                {qbAllClear ? (
+                  <span className="font-bold text-success text-xs">QB: All caught up ✓</span>
+                ) : (
+                  <button onClick={() => navigate("/orders")} className="font-medium text-xs transition-colors">
+                    {invoicesToReview + vendorPosToReview} QB items to review
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render notes panel (shared)
+  const renderNotesPanel = (mobile: boolean) => {
+    const open = mobile ? notesOpenMobile : notesOpen;
+    const toggle = () => mobile ? setNotesOpenMobile(o => !o) : setNotesOpen(o => !o);
+    return (
+      <div className="floating-card !p-0 overflow-hidden">
+        <button onClick={toggle}
+          className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+          style={{ borderBottomWidth: '1.5px' }}>
+          <span className="text-sm font-bold">
+            Quick Notes
+            {!open && notes.length > 0 && (
+              <span className="ml-2 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{notes.length}</span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            {notes.length > 0 && open && (
+              <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); setClearNotesDialog(true); }}>Clear all</span>
+            )}
+          </div>
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
+          <div className="p-3 md:p-4 space-y-2">
+            {notes.map((n, i) => (
+              <div key={n.id} className="group flex items-start gap-2 text-sm">
+                <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.color === 'text-warning' ? 'bg-warning' : n.color === 'text-destructive' ? 'bg-destructive' : 'bg-primary'}`} />
+                <span className="flex-1 text-xs">{n.text}</span>
+                <button onClick={() => setNotes(prev => prev.filter((_, j) => j !== i))}
+                  className={`transition-opacity rounded-full bg-muted flex items-center justify-center shrink-0 ${mobile ? 'opacity-100 w-7 h-7' : 'opacity-0 group-hover:opacity-100 w-5 h-5'}`}>
+                  <X size={mobile ? 12 : 10} />
+                </button>
+              </div>
+            ))}
+            {notes.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">No notes yet</p>
+            )}
+            <div className="flex gap-2 mt-2">
+              <input
+                value={newNote}
+                onChange={e => setNewNote(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addNote()}
+                placeholder="Add a note..."
+                className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[40px] md:min-h-[36px]"
+              />
+              <button onClick={addNote} className="text-primary font-bold text-xs px-2 min-h-[40px] md:min-h-[36px]">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render expanded stage orders
+  const renderStageOrders = (stageKey: string) => {
+    const stageOrders = filtered.filter(o => o.stage === stageKey);
+    const s = stageCounts.find(sc => sc.key === stageKey)!;
+    return (
+      <div className="space-y-2 p-3">
+        {stageOrders.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic py-2">No orders in this stage</p>
+        ) : (
+          stageOrders.map((order) => {
+            const days = daysUntilDue(order.due_date);
+            const daysIn = daysSinceCreated(order.date_entered);
+            const poPos = getPoPosition(order);
+            return (
+              <div key={order.id}
+                onClick={() => navigate(`/orders/${order.id}`)}
+                className="bg-background/60 border rounded-[9px] p-3 cursor-pointer active:scale-[0.98] md:hover:shadow-md md:hover:-translate-y-[3px] transition-all duration-[180ms]"
+              >
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold text-sm">{order.item_name}</span>
+                  {order.notes && <StickyNote size={11} className="text-warning shrink-0" />}
+                </div>
+                <div className="text-xs text-muted-foreground">{order.clients?.company}</div>
+                {poPos && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-primary">
+                    <Link2 size={10} />
+                    <span>{poPos.index} of {poPos.total}</span>
+                  </div>
+                )}
+                {stageKey === "preflight" && (
+                  <div className={`text-xs mt-1.5 font-medium ${daysIn > 14 ? "text-destructive" : daysIn > 7 ? "text-warning" : "text-muted-foreground"}`}>
+                    {daysIn} day{daysIn !== 1 ? "s" : ""} in New Order
+                  </div>
+                )}
+                {stageKey === "wip" && days !== null && (
+                  <div className={`text-xs mt-1.5 font-medium ${days < 0 ? "text-destructive" : days < 7 ? "text-warning" : "text-muted-foreground"}`}>
+                    {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
+                  </div>
+                )}
+                {stageKey === "completed" && (
+                  <div className={`text-xs mt-1.5 font-medium ${order.paid ? "text-success" : "text-destructive"}`}>
+                    {order.paid ? "✓ Paid" : "Awaiting Payment"}
+                  </div>
+                )}
+                {stageKey === "to_ship" && (
+                  <div className={`text-xs mt-1.5 font-medium ${order.outgoing_bol ? "text-success" : "text-destructive"}`}>
+                    {order.outgoing_bol ? "✓ BOL Ready" : "BOL Needed"}
+                  </div>
+                )}
+                {stageKey === "close" && (
+                  <div className="text-xs mt-1.5 font-medium text-success">Ready to Archive</div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
+  };
+
+  const mobileEmails = recentEmails.slice(0, 4);
+
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1600px]">
+    <div className="p-3 md:p-6 space-y-3 md:space-y-5 max-w-[1600px]">
       {/* Date header */}
       <div className="flex justify-center">
-        <div className="inline-block bg-surface border border-border-mid px-6 py-2.5 rounded-[9px] shadow-sm">
-          <span className="text-[13px] md:text-[15px] font-extrabold tracking-[0.05em] text-foreground">{dateStr}</span>
+        <div className="inline-block bg-surface border border-border-mid px-4 md:px-6 py-1.5 md:py-2.5 rounded-[7px] md:rounded-[9px] shadow-sm">
+          <span className="text-[12px] md:text-[15px] font-bold md:font-extrabold tracking-[0.05em] text-foreground">{dateStr}</span>
         </div>
       </div>
 
-      {/* Stage Pipeline Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[11px]">
+      {/* ===== MOBILE PIPELINE: horizontal scroll strip ===== */}
+      <div className="md:hidden">
+        <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+          {stageCounts.map((s) => {
+            const colors = stageColors[s.key] || stageColors.close;
+            const isActive = mobileExpandedStage === s.key;
+            return (
+              <div key={s.key}
+                className={`flex-shrink-0 w-[120px] snap-start floating-card !p-0 overflow-hidden cursor-pointer active:scale-[0.97] transition-transform ${isActive ? 'ring-2 ring-primary/30' : ''}`}
+                onClick={() => toggleMobileStage(s.key)}
+              >
+                <div className={`h-[3px] ${colors.stripe}`} />
+                <div className="p-2.5">
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{s.label}</div>
+                  <div className={`text-[36px] leading-none font-extrabold ${colors.text}`}>{s.count}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.description}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Mobile expanded stage panel */}
+        {mobileExpandedStage && (
+          <div className="floating-card !p-0 overflow-hidden mt-2 animate-in slide-in-from-top-2 duration-200">
+            <div className={`h-[3px] ${stageColors[mobileExpandedStage]?.stripe || ''}`} />
+            <div className="flex items-center justify-between px-3 py-2 bg-surface-header border-b" style={{ borderBottomWidth: '1px' }}>
+              <span className="text-xs font-bold uppercase tracking-wide">
+                {stageCounts.find(s => s.key === mobileExpandedStage)?.label}
+              </span>
+              <button onClick={() => setMobileExpandedStage(null)} className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                <X size={12} />
+              </button>
+            </div>
+            {renderStageOrders(mobileExpandedStage)}
+          </div>
+        )}
+      </div>
+
+      {/* ===== DESKTOP PIPELINE: 5-column grid ===== */}
+      <div className="hidden md:grid grid-cols-2 lg:grid-cols-5 gap-[11px]">
         {stageCounts.map((s) => {
           const colors = stageColors[s.key] || stageColors.close;
           const isOpen = expandedStages.has(s.key);
@@ -240,17 +467,17 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               onClick={() => toggleStage(s.key)}
             >
               <div className={`h-[3px] ${colors.stripe}`} />
-              <div className="p-3 md:p-4 flex items-start justify-between">
+              <div className="p-4 flex items-start justify-between">
                 <div>
                   <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{s.label}</div>
-                  <div className={`text-[40px] md:text-[54px] leading-none font-extrabold ${colors.text}`}>{s.count}</div>
+                  <div className={`text-[54px] leading-none font-extrabold ${colors.text}`}>{s.count}</div>
                   <div className="text-[11.5px] text-muted-foreground mt-1">{s.description}</div>
                 </div>
                 <ChevronRight size={16} className={`text-muted-foreground mt-1 transition-transform duration-300 ${isOpen ? 'rotate-90' : ''}`} />
               </div>
               <div className={`overflow-hidden transition-all duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isOpen ? 'max-h-[600px]' : 'max-h-0'}`}
                 style={isOpen && s.key === 'wip' ? { borderLeft: `3px solid hsl(var(--stage-wip))` } : {}}>
-                <div className="px-3 md:px-4 pb-3 md:pb-4 space-y-2">
+                <div className="px-4 pb-4 space-y-2">
                   {stageOrders.length === 0 ? (
                     <p className="text-xs text-muted-foreground italic py-2">No orders in this stage</p>
                   ) : (
@@ -308,27 +535,30 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         })}
       </div>
 
-      {/* Lower Grid: Email table + Right column */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-[14px]">
+      {/* ===== LOWER SECTION ===== */}
+      {/* Desktop: 2-column grid. Mobile: stacked */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-[14px]">
         {/* Left: Recent Inbox */}
         <div className="floating-card !p-0 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
+          <div className="flex items-center justify-between px-3 md:px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Recent Inbox</span>
               {inboxCounts && inboxCounts.actionNeeded > 0 && (
                 <span className="text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">{inboxCounts.actionNeeded} unread</span>
               )}
             </div>
-            <button onClick={() => navigate("/inbox")} className="text-xs font-semibold text-primary hover:underline">View all →</button>
+            <button onClick={() => navigate("/inbox")} className="text-xs font-semibold text-primary">View all →</button>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left p-3 font-semibold text-muted-foreground text-xs">From</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Subject</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs hidden md:table-cell">Type</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs hidden md:table-cell">Status</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Type</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Status</th>
                   <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Time</th>
                 </tr>
               </thead>
@@ -336,7 +566,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 {recentEmails.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-4 text-center text-xs text-muted-foreground">
-                      <button onClick={() => navigate("/inbox")} className="text-primary hover:underline font-medium">Open Inbox to view emails →</button>
+                      <button onClick={() => navigate("/inbox")} className="text-primary font-medium">Open Inbox to view emails →</button>
                     </td>
                   </tr>
                 ) : (
@@ -344,16 +574,16 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                     const senderName = e.from_name?.includes("@") ? e.from_name.split("@")[0] : (e.from_name || e.from_email || "Unknown");
                     const timeAgo = e.created_at ? formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true }) : "";
                     return (
-                      <tr key={e.id} onClick={() => navigate("/inbox")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer min-h-[44px]">
+                      <tr key={e.id} onClick={() => navigate("/inbox")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
                         <td className="p-3 font-medium text-sm">{senderName}</td>
                         <td className="p-3 text-sm truncate max-w-[200px]">{e.subject || "—"}</td>
-                        <td className="p-3 hidden md:table-cell">
+                        <td className="p-3">
                           <span className="flex items-center gap-1.5 text-xs">
                             <span className={`w-2 h-2 rounded-full ${getCategoryDot(e.category)}`} />
                             <span className={getCategoryColor(e.category)}>{e.category || "OTHER"}</span>
                           </span>
                         </td>
-                        <td className="p-3 hidden md:table-cell">
+                        <td className="p-3">
                           <span className="text-xs text-muted-foreground">{e.status}</span>
                         </td>
                         <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{timeAgo}</td>
@@ -364,109 +594,64 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile email list: compact rows */}
+          <div className="md:hidden">
+            {mobileEmails.length === 0 ? (
+              <div className="p-4 text-center">
+                <button onClick={() => navigate("/inbox")} className="text-primary font-medium text-xs">Open Inbox →</button>
+              </div>
+            ) : (
+              mobileEmails.map((e: any) => {
+                const senderName = e.from_name?.includes("@") ? e.from_name.split("@")[0] : (e.from_name || e.from_email || "Unknown");
+                const timeAgo = e.created_at ? formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true }) : "";
+                return (
+                  <div key={e.id} onClick={() => navigate("/inbox")}
+                    className="px-3 py-3 border-b last:border-b-0 cursor-pointer active:bg-muted/30 min-h-[52px] flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-[13px] truncate">{senderName}</div>
+                      <div className="text-[11px] text-muted-foreground truncate mt-0.5">{e.subject || "—"}</div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">{timeAgo}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Right column */}
-        <div className="space-y-[14px]">
-          {/* Notifications & QB */}
-          <div className="floating-card !p-0 overflow-hidden">
-            <button onClick={() => setNotifsOpen(o => !o)}
-              className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
-              style={{ borderBottomWidth: '1.5px' }}>
-              <span className="text-sm font-bold">Notifications & QB</span>
-              {visibleNotifs.length > 0 && notifsOpen && (
-                <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
-                  onClick={(e) => { e.stopPropagation(); setClearNotifsDialog(true); }}>Clear all</span>
-              )}
-            </button>
-            <div className={`overflow-hidden transition-all duration-300 ${notifsOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
-              <div className="p-4 space-y-2">
-                {visibleNotifs.map(n => (
-                  <div
-                    key={n.id}
-                    className={`group relative flex items-start gap-2 text-sm rounded-[9px] pr-7 transition-all duration-300 ${dismissingNotifItems.has(n.id) ? "opacity-0 translate-x-5" : "opacity-100 translate-x-0"}`}
-                  >
-                    <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left hover:text-primary transition-colors min-h-[44px] py-1">
-                      {n.icon}
-                      <span className="font-medium text-xs leading-snug">{n.text}</span>
-                    </button>
-                    <button
-                      onClick={() => dismissNotification(n.id)}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-muted flex items-center justify-center"
-                      aria-label="Dismiss notification"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-                {visibleNotifs.length === 0 && (
-                  <p className="text-xs text-muted-foreground">No new notifications</p>
-                )}
-
-                {/* QB inline */}
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <ClipboardList size={14} className="text-primary shrink-0" />
-                    {qbAllClear ? (
-                      <span className="font-bold text-success text-xs">QB: All caught up ✓</span>
-                    ) : (
-                      <button onClick={() => navigate("/orders")} className="font-medium text-xs hover:text-primary transition-colors">
-                        {invoicesToReview + vendorPosToReview} QB items to review
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+        <div className="space-y-3 md:space-y-[14px]">
+          {/* Desktop: render panels inline */}
+          <div className="hidden md:block space-y-[14px]">
+            {renderNotifPanel(false)}
+            {renderNotesPanel(false)}
+            <div className="floating-card">
+              <h3 className="text-sm font-bold mb-3">Calendar</h3>
+              <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
+              <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto" />
             </div>
           </div>
 
-          {/* Quick Notes */}
-          <div className="floating-card !p-0 overflow-hidden">
-            <button onClick={() => setNotesOpen(o => !o)}
-              className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
-              style={{ borderBottomWidth: '1.5px' }}>
-              <span className="text-sm font-bold">Quick Notes</span>
-              <div className="flex items-center gap-2">
-                {notes.length > 0 && notesOpen && (
-                  <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
-                    onClick={(e) => { e.stopPropagation(); setClearNotesDialog(true); }}>Clear all</span>
-                )}
-              </div>
-            </button>
-            <div className={`overflow-hidden transition-all duration-300 ${notesOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
-              <div className="p-4 space-y-2">
-                {notes.map((n, i) => (
-                  <div key={n.id} className="group flex items-start gap-2 text-sm">
-                    <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.color === 'text-warning' ? 'bg-warning' : n.color === 'text-destructive' ? 'bg-destructive' : 'bg-primary'}`} />
-                    <span className="flex-1 text-xs">{n.text}</span>
-                    <button onClick={() => setNotes(prev => prev.filter((_, j) => j !== i))}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-                {notes.length === 0 && (
-                  <p className="text-xs text-muted-foreground italic">No notes yet</p>
-                )}
-                <div className="flex gap-2 mt-2">
-                  <input
-                    value={newNote}
-                    onChange={e => setNewNote(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addNote()}
-                    placeholder="Add a note..."
-                    className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[36px]"
-                  />
-                  <button onClick={addNote} className="text-primary font-bold text-xs px-2 min-h-[36px]">+</button>
+          {/* Mobile: collapsible panels */}
+          <div className="md:hidden space-y-3">
+            {renderNotifPanel(true)}
+            {renderNotesPanel(true)}
+            {/* Calendar - collapsible on mobile */}
+            <div className="floating-card !p-0 overflow-hidden">
+              <button onClick={() => setCalOpenMobile(o => !o)}
+                className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+                style={{ borderBottomWidth: '1.5px' }}>
+                <span className="text-sm font-bold">Calendar</span>
+              </button>
+              <div className={`overflow-hidden transition-all duration-300 ${calOpenMobile ? 'max-h-[400px]' : 'max-h-0'}`}>
+                <div className="p-3">
+                  <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
+                  <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto [&_.rdp-day]:min-w-[36px] [&_.rdp-day]:min-h-[36px]" />
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Calendar */}
-          <div className="floating-card">
-            <h3 className="text-sm font-bold mb-3">Calendar</h3>
-            <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
-            <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto" />
           </div>
         </div>
       </div>

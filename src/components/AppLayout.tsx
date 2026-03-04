@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,7 +38,7 @@ function TogglePill({ active, onClick, icon: Icon, label, collapsed }: { active:
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[44px]"
+      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[48px] md:min-h-[44px]"
       style={{ color: 'rgba(255,255,255,0.46)' }}
     >
       <Icon size={16} className="shrink-0" />
@@ -55,8 +55,8 @@ function TogglePill({ active, onClick, icon: Icon, label, collapsed }: { active:
 }
 
 function NavItem({ item, active, collapsed, onNavigate, badgeCount = 0 }: { item: any; active: boolean; collapsed: boolean; onNavigate?: () => void; badgeCount?: number }) {
-  const baseClass = `flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
-  const activeClass = active ? "bg-primary text-white" : "hover:bg-sidebar-accent";
+  const baseClass = `flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors min-h-[48px] md:min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
+  const activeClass = active ? "bg-primary text-white" : "md:hover:bg-sidebar-accent";
   const textStyle = active ? {} : { color: 'rgba(255,255,255,0.46)' };
 
   const content = (
@@ -97,7 +97,7 @@ function SidebarDivider() {
   return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
-function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount }: {
+function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, showCloseButton, onClose }: {
   onNavigate?: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -105,6 +105,8 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
   onToggleDark: () => void;
   inboxCount: number;
   callsCount: number;
+  showCloseButton?: boolean;
+  onClose?: () => void;
 }) {
   const location = useLocation();
   const { signOut } = useAuth();
@@ -117,9 +119,14 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
           B
         </div>
         {!collapsed && (
-          <div className="overflow-hidden">
+          <div className="overflow-hidden flex-1">
             <div className="font-semibold text-sm leading-tight text-sidebar-foreground">Bottles & Print</div>
           </div>
+        )}
+        {showCloseButton && (
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.46)' }}>
+            <X size={18} />
+          </button>
         )}
       </div>
 
@@ -154,14 +161,14 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
       <div className={`pb-4 mt-4 space-y-0.5 ${collapsed ? 'px-1.5' : 'px-3'}`}>
         <SidebarDivider />
         <Link to="/change-password" onClick={onNavigate}
-          className={`flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[44px] hover:bg-sidebar-accent ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
+          className={`flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[48px] md:min-h-[44px] md:hover:bg-sidebar-accent ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
           style={{ color: 'rgba(255,255,255,0.46)' }}
           title={collapsed ? 'Change Password' : undefined}>
           <KeyRound size={16} className="shrink-0" />
           {!collapsed && <span>Change Password</span>}
         </Link>
         <button onClick={() => { onNavigate?.(); signOut(); }}
-          className={`flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[44px] hover:bg-sidebar-accent ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
+          className={`flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[48px] md:min-h-[44px] md:hover:bg-sidebar-accent ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
           style={{ color: 'rgba(255,255,255,0.46)' }}>
           <LogOut size={16} className="shrink-0" />
           {!collapsed && <span>Sign Out</span>}
@@ -175,9 +182,11 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   const navigate = useNavigate();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
   const { data: inboxCounts } = useInboxCounts();
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -187,6 +196,12 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
   useEffect(() => {
     localStorage.setItem('sidebar_collapsed', String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    if (mobileSearchOpen && mobileSearchRef.current) {
+      mobileSearchRef.current.focus();
+    }
+  }, [mobileSearchOpen]);
 
   const handleSearchChange = (value: string) => {
     onSearchChange(value);
@@ -200,6 +215,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
     if (e.key === "Enter" && searchQuery.trim()) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       navigate("/search");
+      setMobileSearchOpen(false);
     }
   };
 
@@ -225,7 +241,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
 
       {/* Mobile Sidebar Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 bg-sidebar text-sidebar-foreground p-0 border-0 [&>button]:hidden">
+        <SheetContent side="left" className="w-[280px] bg-sidebar text-sidebar-foreground p-0 border-0 [&>button]:hidden">
           <div className="flex flex-col h-full">
             <SidebarNav
               onNavigate={() => setMobileOpen(false)}
@@ -235,6 +251,8 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               onToggleDark={() => setDarkMode(d => !d)}
               inboxCount={inboxCounts?.activeInbox || 0}
               callsCount={inboxCounts?.newCalls || 0}
+              showCloseButton
+              onClose={() => setMobileOpen(false)}
             />
           </div>
         </SheetContent>
@@ -244,25 +262,36 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
       <div className="flex-1 flex flex-col overflow-auto min-w-0">
         {/* Top bar */}
         <header className="flex items-center justify-between px-3 md:px-6 h-[50px] md:h-[58px] shrink-0 bg-surface border-b" style={{ borderBottomWidth: '1.5px' }}>
-          {/* Mobile hamburger */}
-          <Button variant="ghost" size="icon" className="md:hidden shrink-0 min-w-[44px] min-h-[44px]" onClick={() => setMobileOpen(true)}>
-            <Menu size={20} />
-          </Button>
+          {/* Mobile: hamburger + search icon + brand */}
+          <div className="flex items-center gap-1 md:hidden">
+            <Button variant="ghost" size="icon" className="shrink-0 min-w-[44px] min-h-[44px]" onClick={() => setMobileOpen(true)}>
+              <Menu size={20} />
+            </Button>
+            <Button variant="ghost" size="icon" className="shrink-0 min-w-[44px] min-h-[44px]" onClick={() => setMobileSearchOpen(true)}>
+              <Search size={18} />
+            </Button>
+          </div>
 
-          <div className="relative flex-1 max-w-80">
+          {/* Mobile: centered brand */}
+          <span className="md:hidden text-sm font-bold text-foreground">Bottles & Print</span>
+
+          {/* Desktop: search bar */}
+          <div className="relative flex-1 max-w-80 hidden md:block">
             <Input
               placeholder="Search"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="bg-background border-[1.5px] border-border-mid rounded-[9px] h-10 md:h-9 text-sm focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/[0.08]"
+              className="bg-background border-[1.5px] border-border-mid rounded-[9px] h-9 text-sm focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/[0.08]"
             />
           </div>
 
+          {/* Right side: Quick Create */}
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" className="rounded-[9px] gap-1.5 font-bold min-h-[44px] md:min-h-0 shadow-[0_3px_12px_rgba(37,99,235,0.28)]">
+                {/* Desktop: full button. Mobile: small circle */}
+                <Button size="sm" className="rounded-[9px] gap-1.5 font-bold shadow-[0_3px_12px_rgba(37,99,235,0.28)] hidden md:inline-flex">
                   <Plus size={15} />
                   <span>Quick Create</span>
                 </Button>
@@ -278,8 +307,43 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Mobile-only circular + button */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" className="md:hidden rounded-full w-9 h-9 shadow-[0_3px_12px_rgba(37,99,235,0.28)]">
+                  <Plus size={18} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => navigate("/orders", { state: { openNew: true } })} className="min-h-[44px]">
+                  <Package size={15} className="mr-2" />
+                  New Order
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/clients", { state: { openNew: true } })} className="min-h-[44px]">
+                  <Users size={15} className="mr-2" />
+                  New Client
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
+
+        {/* Mobile search overlay */}
+        {mobileSearchOpen && (
+          <div className="md:hidden bg-surface border-b px-3 py-2 flex items-center gap-2 animate-in slide-in-from-top duration-200" style={{ borderBottomWidth: '1.5px' }}>
+            <Input
+              ref={mobileSearchRef}
+              placeholder="Search"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="bg-background border-[1.5px] border-border-mid rounded-[9px] h-10 text-sm flex-1 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/[0.08]"
+            />
+            <Button variant="ghost" size="icon" className="shrink-0 min-w-[44px] min-h-[44px]" onClick={() => setMobileSearchOpen(false)}>
+              <X size={18} />
+            </Button>
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-auto">
