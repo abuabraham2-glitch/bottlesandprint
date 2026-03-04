@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Bell, CalendarDays } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,15 +12,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const navItems = [
+const navGroup1 = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/orders", icon: Package, label: "Orders" },
   { to: "/inbox", icon: Mail, label: "Inbox" },
   { to: "/calls", icon: PhoneCall, label: "Calls" },
+];
+
+const navGroup2 = [
   { to: "/clients", icon: Users, label: "Clients" },
   { to: "/catalog", icon: BookOpen, label: "Product Catalog" },
-  { to: "/stats", icon: BarChart3, label: "Stats" },
   { to: "/completed", icon: Archive, label: "Completed Data" },
+  { to: "/stats", icon: BarChart3, label: "Stats" },
   { to: "https://drive.google.com/drive/folders/1jqGJ9lB01He28ReEAB9JQGqQ2m9ajLsY", icon: HardDrive, label: "Google Drive", external: true },
 ] as const;
 
@@ -50,6 +53,35 @@ function TogglePill({ active, onClick, icon: Icon, label, collapsed }: { active:
   );
 }
 
+function NavItem({ item, active, collapsed, onNavigate }: { item: any; active: boolean; collapsed: boolean; onNavigate?: () => void }) {
+  const baseClass = `flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
+  const activeClass = active ? "bg-primary text-white" : "hover:bg-sidebar-accent";
+  const textStyle = active ? {} : { color: 'rgba(255,255,255,0.46)' };
+
+  if (item.external) {
+    return (
+      <a href={item.to} target="_blank" rel="noopener noreferrer" onClick={onNavigate}
+        className={baseClass + ' ' + activeClass} style={textStyle}
+        title={collapsed ? item.label : undefined}>
+        <item.icon size={17} className="shrink-0" />
+        {!collapsed && <span>{item.label}</span>}
+      </a>
+    );
+  }
+  return (
+    <Link to={item.to} onClick={onNavigate}
+      className={baseClass + ' ' + activeClass} style={textStyle}
+      title={collapsed ? item.label : undefined}>
+      <item.icon size={17} className="shrink-0" />
+      {!collapsed && <span>{item.label}</span>}
+    </Link>
+  );
+}
+
+function SidebarDivider() {
+  return <div className="my-2 mx-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }} />;
+}
+
 function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark }: {
   onNavigate?: () => void;
   collapsed: boolean;
@@ -74,44 +106,29 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
         )}
       </div>
 
-      {/* Nav */}
-      <nav className={`px-2 space-y-0.5 mt-2 flex-1 ${collapsed ? 'px-1.5' : 'px-3'}`}>
-        {navItems.map((item) => {
-          const active = location.pathname === item.to;
-          const baseClass = `flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
-          const activeClass = active
-            ? "bg-primary text-white"
-            : "hover:bg-sidebar-accent";
-          const textStyle = active ? {} : { color: 'rgba(255,255,255,0.46)' };
+      {/* Nav Group 1: Operations */}
+      <nav className={`space-y-0.5 mt-2 flex-1 ${collapsed ? 'px-1.5' : 'px-3'}`}>
+        {navGroup1.map((item) => (
+          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+        ))}
 
-          if ('external' in item && item.external) {
-            return (
-              <a key={item.to} href={item.to} target="_blank" rel="noopener noreferrer" onClick={onNavigate}
-                className={baseClass + ' ' + activeClass} style={textStyle}
-                title={collapsed ? item.label : undefined}>
-                <item.icon size={17} className="shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </a>
-            );
-          }
-          return (
-            <Link key={item.to} to={item.to} onClick={onNavigate}
-              className={baseClass + ' ' + activeClass} style={textStyle}
-              title={collapsed ? item.label : undefined}>
-              <item.icon size={17} className="shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+        <SidebarDivider />
 
-      {/* Toggles + Bottom actions */}
-      <div className={`pb-4 mt-4 space-y-0.5 ${collapsed ? 'px-1.5' : 'px-3'}`}>
+        {/* Nav Group 2: Business */}
+        {navGroup2.map((item) => (
+          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+        ))}
+
+        <SidebarDivider />
+
+        {/* Group 3: Preferences */}
         <TogglePill active={collapsed} onClick={onToggleCollapse} icon={collapsed ? PanelLeft : PanelLeftClose} label="Focus Mode" collapsed={collapsed} />
         <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
+      </nav>
 
-        <div className="border-t border-sidebar-border my-2" />
-
+      {/* Bottom actions */}
+      <div className={`pb-4 mt-4 space-y-0.5 ${collapsed ? 'px-1.5' : 'px-3'}`}>
+        <SidebarDivider />
         <Link to="/change-password" onClick={onNavigate}
           className={`flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[44px] hover:bg-sidebar-accent ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`}
           style={{ color: 'rgba(255,255,255,0.46)' }}
@@ -185,8 +202,8 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
 
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-auto min-w-0">
-        {/* Top bar - 58px */}
-        <header className="flex items-center justify-between px-4 md:px-6 h-[58px] shrink-0 bg-surface border-b" style={{ borderBottomWidth: '1.5px' }}>
+        {/* Top bar */}
+        <header className="flex items-center justify-between px-3 md:px-6 h-[50px] md:h-[58px] shrink-0 bg-surface border-b" style={{ borderBottomWidth: '1.5px' }}>
           {/* Mobile hamburger */}
           <Button variant="ghost" size="icon" className="md:hidden shrink-0 min-w-[44px] min-h-[44px]" onClick={() => setMobileOpen(true)}>
             <Menu size={20} />
@@ -198,23 +215,16 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="bg-card border-0 shadow-sm rounded-[9px] h-10 md:h-9 text-sm"
+              className="bg-background border-[1.5px] border-border-mid rounded-[9px] h-10 md:h-9 text-sm focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/[0.08]"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative min-w-[44px] min-h-[44px]">
-              <Bell size={18} />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-destructive rounded-full" />
-            </Button>
-            <Button variant="ghost" size="icon" className="min-w-[44px] min-h-[44px]">
-              <CalendarDays size={18} />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="rounded-[9px] gap-1.5 font-bold min-h-[44px] md:min-h-0 shadow-[0_3px_12px_rgba(37,99,235,0.28)]">
                   <Plus size={15} />
-                  <span className="hidden sm:inline">Quick Create</span>
+                  <span className="hidden xs:inline">Quick Create</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">

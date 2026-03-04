@@ -1,13 +1,15 @@
 import { useOrders } from "@/lib/data";
-import { useInboxCounts } from "@/lib/emailData";
+import { useInboxCounts, useEmails } from "@/lib/emailData";
 import { STAGES, getStageBadgeClass, getStageLabel, checklistCount, daysUntilDue, daysSinceCreated, formatDateShort } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 interface DashboardProps {
   searchQuery: string;
@@ -23,9 +25,44 @@ const stageColors: Record<string, { border: string; text: string; bg: string; st
   close: { border: "border-stage-close", text: "text-stage-close", bg: "bg-stage-close", stripe: "bg-stage-close" },
 };
 
+function getCategoryColor(cat: string | null) {
+  switch (cat?.toUpperCase()) {
+    case "SALES": return "text-primary";
+    case "SUPPORT": return "text-success";
+    case "SPAM": return "text-muted-foreground";
+    default: return "text-foreground";
+  }
+}
+
+function getCategoryDot(cat: string | null) {
+  switch (cat?.toUpperCase()) {
+    case "SALES": return "bg-primary";
+    case "SUPPORT": return "bg-success";
+    case "SPAM": return "bg-muted-foreground";
+    default: return "bg-foreground/40";
+  }
+}
+
+function useRecentEmails() {
+  return useQuery({
+    queryKey: ["emails", "recent_inbox"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("emails")
+        .select("id, from_name, from_email, subject, category, status, created_at")
+        .in("status", ["pending", "needs_response"])
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
+  const { data: recentEmails = [] } = useRecentEmails();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
@@ -132,52 +169,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
       {/* Date header */}
       <div className="flex justify-center">
         <div className="inline-block bg-surface border border-border-mid px-6 py-2.5 rounded-[9px] shadow-sm">
-          <span className="text-[15px] font-extrabold tracking-[0.05em] text-foreground">{dateStr}</span>
-        </div>
-      </div>
-
-      {/* Action Feed */}
-      <div className="floating-card !p-0 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
-          <span className="w-2 h-2 rounded-full bg-destructive animate-pulse-dot" />
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Action Feed — Needs Your Attention</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
-          {/* Cell 1: Inbox urgent */}
-          <button onClick={() => navigate("/inbox")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Inbox Urgent</div>
-            <div className="flex items-center gap-2">
-              <span className="bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 rounded-md">
-                {inboxCounts?.actionNeeded || 0}
-              </span>
-              <span className="text-xs text-muted-foreground">need response</span>
-            </div>
-          </button>
-
-          {/* Cell 2: Latest sales email */}
-          <button onClick={() => navigate("/inbox")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Latest Sales Draft</div>
-            <span className="text-xs text-foreground">Check drafts tab →</span>
-          </button>
-
-          {/* Cell 3: Active WIP */}
-          <button onClick={() => navigate("/orders")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Active WIP Orders</div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-extrabold text-stage-wip">{stageCounts.find(s => s.key === 'wip')?.count || 0}</span>
-              <span className="text-xs text-muted-foreground">in production</span>
-            </div>
-          </button>
-
-          {/* Cell 4: QB Status */}
-          <button onClick={() => navigate("/orders")} className="p-4 text-left hover:bg-muted/30 transition-colors min-h-[44px]">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">QuickBooks Review</div>
-            {qbAllClear ? (
-              <span className="text-xs font-bold text-success">ALL CLEAR ✓</span>
-            ) : (
-              <span className="text-xs font-bold text-destructive">{invoicesToReview + vendorPosToReview} to review</span>
-            )}
-          </button>
+          <span className="text-[13px] md:text-[15px] font-extrabold tracking-[0.05em] text-foreground">{dateStr}</span>
         </div>
       </div>
 
@@ -194,22 +186,18 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               style={{ borderTopWidth: isOpen ? '1.5px' : '1.5px' }}
               onClick={() => toggleStage(s.key)}
             >
-              {/* 3px color stripe */}
               <div className={`h-[3px] ${colors.stripe}`} />
-
-              <div className="p-4 flex items-start justify-between">
+              <div className="p-3 md:p-4 flex items-start justify-between">
                 <div>
                   <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{s.label}</div>
-                  <div className={`text-[54px] leading-none font-extrabold ${colors.text}`}>{s.count}</div>
+                  <div className={`text-[40px] md:text-[54px] leading-none font-extrabold ${colors.text}`}>{s.count}</div>
                   <div className="text-[11.5px] text-muted-foreground mt-1">{s.description}</div>
                 </div>
                 <ChevronRight size={16} className={`text-muted-foreground mt-1 transition-transform duration-300 ${isOpen ? 'rotate-90' : ''}`} />
               </div>
-
-              {/* Expandable content */}
               <div className={`overflow-hidden transition-all duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isOpen ? 'max-h-[600px]' : 'max-h-0'}`}
                 style={isOpen && s.key === 'wip' ? { borderLeft: `3px solid hsl(var(--stage-wip))` } : {}}>
-                <div className="px-4 pb-4 space-y-2">
+                <div className="px-3 md:px-4 pb-3 md:pb-4 space-y-2">
                   {stageOrders.length === 0 ? (
                     <p className="text-xs text-muted-foreground italic py-2">No orders in this stage</p>
                   ) : (
@@ -292,11 +280,34 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td colSpan={5} className="p-4 text-center text-xs text-muted-foreground">
-                    <button onClick={() => navigate("/inbox")} className="text-primary hover:underline font-medium">Open Inbox to view emails →</button>
-                  </td>
-                </tr>
+                {recentEmails.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-4 text-center text-xs text-muted-foreground">
+                      <button onClick={() => navigate("/inbox")} className="text-primary hover:underline font-medium">Open Inbox to view emails →</button>
+                    </td>
+                  </tr>
+                ) : (
+                  recentEmails.map((e: any) => {
+                    const senderName = e.from_name?.includes("@") ? e.from_name.split("@")[0] : (e.from_name || e.from_email || "Unknown");
+                    const timeAgo = e.created_at ? formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true }) : "";
+                    return (
+                      <tr key={e.id} onClick={() => navigate("/inbox")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer min-h-[44px]">
+                        <td className="p-3 font-medium text-sm">{senderName}</td>
+                        <td className="p-3 text-sm truncate max-w-[200px]">{e.subject || "—"}</td>
+                        <td className="p-3 hidden md:table-cell">
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <span className={`w-2 h-2 rounded-full ${getCategoryDot(e.category)}`} />
+                            <span className={getCategoryColor(e.category)}>{e.category || "OTHER"}</span>
+                          </span>
+                        </td>
+                        <td className="p-3 hidden md:table-cell">
+                          <span className="text-xs text-muted-foreground">{e.status}</span>
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{timeAgo}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -318,7 +329,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             <div className={`overflow-hidden transition-all duration-300 ${notifsOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
               <div className="p-4 space-y-2">
                 {visibleNotifs.map(n => (
-                  <div key={n.id} className="group flex items-center gap-2 text-sm relative">
+                  <div key={n.id} className="group flex items-center gap-2 text-sm relative transition-all duration-300">
                     <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left hover:text-primary transition-colors min-h-[36px]">
                       {n.icon}
                       <span className="font-medium">{n.text}</span>
