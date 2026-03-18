@@ -2,7 +2,7 @@ import { useOrders } from "@/lib/data";
 import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3 } from "lucide-react";
+import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { format, formatDistanceToNowStrict } from "date-fns";
