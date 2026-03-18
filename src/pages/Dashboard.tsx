@@ -757,7 +757,10 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           {/* Desktop: render panels inline */}
           <div className="hidden md:block space-y-[14px]">
             {renderNotifPanel(false)}
-            {renderNotesPanel(false)}
+            <div className="grid grid-cols-2 gap-[14px]">
+              {renderNotesPanel(false)}
+              {renderTodoPanel(false)}
+            </div>
             <div className="floating-card">
               <h3 className="text-sm font-bold mb-3">Calendar</h3>
               <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
