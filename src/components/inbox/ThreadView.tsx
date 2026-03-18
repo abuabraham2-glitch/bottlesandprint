@@ -89,14 +89,23 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {hasDraft && (
-                <Button size="sm" variant="default" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
-                  <FileText size={12} /> View Draft →
-                </Button>
+              {isResolved ? (
+                <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs px-3 py-1">
+                  <CheckCircle size={12} className="mr-1" />
+                  {email.status === "approved_sent" ? "Sent" : "Resolved"}
+                </Badge>
+              ) : (
+                <>
+                  {hasDraft && (
+                    <Button size="sm" variant="default" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
+                      <FileText size={12} /> View Draft →
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
+                    <Archive size={12} /> Archive
+                  </Button>
+                </>
               )}
-              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
-                <Archive size={12} /> Archive
-              </Button>
             </div>
           </div>
           {/* Category dropdown */}
