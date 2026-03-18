@@ -56,6 +56,27 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_ack_log: {
+        Row: {
+          ack_type: string
+          email_address: string
+          id: string
+          sent_at: string | null
+        }
+        Insert: {
+          ack_type: string
+          email_address: string
+          id?: string
+          sent_at?: string | null
+        }
+        Update: {
+          ack_type?: string
+          email_address?: string
+          id?: string
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
       calls: {
         Row: {
           call_reason: string | null
