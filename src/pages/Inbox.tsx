@@ -73,10 +73,28 @@ export default function Inbox() {
     if (threadEmail) {
       const updated = allEmails.find(e => e.id === threadEmail.id);
       if (updated && updated.status !== threadEmail.status) {
+        console.log("[Inbox] threadEmail status synced:", threadEmail.id, threadEmail.status, "→", updated.status);
         setThreadEmail(updated);
       }
     }
   }, [allEmails, threadEmail]);
+
+  // Keep draftEmail in sync with latest data from allEmails
+  useEffect(() => {
+    if (draftEmail) {
+      const updated = allEmails.find(e => e.id === draftEmail.id);
+      if (updated && updated.status !== draftEmail.status) {
+        console.log("[Inbox] draftEmail status synced:", draftEmail.id, draftEmail.status, "→", updated.status);
+        // If email was resolved/sent, close the draft editor
+        if (updated.status === "resolved" || updated.status === "approved_sent") {
+          console.log("[Inbox] Draft email resolved/sent, closing editor");
+          setDraftEmail(null);
+        } else {
+          setDraftEmail(updated);
+        }
+      }
+    }
+  }, [allEmails, draftEmail]);
 
   // Contacts
   const loadContacts = useCallback(async () => {

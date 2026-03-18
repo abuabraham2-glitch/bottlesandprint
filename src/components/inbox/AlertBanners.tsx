@@ -64,9 +64,17 @@ export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
                 onClick={async (ev) => {
                   const btn = ev.currentTarget; btn.textContent = 'Resolving...'; btn.disabled = true;
                   const now = new Date().toISOString();
-                  for (const t of topics!) { await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", t.id); }
+                  console.log("[AlertBanners] Resolve All clicked. Resolving", topics!.length, "emails:", topics!.map(t => t.id));
+                  for (const t of topics!) {
+                    console.log("[AlertBanners] Updating email:", t.id, "→ { status: 'resolved', resolved_at:", now, "}");
+                    const { error } = await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", t.id);
+                    if (error) console.error("[AlertBanners] Error resolving email:", t.id, error);
+                    else console.log("[AlertBanners] Successfully resolved email:", t.id);
+                  }
                   toast.success(`${topics!.length} email${topics!.length !== 1 ? 's' : ''} resolved`);
-                  queryClient.invalidateQueries({ queryKey: ["emails"] });
+                  console.log("[AlertBanners] Awaiting query invalidation...");
+                  await queryClient.invalidateQueries({ queryKey: ["emails"] });
+                  console.log("[AlertBanners] Query invalidation complete");
                   btn.textContent = 'Resolve All'; btn.disabled = false;
                 }}>
                 Resolve All
