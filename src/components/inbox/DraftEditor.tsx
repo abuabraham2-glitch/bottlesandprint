@@ -48,7 +48,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     setSending(true);
     try {
       const draftContent = editRef.current ? editRef.current.innerHTML : email.draft_response;
-      await sendEmailViaWebhook({
+      const payload = {
         to_email: email.from_email,
         subject: `Re: ${email.subject || ""}`,
         draft: stripN8nFooter(draftContent),
@@ -57,7 +57,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         cc: ccValue || undefined,
         attachments: attachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         original_draft: email.draft_response || undefined,
-      });
+      };
+      console.log("[DraftEditor] Sending webhook payload:", JSON.stringify(payload, null, 2));
+      console.log("[DraftEditor] CC field value:", payload.cc);
+      await sendEmailViaWebhook(payload);
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
       // Schedule follow-ups for SALES
       if (email.category === "SALES") {
