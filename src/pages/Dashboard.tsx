@@ -415,7 +415,67 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     );
   };
 
-  // Render expanded stage orders
+  // Render to-do panel
+  const renderTodoPanel = (mobile: boolean) => {
+    const open = mobile ? todoOpenMobile : todoOpen;
+    const toggle = () => mobile ? setTodoOpenMobile(o => !o) : setTodoOpen(o => !o);
+    return (
+      <div className="floating-card !p-0 overflow-hidden">
+        <button onClick={toggle}
+          className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+          style={{ borderBottomWidth: '1.5px' }}>
+          <span className="text-sm font-bold flex items-center gap-1.5">
+            <CheckSquare size={14} className="text-primary" />
+            To-Do
+            {!open && todos.length > 0 && (
+              <span className="ml-1 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{uncheckedTodos.length}</span>
+            )}
+          </span>
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[500px]' : 'max-h-0'}`}>
+          <div className="p-3 md:p-4 space-y-2">
+            {/* Quick-add input */}
+            <div className="flex gap-2">
+              <input
+                value={newTodo}
+                onChange={e => setNewTodo(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addTodo()}
+                placeholder="Add a to-do..."
+                className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[40px] md:min-h-[36px]"
+              />
+              <button onClick={addTodo} className="text-xs font-bold bg-primary text-primary-foreground px-3 rounded-[9px] min-h-[40px] md:min-h-[36px]">Add</button>
+            </div>
+            {/* Todo list */}
+            <div className="max-h-[250px] overflow-y-auto space-y-1">
+              {uncheckedTodos.map(t => (
+                <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px]">
+                  <Checkbox checked={false} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: true })} />
+                  <span className="text-xs flex-1">{t.text}</span>
+                </div>
+              ))}
+              {checkedTodos.map(t => (
+                <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px] opacity-50">
+                  <Checkbox checked={true} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: false })} />
+                  <span className="text-xs flex-1 line-through">{t.text}</span>
+                </div>
+              ))}
+              {todos.length === 0 && (
+                <p className="text-xs text-muted-foreground italic py-1">No to-dos yet</p>
+              )}
+            </div>
+            {/* Clear completed */}
+            {checkedTodos.length > 0 && (
+              <button onClick={() => setClearTodosDialog(true)}
+                className="text-[10px] font-medium text-destructive hover:underline mt-1">
+                Clear Completed ({checkedTodos.length})
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderStageOrders = (stageKey: string) => {
     const stageOrders = filtered.filter(o => o.stage === stageKey);
     const s = stageCounts.find(sc => sc.key === stageKey)!;
