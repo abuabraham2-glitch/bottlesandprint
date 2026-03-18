@@ -128,6 +128,51 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [clearNotesDialog, setClearNotesDialog] = useState(false);
   const noteColors = ["text-warning", "text-destructive", "text-primary"];
 
+  // To-Do
+  const [todoOpen, setTodoOpen] = useState(true);
+  const [todoOpenMobile, setTodoOpenMobile] = useState(false);
+  const [newTodo, setNewTodo] = useState("");
+  const [clearTodosDialog, setClearTodosDialog] = useState(false);
+
+  const addTodoMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const { error } = await supabase.from("dashboard_todos").insert({ text } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] }),
+  });
+
+  const toggleTodoMutation = useMutation({
+    mutationFn: async ({ id, is_checked }: { id: string; is_checked: boolean }) => {
+      const { error } = await supabase.from("dashboard_todos").update({
+        is_checked,
+        checked_at: is_checked ? new Date().toISOString() : null,
+      } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] }),
+  });
+
+  const clearCompletedMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("dashboard_todos").delete().eq("is_checked", true);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] });
+      setClearTodosDialog(false);
+    },
+  });
+
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    addTodoMutation.mutate(newTodo.trim());
+    setNewTodo("");
+  };
+
+  const uncheckedTodos = todos.filter(t => !t.is_checked);
+  const checkedTodos = todos.filter(t => t.is_checked);
+
   // Calendar
   const [calOpenMobile, setCalOpenMobile] = useState(false);
 
