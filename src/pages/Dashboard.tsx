@@ -772,6 +772,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           <div className="md:hidden space-y-3">
             {renderNotifPanel(true)}
             {renderNotesPanel(true)}
+            {renderTodoPanel(true)}
             {/* Calendar - collapsible on mobile */}
             <div className="floating-card !p-0 overflow-hidden">
               <button onClick={() => setCalOpenMobile(o => !o)}
