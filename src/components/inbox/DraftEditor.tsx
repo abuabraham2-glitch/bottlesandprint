@@ -31,7 +31,11 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   // Reset CC when email changes
   React.useEffect(() => {
-    setCcValue(email?.cc_recipients || "");
+    if (!email) return;
+    // Use getReplyAllCc to populate CC with all recipients except abu@bottlesandprint.com
+    const replyAllCc = getReplyAllCc(email);
+    setCcValue(replyAllCc || email.cc_recipients || "");
+    console.log("[DraftEditor] Reply All CC computed:", replyAllCc, "| email.to_recipients:", email.to_recipients, "| email.cc_recipients:", email.cc_recipients);
   }, [email?.id]);
 
   if (!email) return null;
