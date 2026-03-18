@@ -68,6 +68,16 @@ export default function Inbox() {
   // Clear selection when switching tabs
   useEffect(() => { setSelectedIds(new Set()); }, [mainTab]);
 
+  // Keep threadEmail in sync with latest data from allEmails
+  useEffect(() => {
+    if (threadEmail) {
+      const updated = allEmails.find(e => e.id === threadEmail.id);
+      if (updated && updated.status !== threadEmail.status) {
+        setThreadEmail(updated);
+      }
+    }
+  }, [allEmails, threadEmail]);
+
   // Contacts
   const loadContacts = useCallback(async () => {
     const { data } = await supabase.from("contacts").select("id, email, name").order("created_at", { ascending: false });

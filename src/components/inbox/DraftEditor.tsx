@@ -12,7 +12,7 @@ import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { AlertBanners } from "./AlertBanners";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import {
-  splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml, parseAttachments, getAttachmentUrl,
+  splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml, parseAttachments, getAttachmentUrl, getReplyAllCc,
 } from "./InboxHelpers";
 
 interface DraftEditorProps {
@@ -31,7 +31,11 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   // Reset CC when email changes
   React.useEffect(() => {
-    setCcValue(email?.cc_recipients || "");
+    if (!email) return;
+    // Use getReplyAllCc to populate CC with all recipients except abu@bottlesandprint.com
+    const replyAllCc = getReplyAllCc(email);
+    setCcValue(replyAllCc || email.cc_recipients || "");
+    console.log("[DraftEditor] Reply All CC computed:", replyAllCc, "| email.to_recipients:", email.to_recipients, "| email.cc_recipients:", email.cc_recipients);
   }, [email?.id]);
 
   if (!email) return null;
@@ -44,7 +48,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     setSending(true);
     try {
       const draftContent = editRef.current ? editRef.current.innerHTML : email.draft_response;
-      await sendEmailViaWebhook({
+      const payload = {
         to_email: email.from_email,
         subject: `Re: ${email.subject || ""}`,
         draft: stripN8nFooter(draftContent),
@@ -53,7 +57,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         cc: ccValue || undefined,
         attachments: attachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         original_draft: email.draft_response || undefined,
-      });
+      };
+      console.log("[DraftEditor] Sending webhook payload:", JSON.stringify(payload, null, 2));
+      console.log("[DraftEditor] CC field value:", payload.cc);
+      await sendEmailViaWebhook(payload);
       await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
       // Schedule follow-ups for SALES
       if (email.category === "SALES") {
