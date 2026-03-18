@@ -668,7 +668,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
 
       {/* ===== LOWER SECTION ===== */}
       {/* Desktop: 2-column grid. Mobile: stacked */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-[14px]">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-[14px] items-start">
         {/* Left: Recent Inbox */}
         <div className="floating-card !p-0 overflow-hidden">
           <div className="flex items-center justify-between px-3 md:px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
