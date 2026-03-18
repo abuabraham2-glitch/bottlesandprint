@@ -286,6 +286,30 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_todos: {
+        Row: {
+          checked_at: string | null
+          created_at: string | null
+          id: string
+          is_checked: boolean | null
+          text: string
+        }
+        Insert: {
+          checked_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_checked?: boolean | null
+          text: string
+        }
+        Update: {
+          checked_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_checked?: boolean | null
+          text?: string
+        }
+        Relationships: []
+      }
       emails: {
         Row: {
           acknowledged: boolean | null
