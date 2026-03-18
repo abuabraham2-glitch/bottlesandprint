@@ -76,6 +76,28 @@ function useLatestInsightsNotification() {
   });
 }
 
+interface TodoItem {
+  id: string;
+  text: string;
+  is_checked: boolean;
+  created_at: string;
+  checked_at: string | null;
+}
+
+function useTodos() {
+  return useQuery({
+    queryKey: ["dashboard_todos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dashboard_todos")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as unknown as TodoItem[];
+    },
+  });
+}
+
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
