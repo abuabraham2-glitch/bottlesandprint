@@ -4,6 +4,8 @@ import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
 import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
