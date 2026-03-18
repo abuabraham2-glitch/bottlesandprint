@@ -12,7 +12,7 @@ import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { AlertBanners } from "./AlertBanners";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import {
-  splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml, parseAttachments, getAttachmentUrl,
+  splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml, parseAttachments, getAttachmentUrl, getReplyAllCc,
 } from "./InboxHelpers";
 
 interface DraftEditorProps {
