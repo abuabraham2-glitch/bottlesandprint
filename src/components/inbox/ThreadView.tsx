@@ -42,6 +42,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
 
   const atts = parseAttachments(email.attachments);
   const hasDraft = !!email.draft_response;
+  const isResolved = email.status === "resolved" || email.status === "approved_sent";
 
   const handleChangeCategory = async (newCategory: string) => {
     const updates: any = { category: newCategory };
