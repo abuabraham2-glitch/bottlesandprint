@@ -103,6 +103,8 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: inboxCounts } = useInboxCounts();
   const { data: recentEmails = [] } = useRecentEmails();
   const { data: latestInsight } = useLatestInsightsNotification();
+  const { data: todos = [] } = useTodos();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
