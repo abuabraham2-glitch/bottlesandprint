@@ -2,13 +2,15 @@ import { useOrders } from "@/lib/data";
 import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3 } from "lucide-react";
+import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+
 
 interface DashboardProps {
   searchQuery: string;
@@ -74,11 +76,35 @@ function useLatestInsightsNotification() {
   });
 }
 
+interface TodoItem {
+  id: string;
+  text: string;
+  is_checked: boolean;
+  created_at: string;
+  checked_at: string | null;
+}
+
+function useTodos() {
+  return useQuery({
+    queryKey: ["dashboard_todos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dashboard_todos")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as unknown as TodoItem[];
+    },
+  });
+}
+
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const { data: recentEmails = [] } = useRecentEmails();
   const { data: latestInsight } = useLatestInsightsNotification();
+  const { data: todos = [] } = useTodos();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
@@ -101,6 +127,51 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [newNote, setNewNote] = useState("");
   const [clearNotesDialog, setClearNotesDialog] = useState(false);
   const noteColors = ["text-warning", "text-destructive", "text-primary"];
+
+  // To-Do
+  const [todoOpen, setTodoOpen] = useState(true);
+  const [todoOpenMobile, setTodoOpenMobile] = useState(false);
+  const [newTodo, setNewTodo] = useState("");
+  const [clearTodosDialog, setClearTodosDialog] = useState(false);
+
+  const addTodoMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const { error } = await supabase.from("dashboard_todos").insert({ text } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] }),
+  });
+
+  const toggleTodoMutation = useMutation({
+    mutationFn: async ({ id, is_checked }: { id: string; is_checked: boolean }) => {
+      const { error } = await supabase.from("dashboard_todos").update({
+        is_checked,
+        checked_at: is_checked ? new Date().toISOString() : null,
+      } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] }),
+  });
+
+  const clearCompletedMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("dashboard_todos").delete().eq("is_checked", true);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] });
+      setClearTodosDialog(false);
+    },
+  });
+
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    addTodoMutation.mutate(newTodo.trim());
+    setNewTodo("");
+  };
+
+  const uncheckedTodos = todos.filter(t => !t.is_checked);
+  const checkedTodos = todos.filter(t => t.is_checked);
 
   // Calendar
   const [calOpenMobile, setCalOpenMobile] = useState(false);
@@ -344,7 +415,67 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     );
   };
 
-  // Render expanded stage orders
+  // Render to-do panel
+  const renderTodoPanel = (mobile: boolean) => {
+    const open = mobile ? todoOpenMobile : todoOpen;
+    const toggle = () => mobile ? setTodoOpenMobile(o => !o) : setTodoOpen(o => !o);
+    return (
+      <div className="floating-card !p-0 overflow-hidden">
+        <button onClick={toggle}
+          className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+          style={{ borderBottomWidth: '1.5px' }}>
+          <span className="text-sm font-bold flex items-center gap-1.5">
+            <CheckSquare size={14} className="text-primary" />
+            To-Do
+            {!open && todos.length > 0 && (
+              <span className="ml-1 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{uncheckedTodos.length}</span>
+            )}
+          </span>
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[500px]' : 'max-h-0'}`}>
+          <div className="p-3 md:p-4 space-y-2">
+            {/* Quick-add input */}
+            <div className="flex gap-2">
+              <input
+                value={newTodo}
+                onChange={e => setNewTodo(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addTodo()}
+                placeholder="Add a to-do..."
+                className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[40px] md:min-h-[36px]"
+              />
+              <button onClick={addTodo} className="text-xs font-bold bg-primary text-primary-foreground px-3 rounded-[9px] min-h-[40px] md:min-h-[36px]">Add</button>
+            </div>
+            {/* Todo list */}
+            <div className="max-h-[250px] overflow-y-auto space-y-1">
+              {uncheckedTodos.map(t => (
+                <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px]">
+                  <Checkbox checked={false} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: true })} />
+                  <span className="text-xs flex-1">{t.text}</span>
+                </div>
+              ))}
+              {checkedTodos.map(t => (
+                <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px] opacity-50">
+                  <Checkbox checked={true} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: false })} />
+                  <span className="text-xs flex-1 line-through">{t.text}</span>
+                </div>
+              ))}
+              {todos.length === 0 && (
+                <p className="text-xs text-muted-foreground italic py-1">No to-dos yet</p>
+              )}
+            </div>
+            {/* Clear completed */}
+            {checkedTodos.length > 0 && (
+              <button onClick={() => setClearTodosDialog(true)}
+                className="text-[10px] font-medium text-destructive hover:underline mt-1">
+                Clear Completed ({checkedTodos.length})
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderStageOrders = (stageKey: string) => {
     const stageOrders = filtered.filter(o => o.stage === stageKey);
     const s = stageCounts.find(sc => sc.key === stageKey)!;
@@ -626,7 +757,10 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           {/* Desktop: render panels inline */}
           <div className="hidden md:block space-y-[14px]">
             {renderNotifPanel(false)}
-            {renderNotesPanel(false)}
+            <div className="grid grid-cols-2 gap-[14px]">
+              {renderNotesPanel(false)}
+              {renderTodoPanel(false)}
+            </div>
             <div className="floating-card">
               <h3 className="text-sm font-bold mb-3">Calendar</h3>
               <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
@@ -638,6 +772,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           <div className="md:hidden space-y-3">
             {renderNotifPanel(true)}
             {renderNotesPanel(true)}
+            {renderTodoPanel(true)}
             {/* Calendar - collapsible on mobile */}
             <div className="floating-card !p-0 overflow-hidden">
               <button onClick={() => setCalOpenMobile(o => !o)}
@@ -680,6 +815,20 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setNotes([]); setClearNotesDialog(false); }}>Clear All</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear todos dialog */}
+      <AlertDialog open={clearTodosDialog} onOpenChange={setClearTodosDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove all completed to-do items?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => clearCompletedMutation.mutate()}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
