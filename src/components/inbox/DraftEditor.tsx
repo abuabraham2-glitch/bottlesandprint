@@ -86,7 +86,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
           }
         } catch {}
       }
-      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success("Email sent");
       onClose();
     } catch {
