@@ -97,7 +97,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   const handleDiscardDraft = async () => {
     await supabase.from("emails").update({ draft_response: null } as any).eq("id", email.id);
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    await queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success("Draft discarded — email stays in inbox");
     onClose();
   };
