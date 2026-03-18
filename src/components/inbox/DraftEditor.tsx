@@ -112,7 +112,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         .in("status", ["pending", "needs_response"])
         .neq("id", email.id);
     }
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    await queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success("Archived");
     onClose();
   };
