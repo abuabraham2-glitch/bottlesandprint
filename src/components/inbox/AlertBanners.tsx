@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Email } from "@/lib/emailData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,28 @@ interface AlertBannersProps {
 export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
   const queryClient = useQueryClient();
   const e = email as any;
+  const [unresolvedTopics, setUnresolvedTopics] = useState<{ id: string; summary: string; date: string; subject: string }[] | null>(null);
+  const [topicsLoading, setTopicsLoading] = useState(false);
+
+  // On mount/change, parse multi_topic_alert and check actual status in Supabase
+  useEffect(() => {
+    if (!e.multi_topic_alert) { setUnresolvedTopics(null); return; }
+    let topics: { id: string; summary: string; date: string; subject: string }[] | null = null;
+    try { const parsed = JSON.parse(e.multi_topic_alert); if (Array.isArray(parsed)) topics = parsed; } catch {}
+    if (!topics || topics.length === 0) { setUnresolvedTopics(null); return; }
+
+    setTopicsLoading(true);
+    const ids = topics.map(t => t.id);
+    supabase.from("emails").select("id, status").in("id", ids).then(({ data }) => {
+      const resolvedIds = new Set(
+        (data || []).filter(r => r.status === "resolved" || r.status === "approved_sent").map(r => r.id)
+      );
+      const filtered = topics!.filter(t => !resolvedIds.has(t.id));
+      console.log("[AlertBanners] Multi-topic filter: total=", topics!.length, "resolved=", resolvedIds.size, "showing=", filtered.length);
+      setUnresolvedTopics(filtered);
+      setTopicsLoading(false);
+    });
+  }, [e.multi_topic_alert, e.id]);
 
   return (
     <>
@@ -30,11 +52,12 @@ export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
         </div>
       )}
 
-      {/* Multi-topic alert */}
-      {e.multi_topic_alert && (() => {
-        let topics: { id: string; summary: string; date: string; subject: string }[] | null = null;
-        try { const parsed = JSON.parse(e.multi_topic_alert); if (Array.isArray(parsed)) topics = parsed; } catch {}
-        if (!topics) {
+      {/* Multi-topic alert — only show unresolved topics */}
+      {e.multi_topic_alert && !topicsLoading && (() => {
+        // If we couldn't parse as array, show raw text
+        let rawTopics: any[] | null = null;
+        try { const p = JSON.parse(e.multi_topic_alert); if (Array.isArray(p)) rawTopics = p; } catch {}
+        if (!rawTopics) {
           return (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}>
               <AlertTriangle size={16} className="shrink-0" style={{ color: '#D97706' }} />
@@ -42,14 +65,17 @@ export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
             </div>
           );
         }
+        // If all topics resolved, hide panel entirely
+        if (!unresolvedTopics || unresolvedTopics.length === 0) return null;
+
         return (
           <div className="px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}>
             <div className="flex items-center gap-2 mb-1">
               <AlertTriangle size={16} className="shrink-0" style={{ color: '#D97706' }} />
-              <span className="font-medium" style={{ color: '#92400E' }}>{topics.length} other pending topic{topics.length !== 1 ? 's' : ''} from this sender:</span>
+              <span className="font-medium" style={{ color: '#92400E' }}>{unresolvedTopics.length} other pending topic{unresolvedTopics.length !== 1 ? 's' : ''} from this sender:</span>
             </div>
             <ul className="ml-6 space-y-1">
-              {topics.map(t => (
+              {unresolvedTopics.map(t => (
                 <li key={t.id} className="flex items-start justify-between gap-2">
                   <span style={{ color: '#92400E' }}>• {t.summary} <span className="opacity-70">({t.date})</span></span>
                   <button className="inline-flex items-center gap-0.5 text-xs font-medium whitespace-nowrap shrink-0" style={{ color: '#D97706' }}
@@ -64,17 +90,14 @@ export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
                 onClick={async (ev) => {
                   const btn = ev.currentTarget; btn.textContent = 'Resolving...'; btn.disabled = true;
                   const now = new Date().toISOString();
-                  console.log("[AlertBanners] Resolve All clicked. Resolving", topics!.length, "emails:", topics!.map(t => t.id));
-                  for (const t of topics!) {
-                    console.log("[AlertBanners] Updating email:", t.id, "→ { status: 'resolved', resolved_at:", now, "}");
+                  console.log("[AlertBanners] Resolve All: resolving", unresolvedTopics.length, "emails:", unresolvedTopics.map(t => t.id));
+                  for (const t of unresolvedTopics) {
                     const { error } = await supabase.from("emails").update({ status: 'resolved', resolved_at: now }).eq("id", t.id);
-                    if (error) console.error("[AlertBanners] Error resolving email:", t.id, error);
-                    else console.log("[AlertBanners] Successfully resolved email:", t.id);
+                    if (error) console.error("[AlertBanners] Error resolving:", t.id, error);
                   }
-                  toast.success(`${topics!.length} email${topics!.length !== 1 ? 's' : ''} resolved`);
-                  console.log("[AlertBanners] Awaiting query invalidation...");
+                  setUnresolvedTopics([]);
+                  toast.success(`${unresolvedTopics.length} email${unresolvedTopics.length !== 1 ? 's' : ''} resolved`);
                   await queryClient.invalidateQueries({ queryKey: ["emails"] });
-                  console.log("[AlertBanners] Query invalidation complete");
                   btn.textContent = 'Resolve All'; btn.disabled = false;
                 }}>
                 Resolve All
