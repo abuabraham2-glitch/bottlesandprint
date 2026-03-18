@@ -752,15 +752,11 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right column */}
+        {/* Right column: Notifications + Calendar */}
         <div className="space-y-3 md:space-y-[14px]">
-          {/* Desktop: render panels inline */}
+          {/* Desktop */}
           <div className="hidden md:block space-y-[14px]">
             {renderNotifPanel(false)}
-            <div className="grid grid-cols-2 gap-[14px]">
-              {renderNotesPanel(false)}
-              {renderTodoPanel(false)}
-            </div>
             <div className="floating-card">
               <h3 className="text-sm font-bold mb-3">Calendar</h3>
               <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
@@ -771,8 +767,6 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           {/* Mobile: collapsible panels */}
           <div className="md:hidden space-y-3">
             {renderNotifPanel(true)}
-            {renderNotesPanel(true)}
-            {renderTodoPanel(true)}
             {/* Calendar - collapsible on mobile */}
             <div className="floating-card !p-0 overflow-hidden">
               <button onClick={() => setCalOpenMobile(o => !o)}
@@ -789,6 +783,16 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ===== NOTES & TO-DO: full width below Recent Inbox ===== */}
+      <div className="hidden md:grid grid-cols-2 gap-[14px]">
+        {renderNotesPanel(false)}
+        {renderTodoPanel(false)}
+      </div>
+      <div className="md:hidden space-y-3">
+        {renderNotesPanel(true)}
+        {renderTodoPanel(true)}
       </div>
 
       {/* Clear notifications dialog */}
