@@ -6,7 +6,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Archive, FileText, Paperclip, ChevronDown, ExternalLink } from "lucide-react";
+import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { AlertBanners } from "./AlertBanners";
