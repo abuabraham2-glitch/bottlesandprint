@@ -58,17 +58,20 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
 
   const handleArchive = async () => {
     const now = new Date().toISOString();
-    // Archive this email
-    await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
-    // Cascade: archive same thread
+    console.log("[ThreadView] Archive clicked. Email:", email.id, "→ { status: 'resolved', resolved_at:", now, "}");
+    const { error } = await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
+    if (error) console.error("[ThreadView] Archive error:", error);
+    else console.log("[ThreadView] Archive successful for:", email.id);
     if (email.thread_id) {
+      console.log("[ThreadView] Cascading archive for thread:", email.thread_id);
       await supabase.from("emails")
         .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
         .eq("thread_id", email.thread_id)
         .in("status", ["pending", "needs_response"])
         .neq("id", email.id);
     }
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    await queryClient.invalidateQueries({ queryKey: ["emails"] });
+    console.log("[ThreadView] Query invalidation complete");
     toast.success("Archived");
     onClose();
   };

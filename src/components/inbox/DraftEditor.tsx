@@ -104,8 +104,12 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   const handleArchive = async () => {
     const now = new Date().toISOString();
-    await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
+    console.log("[DraftEditor] Archive clicked. Email:", email.id, "→ { status: 'resolved', resolved_at:", now, "}");
+    const { error } = await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
+    if (error) console.error("[DraftEditor] Archive error:", error);
+    else console.log("[DraftEditor] Archive successful for:", email.id);
     if (email.thread_id) {
+      console.log("[DraftEditor] Cascading archive for thread:", email.thread_id);
       await supabase.from("emails")
         .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
         .eq("thread_id", email.thread_id)
@@ -113,6 +117,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         .neq("id", email.id);
     }
     await queryClient.invalidateQueries({ queryKey: ["emails"] });
+    console.log("[DraftEditor] Query invalidation complete");
     toast.success("Archived");
     onClose();
   };
