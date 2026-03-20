@@ -450,7 +450,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               {uncheckedTodos.map(t => (
                 <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px]">
                   <Checkbox checked={false} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: true })} />
-                  <span className="text-xs flex-1">{t.text}</span>
+                  <span className="text-sm font-semibold flex-1">{t.text}</span>
                 </div>
               ))}
               {checkedTodos.map(t => (
