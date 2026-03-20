@@ -323,14 +323,22 @@ export default function Inbox() {
                 return (
                   <div key={email.id}
                     className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
-                    onClick={() => mainTab === "drafts" ? setDraftEmail(email) : setThreadEmail(email)}>
+                    onClick={() => handleOpenEmail(email)}>
                     <div className="flex items-start gap-3">
-                      <div className="pt-0.5" onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
-                        <Checkbox checked={isSelected} className="h-4 w-4" />
+                      {/* Unread dot */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="w-2 flex-shrink-0">
+                          {!email.is_read && mainTab === "inbox" && (
+                            <div className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                          )}
+                        </div>
+                        <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
+                          <Checkbox checked={isSelected} className="h-4 w-4" />
+                        </div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="font-medium text-sm font-sans truncate">{displaySenderName(email.from_name, email.from_email)}</span>
+                          <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
                           {email.category && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
                               {email.category}
@@ -341,7 +349,7 @@ export default function Inbox() {
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
                           )}
                         </div>
-                        <div className="text-sm font-sans truncate text-muted-foreground">{email.subject}</div>
+                        <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         {mainTab === "drafts" ? (
