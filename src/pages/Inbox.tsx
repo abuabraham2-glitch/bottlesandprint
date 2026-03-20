@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -43,6 +44,7 @@ export default function Inbox() {
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactName, setNewContactName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
@@ -196,6 +198,33 @@ export default function Inbox() {
     setSelectedIds(new Set());
   };
 
+  const bulkDelete = async () => {
+    const now = new Date().toISOString();
+    for (const id of selectedIds) {
+      await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`Deleted ${selectedIds.size} emails`);
+    setSelectedIds(new Set());
+    setDeleteConfirmOpen(false);
+  };
+
+  const markAsRead = async (emailId: string) => {
+    await supabase.from("emails").update({ is_read: true } as any).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+  };
+
+  const handleOpenEmail = (email: Email) => {
+    if (!email.is_read) markAsRead(email.id);
+    if (mainTab === "drafts") setDraftEmail(email);
+    else setThreadEmail(email);
+  };
+
+  const unreadCount = React.useMemo(() =>
+    activeEmails.filter(e => !e.is_read).length,
+    [activeEmails]
+  );
+
   const displayedEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
 
   return (
@@ -258,9 +287,9 @@ export default function Inbox() {
           {/* THREE TABS: INBOX | DRAFTS | ARCHIVE */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
             {[
-              { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary" },
-              { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700" },
-              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground" },
+              { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary", extra: unreadCount > 0 ? ` · ${unreadCount} unread` : "" },
+              { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700", extra: "" },
+              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
             ].map(tab => (
               <button key={tab.key}
                 onClick={() => setMainTab(tab.key)}
@@ -269,7 +298,7 @@ export default function Inbox() {
                 }`}>
                 <tab.icon size={15} />
                 {tab.label}
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab.countClass}`}>{tab.count}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab.countClass}`}>{tab.count}{tab.extra}</span>
               </button>
             ))}
           </div>
@@ -294,14 +323,22 @@ export default function Inbox() {
                 return (
                   <div key={email.id}
                     className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
-                    onClick={() => mainTab === "drafts" ? setDraftEmail(email) : setThreadEmail(email)}>
+                    onClick={() => handleOpenEmail(email)}>
                     <div className="flex items-start gap-3">
-                      <div className="pt-0.5" onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
-                        <Checkbox checked={isSelected} className="h-4 w-4" />
+                      {/* Unread dot */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="w-2 flex-shrink-0">
+                          {!email.is_read && mainTab === "inbox" && (
+                            <div className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                          )}
+                        </div>
+                        <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
+                          <Checkbox checked={isSelected} className="h-4 w-4" />
+                        </div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="font-medium text-sm font-sans truncate">{displaySenderName(email.from_name, email.from_email)}</span>
+                          <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
                           {email.category && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
                               {email.category}
@@ -312,7 +349,7 @@ export default function Inbox() {
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
                           )}
                         </div>
-                        <div className="text-sm font-sans truncate text-muted-foreground">{email.subject}</div>
+                        <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         {mainTab === "drafts" ? (
@@ -347,11 +384,32 @@ export default function Inbox() {
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("OTHER")}>
                 Mark Other
               </Button>
+              <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setDeleteConfirmOpen(true)}>
+                <Trash2 size={12} /> Delete
+              </Button>
               <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>
                 Clear
               </button>
             </div>
           )}
+
+          {/* Delete Confirmation */}
+          <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete selected email(s)?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete the selected email(s)? This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
 

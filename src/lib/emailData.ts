@@ -28,6 +28,7 @@ export interface Email {
   to_recipients: string | null;
   cc_recipients: string | null;
   incoming_summary: string | null;
+  is_read: boolean | null;
 }
 export interface Call {
   id: string;
