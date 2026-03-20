@@ -156,6 +156,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
         {/* Group 3: Preferences */}
         <TogglePill active={collapsed} onClick={onToggleCollapse} icon={collapsed ? PanelLeft : PanelLeftClose} label="Focus Mode" collapsed={collapsed} />
         <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
+        <InstallAppButton collapsed={collapsed} />
       </nav>
 
       {/* Bottom actions */}
