@@ -198,6 +198,33 @@ export default function Inbox() {
     setSelectedIds(new Set());
   };
 
+  const bulkDelete = async () => {
+    const now = new Date().toISOString();
+    for (const id of selectedIds) {
+      await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`Deleted ${selectedIds.size} emails`);
+    setSelectedIds(new Set());
+    setDeleteConfirmOpen(false);
+  };
+
+  const markAsRead = async (emailId: string) => {
+    await supabase.from("emails").update({ is_read: true } as any).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+  };
+
+  const handleOpenEmail = (email: Email) => {
+    if (!email.is_read) markAsRead(email.id);
+    if (mainTab === "drafts") setDraftEmail(email);
+    else setThreadEmail(email);
+  };
+
+  const unreadCount = React.useMemo(() =>
+    activeEmails.filter(e => !e.is_read).length,
+    [activeEmails]
+  );
+
   const displayedEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
 
   return (
