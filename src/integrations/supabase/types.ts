@@ -352,6 +352,7 @@ export type Database = {
           id: string
           incoming_summary: string | null
           is_read: boolean | null
+          is_urgent: boolean | null
           multi_topic_alert: string | null
           po_received_at: string | null
           quote_data: Json | null
@@ -387,6 +388,7 @@ export type Database = {
           id?: string
           incoming_summary?: string | null
           is_read?: boolean | null
+          is_urgent?: boolean | null
           multi_topic_alert?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
@@ -422,6 +424,7 @@ export type Database = {
           id?: string
           incoming_summary?: string | null
           is_read?: boolean | null
+          is_urgent?: boolean | null
           multi_topic_alert?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
