@@ -384,11 +384,32 @@ export default function Inbox() {
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("OTHER")}>
                 Mark Other
               </Button>
+              <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setDeleteConfirmOpen(true)}>
+                <Trash2 size={12} /> Delete
+              </Button>
               <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>
                 Clear
               </button>
             </div>
           )}
+
+          {/* Delete Confirmation */}
+          <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete selected email(s)?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete the selected email(s)? This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
 
