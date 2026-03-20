@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Search, X } from "lucide-react";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -155,6 +156,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
         {/* Group 3: Preferences */}
         <TogglePill active={collapsed} onClick={onToggleCollapse} icon={collapsed ? PanelLeft : PanelLeftClose} label="Focus Mode" collapsed={collapsed} />
         <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
+        <InstallAppButton collapsed={collapsed} />
       </nav>
 
       {/* Bottom actions */}
