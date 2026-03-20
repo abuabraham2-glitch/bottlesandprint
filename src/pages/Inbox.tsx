@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
-import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare } from "lucide-react";
+import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare, Search, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
@@ -21,9 +21,12 @@ import {
 } from "@/components/inbox/InboxHelpers";
 
 type MainTab = "inbox" | "drafts" | "archive";
+type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SENT" | "SPAM" | "URGENT";
 
 export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [threadEmail, setThreadEmail] = useState<Email | null>(null);
   const [draftEmail, setDraftEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -87,7 +90,6 @@ export default function Inbox() {
       const updated = allEmails.find(e => e.id === draftEmail.id);
       if (updated && updated.status !== draftEmail.status) {
         console.log("[Inbox] draftEmail status synced:", draftEmail.id, draftEmail.status, "→", updated.status);
-        // If email was resolved/sent, close the draft editor
         if (updated.status === "resolved" || updated.status === "approved_sent") {
           console.log("[Inbox] Draft email resolved/sent, closing editor");
           setDraftEmail(null);
@@ -209,6 +211,17 @@ export default function Inbox() {
     setDeleteConfirmOpen(false);
   };
 
+  const bulkToggleUrgent = async () => {
+    for (const id of selectedIds) {
+      const email = allEmails.find(e => e.id === id);
+      const newVal = !(email?.is_urgent);
+      await supabase.from("emails").update({ is_urgent: newVal } as any).eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`Toggled 🔥 on ${selectedIds.size} emails`);
+    setSelectedIds(new Set());
+  };
+
   const markAsRead = async (emailId: string) => {
     await supabase.from("emails").update({ is_read: true } as any).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
@@ -225,7 +238,53 @@ export default function Inbox() {
     [activeEmails]
   );
 
-  const displayedEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
+  // Apply category filter + search
+  const baseEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
+
+  const filteredEmails = React.useMemo(() => {
+    let list = baseEmails;
+
+    // Category filter (only in inbox tab)
+    if (mainTab === "inbox") {
+      switch (categoryFilter) {
+        case "SALES": list = list.filter(e => e.category === "SALES"); break;
+        case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
+        case "OTHER": list = list.filter(e => e.category === "OTHER"); break;
+        case "SPAM": list = allEmails.filter(e => e.category === "SPAM"); break;
+        case "SENT": list = allEmails.filter(e => e.status === "approved_sent" || e.status === "auto_sent"); break;
+        case "URGENT": list = list.filter(e => e.is_urgent); break;
+      }
+    }
+
+    // Search across all fields
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      // When searching, search across ALL emails (not just filtered by tab/category)
+      const searchPool = categoryFilter === "ALL" && mainTab === "inbox"
+        ? allEmails
+        : list;
+      list = searchPool.filter(e =>
+        (e.subject?.toLowerCase().includes(q)) ||
+        (e.from_name?.toLowerCase().includes(q)) ||
+        (e.from_email?.toLowerCase().includes(q)) ||
+        (e.body?.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [baseEmails, allEmails, mainTab, categoryFilter, searchQuery]);
+
+  const displayedEmails = filteredEmails;
+
+  const CATEGORY_TABS: { key: CategoryFilter; label: string }[] = [
+    { key: "ALL", label: "All" },
+    { key: "SALES", label: "Sales" },
+    { key: "SUPPORT", label: "Support" },
+    { key: "OTHER", label: "Other" },
+    { key: "SENT", label: "Sent" },
+    { key: "SPAM", label: "Spam" },
+    { key: "URGENT", label: "🔥 Urgent" },
+  ];
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
@@ -303,6 +362,36 @@ export default function Inbox() {
             ))}
           </div>
 
+          {/* Category filter tabs (inbox only) */}
+          {mainTab === "inbox" && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                {CATEGORY_TABS.map(ct => (
+                  <button
+                    key={ct.key}
+                    onClick={() => setCategoryFilter(ct.key)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
+                      categoryFilter === ct.key
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {ct.label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search emails..."
+                  className="rounded-xl pl-9 h-9 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Email list */}
           {isLoading ? (
             <div className="text-muted-foreground text-sm font-sans py-8 text-center">Loading emails...</div>
@@ -310,7 +399,7 @@ export default function Inbox() {
             <div className="text-center py-12 text-muted-foreground">
               <Mail size={32} className="mx-auto mb-2 opacity-50" />
               <p className="font-sans text-sm">
-                {mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : "No archived emails."}
+                {searchQuery ? "No emails match your search." : mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : "No archived emails."}
               </p>
             </div>
           ) : (
@@ -329,7 +418,7 @@ export default function Inbox() {
                       <div className="flex items-center gap-2 pt-1">
                         <div className="w-2 flex-shrink-0">
                           {!email.is_read && mainTab === "inbox" && (
-                            <div className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                            <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
                           )}
                         </div>
                         <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
@@ -338,6 +427,7 @@ export default function Inbox() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          {email.is_urgent && <span className="text-sm">🔥</span>}
                           <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
                           {email.category && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
@@ -371,6 +461,9 @@ export default function Inbox() {
               <span className="text-sm font-sans font-medium">✓ {selectedIds.size} selected</span>
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkArchive}>
                 <Archive size={12} /> Archive
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkToggleUrgent}>
+                <Flame size={12} /> 🔥 Flag
               </Button>
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SALES")}>
                 Mark Sales
