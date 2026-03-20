@@ -287,9 +287,9 @@ export default function Inbox() {
           {/* THREE TABS: INBOX | DRAFTS | ARCHIVE */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
             {[
-              { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary" },
-              { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700" },
-              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground" },
+              { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary", extra: unreadCount > 0 ? ` · ${unreadCount} unread` : "" },
+              { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700", extra: "" },
+              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
             ].map(tab => (
               <button key={tab.key}
                 onClick={() => setMainTab(tab.key)}
@@ -298,7 +298,7 @@ export default function Inbox() {
                 }`}>
                 <tab.icon size={15} />
                 {tab.label}
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab.countClass}`}>{tab.count}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab.countClass}`}>{tab.count}{tab.extra}</span>
               </button>
             ))}
           </div>
