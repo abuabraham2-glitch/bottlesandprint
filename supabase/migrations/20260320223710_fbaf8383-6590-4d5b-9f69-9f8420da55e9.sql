@@ -1,0 +1,1 @@
+ALTER TABLE public.emails ADD COLUMN IF NOT EXISTS is_urgent boolean DEFAULT false;
