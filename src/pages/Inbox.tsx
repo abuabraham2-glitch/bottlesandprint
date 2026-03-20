@@ -44,6 +44,7 @@ export default function Inbox() {
   const [newContactEmail, setNewContactEmail] = useState("");
   const [newContactName, setNewContactName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
