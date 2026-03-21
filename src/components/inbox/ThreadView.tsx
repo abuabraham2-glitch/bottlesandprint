@@ -197,6 +197,9 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
                   <FileText size={12} /> View Draft →
                 </Button>
               )}
+              <Button size="sm" className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
+                <Reply size={12} /> Reply
+              </Button>
               {!isResolved && (
                 <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
                   <Archive size={12} /> Archive
