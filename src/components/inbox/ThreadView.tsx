@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle, MessageSquare, Loader2 } from "lucide-react";
+import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle, MessageSquare, Loader2, Reply } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
