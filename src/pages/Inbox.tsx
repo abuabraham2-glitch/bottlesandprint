@@ -251,7 +251,6 @@ export default function Inbox() {
         case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
         case "OTHER": list = list.filter(e => e.category === "OTHER"); break;
         case "SPAM": list = allEmails.filter(e => e.category === "SPAM"); break;
-        case "SENT": list = allEmails.filter(e => e.status === "approved_sent" || e.status === "auto_sent"); break;
         case "URGENT": list = list.filter(e => e.is_urgent); break;
       }
     }
