@@ -461,6 +461,9 @@ export default function Inbox() {
                           {email.draft_response && mainTab === "inbox" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
                           )}
+                          {email.status === "approved_sent" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">✅ Replied</span>
+                          )}
                         </div>
                         <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
                       </div>
