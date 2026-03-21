@@ -162,6 +162,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
       setThreadExpanded(true);
     } catch (err) {
       console.error("[ThreadView] Thread fetch error:", err);
+      setThreadMessages([]);
       toast.error("Failed to load thread");
     }
     setThreadLoading(false);
