@@ -21,7 +21,7 @@ import {
 } from "@/components/inbox/InboxHelpers";
 
 type MainTab = "inbox" | "drafts" | "archive";
-type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SENT" | "SPAM" | "URGENT";
+type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
 
 export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
