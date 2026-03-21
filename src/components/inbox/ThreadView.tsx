@@ -159,7 +159,13 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
       });
       if (!response.ok) throw new Error("Failed to fetch thread");
       const data = await response.json();
-      const messages: ThreadMessage[] = Array.isArray(data) ? data : data.messages || [];
+      const raw = Array.isArray(data) ? data : data.messages || [];
+      console.log("[ThreadView] Raw thread data:", JSON.stringify(raw.slice(0, 2), null, 2));
+      const messages: ThreadMessage[] = raw.map((m: any) => ({
+        sender: m.sender || m.from || "",
+        timestamp: m.timestamp || m.date || "",
+        body: m.body || m.snippet || "",
+      }));
       setThreadMessages(messages);
       setThreadExpanded(true);
     } catch (err) {
