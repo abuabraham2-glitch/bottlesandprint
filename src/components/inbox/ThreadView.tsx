@@ -3,10 +3,9 @@ import { Email } from "@/lib/emailData";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle } from "lucide-react";
+import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle, MessageSquare, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -15,6 +14,14 @@ import {
   CATEGORY_COLORS, CATEGORIES, displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
   formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
+
+const THREAD_WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/fetch-thread";
+
+interface ThreadMessage {
+  sender: string;
+  timestamp: string;
+  body: string;
+}
 
 interface ThreadViewProps {
   email: Email | null;
@@ -26,6 +33,9 @@ interface ThreadViewProps {
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
   const [conversationEmails, setConversationEmails] = useState<Email[]>([]);
   const [expandedConvo, setExpandedConvo] = useState<Set<string>>(new Set());
+  const [threadMessages, setThreadMessages] = useState<ThreadMessage[] | null>(null);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [threadExpanded, setThreadExpanded] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -37,6 +47,12 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
       .limit(10)
       .then(({ data }) => setConversationEmails((data || []) as unknown as Email[]));
   }, [email?.id, email?.from_email]);
+
+  // Reset thread state when email changes
+  useEffect(() => {
+    setThreadMessages(null);
+    setThreadExpanded(false);
+  }, [email?.id]);
 
   if (!email) return null;
 
@@ -58,12 +74,9 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
 
   const handleArchive = async () => {
     const now = new Date().toISOString();
-    console.log("[ThreadView] Archive clicked. Email:", email.id, "→ { status: 'resolved', resolved_at:", now, "}");
     const { error } = await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
     if (error) console.error("[ThreadView] Archive error:", error);
-    else console.log("[ThreadView] Archive successful for:", email.id);
     if (email.thread_id) {
-      console.log("[ThreadView] Cascading archive for thread:", email.thread_id);
       await supabase.from("emails")
         .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
         .eq("thread_id", email.thread_id)
@@ -71,10 +84,32 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
         .neq("id", email.id);
     }
     await queryClient.invalidateQueries({ queryKey: ["emails"] });
-    console.log("[ThreadView] Query invalidation complete");
     toast.success("Archived");
     onClose();
   };
+
+  const fetchThread = async () => {
+    if (!email.thread_id) return;
+    setThreadLoading(true);
+    try {
+      const response = await fetch(THREAD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gmail_thread_id: email.thread_id }),
+      });
+      if (!response.ok) throw new Error("Failed to fetch thread");
+      const data = await response.json();
+      const messages: ThreadMessage[] = Array.isArray(data) ? data : data.messages || [];
+      setThreadMessages(messages);
+      setThreadExpanded(true);
+    } catch (err) {
+      console.error("[ThreadView] Thread fetch error:", err);
+      toast.error("Failed to load thread");
+    }
+    setThreadLoading(false);
+  };
+
+  const showViewThread = !!email.thread_id;
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
@@ -168,6 +203,57 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
             <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
               dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
           </div>
+
+          {/* View Thread button */}
+          {showViewThread && (
+            <div>
+              {!threadMessages && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl gap-1.5 text-xs"
+                  onClick={fetchThread}
+                  disabled={threadLoading}
+                >
+                  {threadLoading ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />}
+                  {threadLoading ? "Loading thread..." : "View Thread"}
+                </Button>
+              )}
+
+              {/* Thread messages */}
+              {threadMessages && threadMessages.length > 1 && (
+                <div className="space-y-2">
+                  <button
+                    className="flex items-center gap-1.5 text-xs font-sans font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => setThreadExpanded(!threadExpanded)}
+                  >
+                    <ChevronDown size={14} className={`transition-transform ${threadExpanded ? "rotate-180" : ""}`} />
+                    Gmail Thread ({threadMessages.length} messages)
+                  </button>
+                  {threadExpanded && (
+                    <div className="space-y-3 pl-2 border-l-2 border-muted">
+                      {threadMessages.map((msg, i) => (
+                        <div key={i} className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs font-sans">
+                            <span className="font-medium">{msg.sender}</span>
+                            <span className="text-muted-foreground">{formatTimeFull(msg.timestamp)}</span>
+                          </div>
+                          <div
+                            className="text-sm font-sans email-html-content max-w-none bg-muted/10 rounded-lg p-3"
+                            dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(msg.body || "")) }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {threadMessages && threadMessages.length <= 1 && (
+                <p className="text-xs text-muted-foreground font-sans">Only one message in this thread.</p>
+              )}
+            </div>
+          )}
 
           {/* Conversation History */}
           {conversationEmails.length > 0 && (
