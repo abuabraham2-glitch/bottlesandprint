@@ -15,7 +15,7 @@ import {
   formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
 
-const THREAD_WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/fetch-thread";
+const THREAD_WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-thread";
 
 interface ThreadMessage {
   sender: string;
