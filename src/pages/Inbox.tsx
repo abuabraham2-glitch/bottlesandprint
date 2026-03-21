@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
-import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare, Search, Flame } from "lucide-react";
+import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare, Search, Flame, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
@@ -48,6 +48,7 @@ export default function Inbox() {
   const [newContactName, setNewContactName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
@@ -295,6 +296,19 @@ export default function Inbox() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetch("https://bottlesandprint.app.n8n.cloud/webhook/manual-refresh");
+      toast("Checking for new emails…", { duration: 3000 });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["all-emails"] }), 3000);
+    } catch {
+      toast.error("Refresh failed");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
       {/* Header */}
@@ -306,6 +320,9 @@ export default function Inbox() {
           ) : (
             <>
               <button onClick={() => setShowFollowUps(true)} className="text-xs text-muted-foreground hover:text-foreground font-sans underline">Follow-ups</button>
+              <Button size="icon" variant="outline" className="md:hidden rounded-xl min-h-[44px] min-w-[44px]" onClick={handleRefresh} disabled={refreshing}>
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+              </Button>
               <Button size="sm" className="rounded-xl gap-1 min-h-[44px]" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
                 <Plus size={14} /> Compose
               </Button>
@@ -423,9 +440,13 @@ export default function Inbox() {
                     className="h-4 w-4"
                   />
                 </div>
-                <span className="text-xs font-sans text-muted-foreground font-medium">
+                <span className="text-xs font-sans text-muted-foreground font-medium flex-1">
                   {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
                 </span>
+                <Button size="sm" variant="outline" className="hidden md:inline-flex rounded-xl gap-1.5 text-xs h-8" onClick={handleRefresh} disabled={refreshing}>
+                  <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                  Refresh
+                </Button>
               </div>
               {displayedEmails.map(email => {
                 const atts = parseAttachments(email.attachments);
