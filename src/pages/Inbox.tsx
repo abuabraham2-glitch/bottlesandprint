@@ -320,6 +320,9 @@ export default function Inbox() {
           ) : (
             <>
               <button onClick={() => setShowFollowUps(true)} className="text-xs text-muted-foreground hover:text-foreground font-sans underline">Follow-ups</button>
+              <Button size="icon" variant="outline" className="md:hidden rounded-xl min-h-[44px] min-w-[44px]" onClick={handleRefresh} disabled={refreshing}>
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+              </Button>
               <Button size="sm" className="rounded-xl gap-1 min-h-[44px]" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
                 <Plus size={14} /> Compose
               </Button>
