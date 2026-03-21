@@ -296,6 +296,19 @@ export default function Inbox() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetch("https://bottlesandprint.app.n8n.cloud/webhook/manual-refresh");
+      toast("Checking for new emails…", { duration: 3000 });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["all-emails"] }), 3000);
+    } catch {
+      toast.error("Refresh failed");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
       {/* Header */}
