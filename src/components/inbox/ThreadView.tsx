@@ -119,9 +119,13 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
     if (newCategory === "SPAM") {
       updates.status = "resolved";
       updates.resolved_at = new Date().toISOString();
+    } else {
+      updates.status = "needs_response";
+      updates.resolved_at = null;
     }
     await supabase.from("emails").update(updates).eq("id", email.id);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["all-emails"] });
     toast.success(`Category → ${newCategory}`);
     if (newCategory === "SPAM") onClose();
   };
