@@ -21,7 +21,7 @@ import {
 } from "@/components/inbox/InboxHelpers";
 
 type MainTab = "inbox" | "drafts" | "archive";
-type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SENT" | "SPAM" | "URGENT";
+type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
 
 export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
@@ -56,7 +56,7 @@ export default function Inbox() {
 
   // Derived lists
   const activeEmails = React.useMemo(() =>
-    allEmails.filter(e => e.status === "pending" || e.status === "needs_response"),
+    allEmails.filter(e => e.status === "pending" || e.status === "needs_response" || e.status === "approved_sent"),
     [allEmails]
   );
 
@@ -251,7 +251,6 @@ export default function Inbox() {
         case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
         case "OTHER": list = list.filter(e => e.category === "OTHER"); break;
         case "SPAM": list = allEmails.filter(e => e.category === "SPAM"); break;
-        case "SENT": list = allEmails.filter(e => e.status === "approved_sent" || e.status === "auto_sent"); break;
         case "URGENT": list = list.filter(e => e.is_urgent); break;
       }
     }
@@ -281,10 +280,20 @@ export default function Inbox() {
     { key: "SALES", label: "Sales" },
     { key: "SUPPORT", label: "Support" },
     { key: "OTHER", label: "Other" },
-    { key: "SENT", label: "Sent" },
     { key: "SPAM", label: "Spam" },
     { key: "URGENT", label: "🔥 Urgent" },
   ];
+
+  // Select All logic
+  const allVisibleSelected = displayedEmails.length > 0 && displayedEmails.every(e => selectedIds.has(e.id));
+  const someVisibleSelected = displayedEmails.some(e => selectedIds.has(e.id));
+  const handleSelectAll = (checked: boolean | "indeterminate") => {
+    if (checked === true) {
+      setSelectedIds(new Set(displayedEmails.map(e => e.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
@@ -404,6 +413,20 @@ export default function Inbox() {
             </div>
           ) : (
             <div className="space-y-1">
+              {/* Select All header row */}
+              <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20 rounded-t-xl">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 flex-shrink-0" />
+                  <Checkbox
+                    checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                    onCheckedChange={handleSelectAll}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <span className="text-xs font-sans text-muted-foreground font-medium">
+                  {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
+                </span>
+              </div>
               {displayedEmails.map(email => {
                 const atts = parseAttachments(email.attachments);
                 const age = formatAge(email.created_at);
@@ -437,6 +460,9 @@ export default function Inbox() {
                           {atts.length > 0 && <Paperclip size={12} className="text-muted-foreground" />}
                           {email.draft_response && mainTab === "inbox" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
+                          )}
+                          {email.status === "approved_sent" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">✅ Replied</span>
                           )}
                         </div>
                         <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
