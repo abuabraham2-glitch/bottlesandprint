@@ -280,10 +280,20 @@ export default function Inbox() {
     { key: "SALES", label: "Sales" },
     { key: "SUPPORT", label: "Support" },
     { key: "OTHER", label: "Other" },
-    { key: "SENT", label: "Sent" },
     { key: "SPAM", label: "Spam" },
     { key: "URGENT", label: "🔥 Urgent" },
   ];
+
+  // Select All logic
+  const allVisibleSelected = displayedEmails.length > 0 && displayedEmails.every(e => selectedIds.has(e.id));
+  const someVisibleSelected = displayedEmails.some(e => selectedIds.has(e.id));
+  const handleSelectAll = (checked: boolean | "indeterminate") => {
+    if (checked === true) {
+      setSelectedIds(new Set(displayedEmails.map(e => e.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
