@@ -393,15 +393,32 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
   );
 }
 
+const ABU_IDENTIFIERS = ["abu@bottlesandprint.com", "abu mathew", "abu abraham", "bottles & print", "bottles and print"];
+
+function isOutbound(sender: string): boolean {
+  const lower = sender.toLowerCase();
+  return ABU_IDENTIFIERS.some(id => lower.includes(id));
+}
+
 function ThreadMessageCard({ msg, index, isLatest }: { msg: ThreadMessage; index: number; isLatest: boolean }) {
   const cleanBody = stripQuotedText(stripN8nFooter(msg.body || ""));
-  const bgClass = index % 2 === 0 ? "bg-muted/15" : "bg-muted/40";
+  const outbound = isOutbound(msg.sender);
 
   return (
-    <div className={`rounded-xl border p-4 space-y-2 ${bgClass}`}>
+    <div className={`rounded-xl border p-4 space-y-2 ${outbound
+      ? "bg-primary/5 border-primary/20 ml-6"
+      : "bg-muted/20 border-border mr-6"
+    }`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-sans">
-          <span className="font-semibold text-foreground">{msg.sender}</span>
+          <span className={`inline-flex items-center gap-1 font-semibold ${outbound ? "text-primary" : "text-foreground"}`}>
+            {outbound ? (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary/10 text-primary mr-1">You</span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground mr-1">From</span>
+            )}
+            {msg.sender}
+          </span>
           <span className="text-muted-foreground">{formatTimeFull(msg.timestamp)}</span>
         </div>
         {isLatest && (
