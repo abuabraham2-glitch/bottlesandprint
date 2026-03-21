@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle, MessageSquare, Loader2 } from "lucide-react";
+import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle, MessageSquare, Loader2, Reply } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -197,6 +197,9 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
                   <FileText size={12} /> View Draft →
                 </Button>
               )}
+              <Button size="sm" className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
+                <Reply size={12} /> Reply
+              </Button>
               {!isResolved && (
                 <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
                   <Archive size={12} /> Archive
