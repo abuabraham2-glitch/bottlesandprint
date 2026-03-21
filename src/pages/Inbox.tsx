@@ -56,7 +56,7 @@ export default function Inbox() {
 
   // Derived lists
   const activeEmails = React.useMemo(() =>
-    allEmails.filter(e => e.status === "pending" || e.status === "needs_response"),
+    allEmails.filter(e => e.status === "pending" || e.status === "needs_response" || e.status === "approved_sent"),
     [allEmails]
   );
 
