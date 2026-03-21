@@ -19,7 +19,9 @@ const THREAD_WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-
 
 interface ThreadMessage {
   sender: string;
+  from?: string;
   timestamp: string;
+  date?: string;
   body: string;
 }
 
