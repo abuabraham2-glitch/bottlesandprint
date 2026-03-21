@@ -413,6 +413,20 @@ export default function Inbox() {
             </div>
           ) : (
             <div className="space-y-1">
+              {/* Select All header row */}
+              <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20 rounded-t-xl">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 flex-shrink-0" />
+                  <Checkbox
+                    checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                    onCheckedChange={handleSelectAll}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <span className="text-xs font-sans text-muted-foreground font-medium">
+                  {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
+                </span>
+              </div>
               {displayedEmails.map(email => {
                 const atts = parseAttachments(email.attachments);
                 const age = formatAge(email.created_at);
