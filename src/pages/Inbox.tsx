@@ -440,9 +440,13 @@ export default function Inbox() {
                     className="h-4 w-4"
                   />
                 </div>
-                <span className="text-xs font-sans text-muted-foreground font-medium">
+                <span className="text-xs font-sans text-muted-foreground font-medium flex-1">
                   {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
                 </span>
+                <Button size="sm" variant="outline" className="hidden md:inline-flex rounded-xl gap-1.5 text-xs h-8" onClick={handleRefresh} disabled={refreshing}>
+                  <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+                  Refresh
+                </Button>
               </div>
               {displayedEmails.map(email => {
                 const atts = parseAttachments(email.attachments);
