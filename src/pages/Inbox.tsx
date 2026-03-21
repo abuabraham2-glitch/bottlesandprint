@@ -192,7 +192,15 @@ export default function Inbox() {
   const bulkSetCategory = async (category: string) => {
     const now = new Date().toISOString();
     const updates: any = { category };
-    if (category === "SPAM") { updates.status = "resolved"; updates.resolved_at = now; updates.draft_response = null; }
+    if (category === "SPAM") {
+      updates.status = "resolved";
+      updates.resolved_at = now;
+      updates.draft_response = null;
+    } else {
+      // Re-activate email: set to needs_response and clear resolved state
+      updates.status = "needs_response";
+      updates.resolved_at = null;
+    }
     for (const id of selectedIds) {
       await supabase.from("emails").update(updates).eq("id", id);
     }
