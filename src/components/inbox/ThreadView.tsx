@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Email } from "@/lib/emailData";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,12 +30,51 @@ interface ThreadViewProps {
   onNavigateToEmail: (id: string) => void;
 }
 
+function stripQuotedText(body: string): string {
+  // Remove HTML quoted blocks first
+  let cleaned = body
+    .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, "")
+    .replace(/(<div[^>]*class="[^"]*gmail_quote[^"]*"[^>]*>[\s\S]*)/gi, "")
+    .replace(/(<div[^>]*class="[^"]*yahoo_quoted[^"]*"[^>]*>[\s\S]*)/gi, "");
+
+  // Convert to text lines for pattern matching
+  const isHtml = /<(?:div|p|br|span|table)\b/i.test(cleaned);
+  if (isHtml) {
+    // For HTML, remove common reply header patterns
+    cleaned = cleaned
+      .replace(/<hr[^>]*>[\s\S]*/gi, "")
+      .replace(/On\s+.{10,80}\s+wrote:\s*(<br\s*\/?>|<\/p>|<\/div>)[\s\S]*/gi, "")
+      .replace(/From:\s*.+[\s\S]*/gi, "")
+      .replace(/------\s*Original Message\s*------[\s\S]*/gi, "")
+      .replace(/_{5,}[\s\S]*/g, "");
+  } else {
+    // For plain text
+    const lines = cleaned.split(/\r?\n/);
+    const cutLines: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^>/.test(trimmed)) continue;
+      if (/^On\s+.{10,80}\s+wrote:\s*$/.test(trimmed)) break;
+      if (/^From:\s+/i.test(trimmed)) break;
+      if (/^------\s*Original Message/i.test(trimmed)) break;
+      if (/^_{5,}$/.test(trimmed)) break;
+      cutLines.push(line);
+    }
+    cleaned = cutLines.join("\n");
+  }
+
+  // Trim trailing empty tags/whitespace
+  cleaned = cleaned.replace(/(<br\s*\/?\s*>|\s|&nbsp;)+$/gi, "").trim();
+  return cleaned || "(no new content)";
+}
+
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
   const [conversationEmails, setConversationEmails] = useState<Email[]>([]);
   const [expandedConvo, setExpandedConvo] = useState<Set<string>>(new Set());
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[] | null>(null);
   const [threadLoading, setThreadLoading] = useState(false);
   const [threadExpanded, setThreadExpanded] = useState(false);
+  const [showAllMessages, setShowAllMessages] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -48,11 +87,26 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
       .then(({ data }) => setConversationEmails((data || []) as unknown as Email[]));
   }, [email?.id, email?.from_email]);
 
-  // Reset thread state when email changes
   useEffect(() => {
     setThreadMessages(null);
     setThreadExpanded(false);
+    setShowAllMessages(false);
   }, [email?.id]);
+
+  const sortedMessages = useMemo(() => {
+    if (!threadMessages) return [];
+    return [...threadMessages].sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  }, [threadMessages]);
+
+  const visibleMessages = useMemo(() => {
+    if (sortedMessages.length <= 3 || showAllMessages) return sortedMessages;
+    return [sortedMessages[0], sortedMessages[sortedMessages.length - 1]];
+  }, [sortedMessages, showAllMessages]);
+
+  const hiddenCount = sortedMessages.length > 3 && !showAllMessages
+    ? sortedMessages.length - 2 : 0;
 
   if (!email) return null;
 
@@ -204,7 +258,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
               dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
           </div>
 
-          {/* View Thread button */}
+          {/* View Thread button & thread messages */}
           {showViewThread && (
             <div>
               {!threadMessages && (
@@ -220,7 +274,6 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
                 </Button>
               )}
 
-              {/* Thread messages */}
               {threadMessages && threadMessages.length > 1 && (
                 <div className="space-y-2">
                   <button
@@ -228,22 +281,47 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
                     onClick={() => setThreadExpanded(!threadExpanded)}
                   >
                     <ChevronDown size={14} className={`transition-transform ${threadExpanded ? "rotate-180" : ""}`} />
-                    Gmail Thread ({threadMessages.length} messages)
+                    Thread ({sortedMessages.length} messages)
                   </button>
                   {threadExpanded && (
-                    <div className="space-y-3 pl-2 border-l-2 border-muted">
-                      {threadMessages.map((msg, i) => (
-                        <div key={i} className="space-y-1">
-                          <div className="flex items-center gap-2 text-xs font-sans">
-                            <span className="font-medium">{msg.sender}</span>
-                            <span className="text-muted-foreground">{formatTimeFull(msg.timestamp)}</span>
-                          </div>
-                          <div
-                            className="text-sm font-sans email-html-content max-w-none bg-muted/10 rounded-lg p-3"
-                            dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(msg.body || "")) }}
-                          />
-                        </div>
+                    <div className="space-y-2">
+                      {/* First message (oldest) */}
+                      {visibleMessages.length > 0 && (
+                        <ThreadMessageCard
+                          msg={visibleMessages[0]}
+                          index={0}
+                          isLatest={sortedMessages.length === 1 || visibleMessages[0] === sortedMessages[sortedMessages.length - 1]}
+                        />
+                      )}
+
+                      {/* Collapsed middle section */}
+                      {hiddenCount > 0 && (
+                        <button
+                          className="w-full py-2 px-4 text-xs font-sans font-medium text-primary hover:text-primary/80 bg-muted/30 hover:bg-muted/50 rounded-lg border border-dashed border-border transition-colors"
+                          onClick={() => setShowAllMessages(true)}
+                        >
+                          Show all {sortedMessages.length} messages ({hiddenCount} hidden)
+                        </button>
+                      )}
+
+                      {/* Middle messages when expanded */}
+                      {showAllMessages && sortedMessages.slice(1, -1).map((msg, i) => (
+                        <ThreadMessageCard
+                          key={i + 1}
+                          msg={msg}
+                          index={i + 1}
+                          isLatest={false}
+                        />
                       ))}
+
+                      {/* Last message (newest) — only if more than 1 */}
+                      {visibleMessages.length > 1 && (
+                        <ThreadMessageCard
+                          msg={visibleMessages[visibleMessages.length - 1]}
+                          index={showAllMessages ? sortedMessages.length - 1 : 1}
+                          isLatest={true}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -312,5 +390,30 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function ThreadMessageCard({ msg, index, isLatest }: { msg: ThreadMessage; index: number; isLatest: boolean }) {
+  const cleanBody = stripQuotedText(stripN8nFooter(msg.body || ""));
+  const bgClass = index % 2 === 0 ? "bg-muted/15" : "bg-muted/40";
+
+  return (
+    <div className={`rounded-xl border p-4 space-y-2 ${bgClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-sans">
+          <span className="font-semibold text-foreground">{msg.sender}</span>
+          <span className="text-muted-foreground">{formatTimeFull(msg.timestamp)}</span>
+        </div>
+        {isLatest && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+            Latest
+          </span>
+        )}
+      </div>
+      <div
+        className="text-sm font-sans email-html-content max-w-none leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(cleanBody) }}
+      />
+    </div>
   );
 }
