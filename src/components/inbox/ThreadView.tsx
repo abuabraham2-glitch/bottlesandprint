@@ -61,29 +61,7 @@ function stripQuotedText(body: string): string {
 }
 
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
-  const [conversationEmails, setConversationEmails] = useState<Email[]>([]);
-  const [expandedConvo, setExpandedConvo] = useState<Set<string>>(new Set());
-  const [threadMessages, setThreadMessages] = useState<ThreadMessage[] | null>(null);
-  const [threadLoading, setThreadLoading] = useState(false);
-  const [threadExpanded, setThreadExpanded] = useState(false);
-  const [showAllMessages, setShowAllMessages] = useState(false);
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!email?.from_email) { setConversationEmails([]); return; }
-    supabase.from("emails").select("*")
-      .eq("from_email", email.from_email)
-      .neq("id", email.id)
-      .order("created_at", { ascending: false })
-      .limit(10)
-      .then(({ data }) => setConversationEmails((data || []) as unknown as Email[]));
-  }, [email?.id, email?.from_email]);
-
-  useEffect(() => {
-    setThreadMessages(null);
-    setThreadExpanded(false);
-    setShowAllMessages(false);
-  }, [email?.id]);
 
   const sortedMessages = useMemo(() => {
     if (!threadMessages) return [];
