@@ -15,14 +15,6 @@ import {
   formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
 
-interface ThreadMessage {
-  sender: string;
-  from?: string;
-  timestamp: string;
-  date?: string;
-  body: string;
-}
-
 interface ThreadViewProps {
   email: Email | null;
   onClose: () => void;
