@@ -22,43 +22,7 @@ interface ThreadViewProps {
   onNavigateToEmail: (id: string) => void;
 }
 
-function stripQuotedText(body: string): string {
-  // Remove HTML quoted blocks first
-  let cleaned = body
-    .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, "")
-    .replace(/(<div[^>]*class="[^"]*gmail_quote[^"]*"[^>]*>[\s\S]*)/gi, "")
-    .replace(/(<div[^>]*class="[^"]*yahoo_quoted[^"]*"[^>]*>[\s\S]*)/gi, "");
 
-  // Convert to text lines for pattern matching
-  const isHtml = /<(?:div|p|br|span|table)\b/i.test(cleaned);
-  if (isHtml) {
-    // For HTML, remove common reply header patterns
-    cleaned = cleaned
-      .replace(/<hr[^>]*>[\s\S]*/gi, "")
-      .replace(/On\s+.{10,80}\s+wrote:\s*(<br\s*\/?>|<\/p>|<\/div>)[\s\S]*/gi, "")
-      .replace(/From:\s*.+[\s\S]*/gi, "")
-      .replace(/------\s*Original Message\s*------[\s\S]*/gi, "")
-      .replace(/_{5,}[\s\S]*/g, "");
-  } else {
-    // For plain text
-    const lines = cleaned.split(/\r?\n/);
-    const cutLines: string[] = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (/^>/.test(trimmed)) continue;
-      if (/^On\s+.{10,80}\s+wrote:\s*$/.test(trimmed)) break;
-      if (/^From:\s+/i.test(trimmed)) break;
-      if (/^------\s*Original Message/i.test(trimmed)) break;
-      if (/^_{5,}$/.test(trimmed)) break;
-      cutLines.push(line);
-    }
-    cleaned = cutLines.join("\n");
-  }
-
-  // Trim trailing empty tags/whitespace
-  cleaned = cleaned.replace(/(<br\s*\/?\s*>|\s|&nbsp;)+$/gi, "").trim();
-  return cleaned || "(no new content)";
-}
 
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
   const queryClient = useQueryClient();
