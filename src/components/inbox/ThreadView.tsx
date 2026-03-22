@@ -197,15 +197,6 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
     </Sheet>
   );
 }
-
-const ABU_IDENTIFIERS = ["abu@bottlesandprint.com", "abu mathew", "abu abraham", "bottles & print", "bottles and print"];
-
-function isOutbound(sender: string | undefined): boolean {
-  if (!sender) return false;
-  const lower = sender.toLowerCase();
-  return ABU_IDENTIFIERS.some(id => lower.includes(id));
-}
-
 function ThreadMessageCard({ msg, index, isLatest }: { msg: ThreadMessage; index: number; isLatest: boolean }) {
   const cleanBody = stripQuotedText(stripN8nFooter(msg.body || ""));
   const outbound = isOutbound(msg.sender);
