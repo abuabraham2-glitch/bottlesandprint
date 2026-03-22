@@ -116,44 +116,6 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
     onClose();
   };
 
-  const fetchThread = async () => {
-    if (!email.thread_id) return;
-    setThreadLoading(true);
-    try {
-      const response = await fetch(THREAD_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gmail_thread_id: email.thread_id }),
-      });
-      if (!response.ok) throw new Error("Failed to fetch thread");
-      const data = await response.json();
-      console.log("[ThreadView] FULL raw webhook response:", JSON.stringify(data, null, 2));
-      const raw = Array.isArray(data) ? data : data.messages || data.thread || [];
-      console.log("[ThreadView] Parsed messages array length:", raw.length);
-      raw.forEach((m: any, i: number) => {
-        console.log(`[ThreadView] Message ${i} keys:`, Object.keys(m));
-        console.log(`[ThreadView] Message ${i} from:`, m.from, "sender:", m.sender, "date:", m.date, "timestamp:", m.timestamp);
-      });
-      const messages: ThreadMessage[] = raw.map((m: any) => ({
-        sender: m.sender || m.from || m.From || "",
-        from: m.from || m.From || m.sender || "",
-        timestamp: m.timestamp || m.date || m.Date || "",
-        date: m.date || m.Date || m.timestamp || "",
-        body: m.body || m.snippet || m.Body || m.text || "",
-      }));
-      console.log("[ThreadView] Final mapped messages:", messages.length, messages.map(m => ({ sender: m.sender, timestamp: m.timestamp })));
-      setThreadMessages(messages);
-      setThreadExpanded(true);
-    } catch (err) {
-      console.error("[ThreadView] Thread fetch error:", err);
-      setThreadMessages([]);
-      toast.error("Failed to load thread");
-    }
-    setThreadLoading(false);
-  };
-
-  const showViewThread = !!email.thread_id;
-
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full">
