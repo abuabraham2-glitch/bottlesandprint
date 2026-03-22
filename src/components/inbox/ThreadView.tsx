@@ -200,15 +200,21 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
                 <span>•</span>
                 <span className="text-xs">{formatTimeFull(email.created_at)}</span>
                 {email.thread_id && (
-                  <a
-                    href={`https://mail.google.com/mail/u/0/#all/${email.thread_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl gap-1.5 text-xs h-7"
+                    asChild
                   >
-                    <ExternalLink size={10} />
-                    Open in Gmail
-                  </a>
+                    <a
+                      href={`https://mail.google.com/mail/u/0/#all/${email.thread_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink size={12} />
+                      Open in Gmail
+                    </a>
+                  </Button>
                 )}
               </div>
             </div>
