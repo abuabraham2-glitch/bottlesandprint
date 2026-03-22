@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React from "react";
 import { Email } from "@/lib/emailData";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Archive, FileText, Paperclip, ChevronDown, ExternalLink, CheckCircle, MessageSquare, Loader2, Reply } from "lucide-react";
+import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -14,8 +14,6 @@ import {
   CATEGORY_COLORS, CATEGORIES, displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
   formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
-
-const THREAD_WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-thread";
 
 interface ThreadMessage {
   sender: string;
