@@ -22,25 +22,8 @@ interface ThreadViewProps {
   onNavigateToEmail: (id: string) => void;
 }
 
-
-
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
   const queryClient = useQueryClient();
-
-  const sortedMessages = useMemo(() => {
-    if (!threadMessages) return [];
-    return [...threadMessages].sort((a, b) =>
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-  }, [threadMessages]);
-
-  const visibleMessages = useMemo(() => {
-    if (sortedMessages.length <= 3 || showAllMessages) return sortedMessages;
-    return [sortedMessages[0], sortedMessages[sortedMessages.length - 1]];
-  }, [sortedMessages, showAllMessages]);
-
-  const hiddenCount = sortedMessages.length > 3 && !showAllMessages
-    ? sortedMessages.length - 2 : 0;
 
   if (!email) return null;
 
@@ -154,7 +137,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* AI Summary */}
           {email.incoming_summary && (
-            <div className="text-sm font-sans rounded-lg px-3 py-2 bg-blue-50 text-blue-800 border border-blue-200">
+            <div className="text-sm font-sans rounded-lg px-3 py-2 bg-accent/50 text-accent-foreground border border-border">
               🤖 {email.incoming_summary}
             </div>
           )}
@@ -191,43 +174,8 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
             <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
               dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
           </div>
-
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-function ThreadMessageCard({ msg, index, isLatest }: { msg: ThreadMessage; index: number; isLatest: boolean }) {
-  const cleanBody = stripQuotedText(stripN8nFooter(msg.body || ""));
-  const outbound = isOutbound(msg.sender);
-
-  return (
-    <div className={`rounded-xl border p-4 space-y-2 ${outbound
-      ? "bg-primary/5 border-primary/20 ml-6"
-      : "bg-muted/20 border-border mr-6"
-    }`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-sans">
-          <span className={`inline-flex items-center gap-1 font-semibold ${outbound ? "text-primary" : "text-foreground"}`}>
-            {outbound ? (
-              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary/10 text-primary mr-1">You</span>
-            ) : (
-              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground mr-1">From</span>
-            )}
-            {msg.sender}
-          </span>
-          <span className="text-muted-foreground">{formatTimeFull(msg.timestamp)}</span>
-        </div>
-        {isLatest && (
-          <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-            Latest
-          </span>
-        )}
-      </div>
-      <div
-        className="text-sm font-sans email-html-content max-w-none leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(cleanBody) }}
-      />
-    </div>
   );
 }
