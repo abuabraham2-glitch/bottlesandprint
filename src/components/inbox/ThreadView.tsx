@@ -159,13 +159,21 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
       });
       if (!response.ok) throw new Error("Failed to fetch thread");
       const data = await response.json();
-      const raw = Array.isArray(data) ? data : data.messages || [];
-      console.log("[ThreadView] Raw thread data:", JSON.stringify(raw.slice(0, 2), null, 2));
+      console.log("[ThreadView] FULL raw webhook response:", JSON.stringify(data, null, 2));
+      const raw = Array.isArray(data) ? data : data.messages || data.thread || [];
+      console.log("[ThreadView] Parsed messages array length:", raw.length);
+      raw.forEach((m: any, i: number) => {
+        console.log(`[ThreadView] Message ${i} keys:`, Object.keys(m));
+        console.log(`[ThreadView] Message ${i} from:`, m.from, "sender:", m.sender, "date:", m.date, "timestamp:", m.timestamp);
+      });
       const messages: ThreadMessage[] = raw.map((m: any) => ({
-        sender: m.sender || m.from || "",
-        timestamp: m.timestamp || m.date || "",
-        body: m.body || m.snippet || "",
+        sender: m.sender || m.from || m.From || "",
+        from: m.from || m.From || m.sender || "",
+        timestamp: m.timestamp || m.date || m.Date || "",
+        date: m.date || m.Date || m.timestamp || "",
+        body: m.body || m.snippet || m.Body || m.text || "",
       }));
+      console.log("[ThreadView] Final mapped messages:", messages.length, messages.map(m => ({ sender: m.sender, timestamp: m.timestamp })));
       setThreadMessages(messages);
       setThreadExpanded(true);
     } catch (err) {
