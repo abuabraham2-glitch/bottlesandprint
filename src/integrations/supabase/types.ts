@@ -219,6 +219,7 @@ export type Database = {
           phone: string | null
           state: string | null
           street_address: string | null
+          tier: string | null
           zip: string | null
         }
         Insert: {
@@ -237,6 +238,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           street_address?: string | null
+          tier?: string | null
           zip?: string | null
         }
         Update: {
@@ -255,6 +257,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           street_address?: string | null
+          tier?: string | null
           zip?: string | null
         }
         Relationships: []
