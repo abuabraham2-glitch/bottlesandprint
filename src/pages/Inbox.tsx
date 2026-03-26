@@ -253,16 +253,30 @@ export default function Inbox() {
     setSelectedIds(new Set());
   };
 
-  const bulkDelete = async () => {
+  const deleteEmails = async (ids: Set<string> | string[]) => {
+    const idArray = Array.from(ids);
+    const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
     const now = new Date().toISOString();
-    for (const id of selectedIds) {
+    const allEmails = emails || [];
+    
+    for (const id of idArray) {
+      const email = allEmails.find(e => e.id === id);
+      const payload = { action: "delete", gmail_id: email?.gmail_id || "", email_id: id };
+      console.log("[Delete] Sending delete payload:", JSON.stringify(payload));
+      try {
+        const res = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) console.error("[Delete] Webhook failed for", id, res.status);
+        else console.log("[Delete] Webhook success for", id);
+      } catch (err) { console.error("[Delete] Webhook error for", id, err); }
       await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).eq("id", id);
     }
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`Deleted ${selectedIds.size} emails`);
+    toast.success(`Deleted ${idArray.length} email(s)`);
     setSelectedIds(new Set());
     setDeleteConfirmOpen(false);
   };
+
+  const bulkDelete = () => deleteEmails(selectedIds);
 
   const bulkToggleUrgent = async () => {
     for (const id of selectedIds) {
