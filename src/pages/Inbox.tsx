@@ -203,7 +203,7 @@ export default function Inbox() {
       const response = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: isNewEmail ? "send_new" : "send_email", ...payload }) });
       if (!response.ok) throw new Error("Failed to send email");
       toast.success("Email sent");
-      setComposeOpen(false); setComposeTo(""); setComposeCc(""); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
+      setComposeOpen(false); setComposeTo(""); setComposeCc(""); setShowCcField(false); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
     } catch (err) { console.error("Compose send error:", err); toast.error("Failed to send"); }
     setSending(null);
   };
