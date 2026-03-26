@@ -182,7 +182,7 @@ export default function Inbox() {
     if (lastPart.length >= 2) { const s = await searchEmailsAndContacts(lastPart); setCcSuggestions(s); setShowCcSuggestions(s.length > 0); }
     else setShowCcSuggestions(false);
   };
-  const selectToSuggestion = (email: string) => { setComposeTo(email); setShowToSuggestions(false); setShowCcSuggestions(false); };
+  const selectToSuggestion = (email: string) => { setComposeTo(email); setComposeCc(""); setCcSuggestions([]); setShowToSuggestions(false); setShowCcSuggestions(false); };
   const selectCcSuggestion = (email: string) => {
     const parts = composeCc.split(",").map(s => s.trim()).filter(Boolean);
     parts[parts.length - 1] = email;
@@ -686,7 +686,7 @@ export default function Inbox() {
           <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">Compose Email</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
+           <div className="space-y-3 overflow-y-auto flex-1 min-h-0" {...{ autoComplete: "off" } as any}>
             <div className="relative">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-sans text-muted-foreground">To</label>
@@ -694,7 +694,7 @@ export default function Inbox() {
                   <BookUser size={10} /> Manage Contacts
                 </button>
               </div>
-              <Input value={composeTo} onChange={e => handleToChange(e.target.value)} onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)} placeholder="email@example.com" className="rounded-xl" />
+              <Input name="compose-to-field" autoComplete="off" value={composeTo} onChange={e => handleToChange(e.target.value)} onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)} placeholder="email@example.com" className="rounded-xl" />
               {showToSuggestions && toSuggestions.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                   {toSuggestions.map((s, i) => (
@@ -707,7 +707,7 @@ export default function Inbox() {
             </div>
             <div className="relative">
               <label className="text-xs font-sans text-muted-foreground">CC</label>
-              <Input value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+              <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
               {showCcSuggestions && ccSuggestions.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                   {ccSuggestions.map((s, i) => (
