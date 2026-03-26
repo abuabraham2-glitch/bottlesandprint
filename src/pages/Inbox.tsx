@@ -76,10 +76,43 @@ export default function Inbox() {
     [allEmails]
   );
 
-  const archivedEmails = React.useMemo(() =>
-    allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent").slice(0, 50),
+  const allArchivedEmails = React.useMemo(() =>
+    allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent"),
     [allEmails]
   );
+
+  const archivedEmails = React.useMemo(() => {
+    let list = allArchivedEmails;
+
+    // Category filter
+    switch (archiveCategoryFilter) {
+      case "SALES": list = list.filter(e => e.category === "SALES"); break;
+      case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
+      case "SPAM": list = list.filter(e => e.category === "SPAM"); break;
+      case "SENT": list = list.filter(e => e.status === "approved_sent"); break;
+    }
+
+    // Has attachments filter
+    if (archiveHasAttachments) {
+      list = list.filter(e => {
+        const atts = parseAttachments(e.attachments);
+        return atts.length > 0;
+      });
+    }
+
+    // Search
+    if (archiveSearchQuery.trim()) {
+      const q = archiveSearchQuery.toLowerCase();
+      list = list.filter(e =>
+        (e.subject?.toLowerCase().includes(q)) ||
+        (e.from_name?.toLowerCase().includes(q)) ||
+        (e.from_email?.toLowerCase().includes(q)) ||
+        (e.body?.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [allArchivedEmails, archiveCategoryFilter, archiveHasAttachments, archiveSearchQuery]);
 
   // Clear selection when switching tabs
   useEffect(() => { setSelectedIds(new Set()); }, [mainTab]);
