@@ -690,7 +690,14 @@ export default function Inbox() {
            <div className="space-y-3 overflow-y-auto flex-1 min-h-0" {...{ autoComplete: "off" } as any}>
             <div className="relative">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-sans text-muted-foreground">To</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-sans text-muted-foreground">To</label>
+                  {!showCcField && (
+                    <button onClick={() => setShowCcField(true)} className="text-[10px] font-sans text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/30 hover:border-muted-foreground/60">
+                      CC
+                    </button>
+                  )}
+                </div>
                 <button onClick={() => setContactsOpen(true)} className="text-[10px] font-sans text-primary hover:underline flex items-center gap-0.5">
                   <BookUser size={10} /> Manage Contacts
                 </button>
