@@ -22,11 +22,15 @@ import {
 
 type MainTab = "inbox" | "drafts" | "sent" | "archive";
 type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
+type ArchiveCategoryFilter = "ALL" | "SALES" | "SUPPORT" | "SPAM" | "SENT";
 
 export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [archiveCategoryFilter, setArchiveCategoryFilter] = useState<ArchiveCategoryFilter>("ALL");
+  const [archiveHasAttachments, setArchiveHasAttachments] = useState(false);
+  const [archiveSearchQuery, setArchiveSearchQuery] = useState("");
   const [threadEmail, setThreadEmail] = useState<Email | null>(null);
   const [draftEmail, setDraftEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -72,10 +76,43 @@ export default function Inbox() {
     [allEmails]
   );
 
-  const archivedEmails = React.useMemo(() =>
-    allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent").slice(0, 50),
+  const allArchivedEmails = React.useMemo(() =>
+    allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent"),
     [allEmails]
   );
+
+  const archivedEmails = React.useMemo(() => {
+    let list = allArchivedEmails;
+
+    // Category filter
+    switch (archiveCategoryFilter) {
+      case "SALES": list = list.filter(e => e.category === "SALES"); break;
+      case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
+      case "SPAM": list = list.filter(e => e.category === "SPAM"); break;
+      case "SENT": list = list.filter(e => e.status === "approved_sent"); break;
+    }
+
+    // Has attachments filter
+    if (archiveHasAttachments) {
+      list = list.filter(e => {
+        const atts = parseAttachments(e.attachments);
+        return atts.length > 0;
+      });
+    }
+
+    // Search
+    if (archiveSearchQuery.trim()) {
+      const q = archiveSearchQuery.toLowerCase();
+      list = list.filter(e =>
+        (e.subject?.toLowerCase().includes(q)) ||
+        (e.from_name?.toLowerCase().includes(q)) ||
+        (e.from_email?.toLowerCase().includes(q)) ||
+        (e.body?.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [allArchivedEmails, archiveCategoryFilter, archiveHasAttachments, archiveSearchQuery]);
 
   // Clear selection when switching tabs
   useEffect(() => { setSelectedIds(new Set()); }, [mainTab]);
@@ -391,7 +428,7 @@ export default function Inbox() {
               { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary", extra: unreadCount > 0 ? ` · ${unreadCount} unread` : "" },
               { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700", extra: "" },
               { key: "sent" as MainTab, label: "Sent", icon: Send, count: sentEmails.length, countClass: "bg-green-100 text-green-700", extra: "" },
-              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
+              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: allArchivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
             ].map(tab => (
               <button key={tab.key}
                 onClick={() => setMainTab(tab.key)}
@@ -431,6 +468,51 @@ export default function Inbox() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder={mainTab === "sent" ? "Search sent emails..." : "Search emails..."}
+                  className="rounded-xl pl-9 h-9 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Archive filter bar */}
+          {mainTab === "archive" && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                {([
+                  { key: "ALL" as ArchiveCategoryFilter, label: "All", count: allArchivedEmails.length },
+                  { key: "SALES" as ArchiveCategoryFilter, label: "Sales", count: allArchivedEmails.filter(e => e.category === "SALES").length },
+                  { key: "SUPPORT" as ArchiveCategoryFilter, label: "Support", count: allArchivedEmails.filter(e => e.category === "SUPPORT").length },
+                  { key: "SPAM" as ArchiveCategoryFilter, label: "Spam", count: allArchivedEmails.filter(e => e.category === "SPAM").length },
+                  { key: "SENT" as ArchiveCategoryFilter, label: "Sent", count: allArchivedEmails.filter(e => e.status === "approved_sent").length },
+                ]).map(ct => (
+                  <button
+                    key={ct.key}
+                    onClick={() => setArchiveCategoryFilter(ct.key)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
+                      archiveCategoryFilter === ct.key
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {ct.label} {ct.count}
+                  </button>
+                ))}
+                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans font-medium cursor-pointer transition-colors bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted">
+                  <Checkbox
+                    checked={archiveHasAttachments}
+                    onCheckedChange={(v) => setArchiveHasAttachments(v === true)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <Paperclip size={12} />
+                  Attachments
+                </label>
+              </div>
+              <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={archiveSearchQuery}
+                  onChange={e => setArchiveSearchQuery(e.target.value)}
+                  placeholder="Search archived emails..."
                   className="rounded-xl pl-9 h-9 text-sm"
                 />
               </div>
