@@ -281,7 +281,9 @@ export default function Inbox() {
         (e.subject?.toLowerCase().includes(q)) ||
         (e.from_name?.toLowerCase().includes(q)) ||
         (e.from_email?.toLowerCase().includes(q)) ||
-        (e.body?.toLowerCase().includes(q))
+        (e.body?.toLowerCase().includes(q)) ||
+        (e.to_recipients?.toLowerCase().includes(q)) ||
+        (e.draft_response?.replace(/<[^>]*>/g, "").toLowerCase().includes(q))
       );
     }
 
