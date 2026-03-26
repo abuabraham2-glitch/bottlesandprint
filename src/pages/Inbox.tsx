@@ -183,7 +183,7 @@ export default function Inbox() {
     if (lastPart.length >= 2) { const s = await searchEmailsAndContacts(lastPart); setCcSuggestions(s); setShowCcSuggestions(s.length > 0); }
     else setShowCcSuggestions(false);
   };
-  const selectToSuggestion = (email: string) => { setComposeTo(email); setComposeCc(""); setCcSuggestions([]); setShowToSuggestions(false); setShowCcSuggestions(false); };
+  const selectToSuggestion = (email: string) => { setComposeTo(email); setShowToSuggestions(false); setShowCcSuggestions(false); };
   const selectCcSuggestion = (email: string) => {
     const parts = composeCc.split(",").map(s => s.trim()).filter(Boolean);
     parts[parts.length - 1] = email;
