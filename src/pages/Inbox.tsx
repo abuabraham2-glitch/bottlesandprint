@@ -686,7 +686,7 @@ export default function Inbox() {
           <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">Compose Email</DialogTitle>
           </DialogHeader>
-           <div className="space-y-3 overflow-y-auto flex-1 min-h-0" autoComplete="off">
+           <div className="space-y-3 overflow-y-auto flex-1 min-h-0" {...{ autoComplete: "off" } as any}>
             <div className="relative">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-sans text-muted-foreground">To</label>
