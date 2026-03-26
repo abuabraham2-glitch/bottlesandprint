@@ -257,7 +257,7 @@ export default function Inbox() {
     const idArray = Array.from(ids);
     const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
     const now = new Date().toISOString();
-    const allEmails = emails || [];
+    const allEmailsList = allEmails || [];
     
     for (const id of idArray) {
       const email = allEmails.find(e => e.id === id);
