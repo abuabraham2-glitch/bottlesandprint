@@ -270,12 +270,24 @@ export default function Inbox() {
           email_id: id,
         };
 
-        console.log("[Delete] Sending delete payload:", payload);
+        console.log("[Delete] Request:", {
+          url: WEBHOOK_URL,
+          method: "POST",
+          payload,
+        });
 
         const res = await fetch(WEBHOOK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+        });
+
+        const responseBody = await res.text();
+
+        console.log("[Delete] Response:", {
+          status: res.status,
+          body: responseBody,
+          emailId: id,
         });
 
         if (!res.ok) {
@@ -746,66 +758,70 @@ export default function Inbox() {
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
         <DialogContent
           className="w-full max-w-none"
-          style={{ width: 600, minWidth: 400, minHeight: 400, maxHeight: '80vh', display: 'flex', flexDirection: 'column', resize: 'both', overflow: 'auto' }}
+          style={{ width: 600, minWidth: 400, minHeight: 400, height: '90vh', maxHeight: '90vh', display: 'flex', flexDirection: 'column', resize: 'both', overflow: 'hidden' }}
         >
           <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">Compose Email</DialogTitle>
           </DialogHeader>
-           <div className="space-y-3 overflow-y-auto flex-1 min-h-0" {...{ autoComplete: "off" } as any}>
-            <div className="relative">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-sans text-muted-foreground">To</label>
-                  {!showCcField && (
-                    <button onClick={() => setShowCcField(true)} className="text-[10px] font-sans text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/30 hover:border-muted-foreground/60">
-                      CC
-                    </button>
-                  )}
-                </div>
-                <button onClick={() => setContactsOpen(true)} className="text-[10px] font-sans text-primary hover:underline flex items-center gap-0.5">
-                  <BookUser size={10} /> Manage Contacts
-                </button>
-              </div>
-              <Input name="compose-to-field" autoComplete="off" value={composeTo} onChange={e => handleToChange(e.target.value)} onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)} placeholder="email@example.com" className="rounded-xl" />
-              {showToSuggestions && toSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
-                  {toSuggestions.map((s, i) => (
-                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={e => { e.preventDefault(); selectToSuggestion(s.email); }}>
-                      {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {showCcField && (
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden" {...{ autoComplete: "off" } as any}>
+            <div className="space-y-3 shrink-0">
               <div className="relative">
-                <label className="text-xs font-sans text-muted-foreground">CC</label>
-                <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
-                {showCcSuggestions && ccSuggestions.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-sans text-muted-foreground">To</label>
+                    {!showCcField && (
+                      <button onClick={() => setShowCcField(true)} className="text-[10px] font-sans text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/30 hover:border-muted-foreground/60">
+                        CC
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => setContactsOpen(true)} className="text-[10px] font-sans text-primary hover:underline flex items-center gap-0.5">
+                    <BookUser size={10} /> Manage Contacts
+                  </button>
+                </div>
+                <Input name="compose-to-field" autoComplete="off" value={composeTo} onChange={e => handleToChange(e.target.value)} onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)} placeholder="email@example.com" className="rounded-xl" />
+                {showToSuggestions && toSuggestions.length > 0 && (
                   <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
-                    {ccSuggestions.map((s, i) => (
-                      <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
+                    {toSuggestions.map((s, i) => (
+                      <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={e => { e.preventDefault(); selectToSuggestion(s.email); }}>
                         {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-            )}
-            <div>
-              <label className="text-xs font-sans text-muted-foreground">Subject</label>
-              <Input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} className="rounded-xl" />
+              {showCcField && (
+                <div className="relative">
+                  <label className="text-xs font-sans text-muted-foreground">CC</label>
+                  <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+                  {showCcSuggestions && ccSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                      {ccSuggestions.map((s, i) => (
+                        <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
+                          {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-sans text-muted-foreground">Subject</label>
+                <Input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} className="rounded-xl" />
+              </div>
             </div>
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden py-3">
               <label className="text-xs font-sans text-muted-foreground">Body</label>
               <FormattingToolbar />
               <div ref={composeBodyRef} contentEditable suppressContentEditableWarning
-                className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[200px] max-h-[40vh] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
+                className="text-sm font-sans rounded-xl border bg-background p-3 min-h-[260px] flex-1 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none"
                 dangerouslySetInnerHTML={{ __html: composeBody }} />
             </div>
-            <AttachmentPicker files={composeAttachments} onChange={setComposeAttachments} />
+            <div className="shrink-0 border-t bg-background pt-3">
+              <AttachmentPicker files={composeAttachments} onChange={setComposeAttachments} />
+            </div>
           </div>
-          <DialogFooter className="shrink-0">
+          <DialogFooter className="shrink-0 border-t bg-background pt-3">
             <Button variant="ghost" onClick={() => { setComposeOpen(false); setComposeAttachments([]); }} className="rounded-xl">Cancel</Button>
             <Button className="rounded-xl gap-1" onClick={handleComposeSend} disabled={sending === "compose"}>
               <Send size={14} /> Send
