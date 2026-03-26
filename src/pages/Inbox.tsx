@@ -388,6 +388,7 @@ export default function Inbox() {
             {[
               { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary", extra: unreadCount > 0 ? ` · ${unreadCount} unread` : "" },
               { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700", extra: "" },
+              { key: "sent" as MainTab, label: "Sent", icon: Send, count: sentEmails.length, countClass: "bg-green-100 text-green-700", extra: "" },
               { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
             ].map(tab => (
               <button key={tab.key}
