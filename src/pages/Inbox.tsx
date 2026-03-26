@@ -22,6 +22,7 @@ import {
 
 type MainTab = "inbox" | "drafts" | "sent" | "archive";
 type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
+type ArchiveCategoryFilter = "ALL" | "SALES" | "SUPPORT" | "SPAM" | "SENT";
 
 export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
