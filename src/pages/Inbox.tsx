@@ -255,23 +255,70 @@ export default function Inbox() {
 
   const deleteEmails = async (ids: Set<string> | string[]) => {
     const idArray = Array.from(ids);
+    if (idArray.length === 0) return;
+
     const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
     const now = new Date().toISOString();
     const allEmailsList = allEmails || [];
-    
-    for (const id of idArray) {
-      const email = allEmailsList.find(e => e.id === id);
-      const payload = { action: "delete", gmail_id: email?.gmail_id || "", email_id: id };
-      console.log("[Delete] Sending delete payload:", JSON.stringify(payload));
-      try {
-        const res = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        if (!res.ok) console.error("[Delete] Webhook failed for", id, res.status);
-        else console.log("[Delete] Webhook success for", id);
-      } catch (err) { console.error("[Delete] Webhook error for", id, err); }
-      await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).eq("id", id);
+
+    const results = await Promise.allSettled(
+      idArray.map(async (id) => {
+        const email = allEmailsList.find((row) => row.id === id);
+        const payload = {
+          action: "delete",
+          gmail_id: email?.gmail_id || "",
+          email_id: id,
+        };
+
+        console.log("[Delete] Sending delete payload:", payload);
+
+        const res = await fetch(WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Delete webhook failed for ${id} (${res.status})`);
+        }
+
+        return id;
+      }),
+    );
+
+    const successfulIds = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+    const failedCount = results.length - successfulIds.length;
+
+    results.forEach((result) => {
+      if (result.status === "rejected") {
+        console.error("[Delete] Webhook error:", result.reason);
+      }
+    });
+
+    if (successfulIds.length > 0) {
+      queryClient.setQueriesData({ queryKey: ["emails"] }, (oldData: Email[] | undefined) =>
+        Array.isArray(oldData) ? oldData.filter((email) => !successfulIds.includes(email.id)) : oldData,
+      );
+
+      const { error } = await supabase
+        .from("emails")
+        .update({ status: "deleted", resolved_at: now } as any)
+        .in("id", successfulIds);
+
+      if (error) {
+        console.error("[Delete] Failed to persist delete status:", error);
+      }
     }
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`Deleted ${idArray.length} email(s)`);
+
+    if (successfulIds.length > 0 && failedCount === 0) {
+      toast.success(`Deleted ${successfulIds.length} email(s)`);
+    } else if (successfulIds.length > 0) {
+      toast.success(`Deleted ${successfulIds.length} email(s)`);
+      toast.error(`${failedCount} email(s) failed to delete`);
+    } else {
+      toast.error("Failed to delete email(s)");
+    }
+
     setSelectedIds(new Set());
     setDeleteConfirmOpen(false);
   };
@@ -697,7 +744,10 @@ export default function Inbox() {
 
       {/* Compose Dialog */}
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="max-w-xl" style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <DialogContent
+          className="w-full max-w-none"
+          style={{ width: 600, minWidth: 400, minHeight: 400, maxHeight: '80vh', display: 'flex', flexDirection: 'column', resize: 'both', overflow: 'auto' }}
+        >
           <DialogHeader className="shrink-0">
             <DialogTitle className="font-serif">Compose Email</DialogTitle>
           </DialogHeader>
