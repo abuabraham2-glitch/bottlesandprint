@@ -28,6 +28,9 @@ export default function Inbox() {
   const [mainTab, setMainTab] = useState<MainTab>("inbox");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [archiveCategoryFilter, setArchiveCategoryFilter] = useState<ArchiveCategoryFilter>("ALL");
+  const [archiveHasAttachments, setArchiveHasAttachments] = useState(false);
+  const [archiveSearchQuery, setArchiveSearchQuery] = useState("");
   const [threadEmail, setThreadEmail] = useState<Email | null>(null);
   const [draftEmail, setDraftEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
