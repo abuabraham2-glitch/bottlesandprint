@@ -707,7 +707,7 @@ export default function Inbox() {
             </div>
             <div className="relative">
               <label className="text-xs font-sans text-muted-foreground">CC</label>
-              <Input value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+              <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
               {showCcSuggestions && ccSuggestions.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                   {ccSuggestions.map((s, i) => (
