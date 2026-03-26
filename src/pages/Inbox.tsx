@@ -260,7 +260,7 @@ export default function Inbox() {
     const allEmailsList = allEmails || [];
     
     for (const id of idArray) {
-      const email = allEmails.find(e => e.id === id);
+      const email = allEmailsList.find(e => e.id === id);
       const payload = { action: "delete", gmail_id: email?.gmail_id || "", email_id: id };
       console.log("[Delete] Sending delete payload:", JSON.stringify(payload));
       try {
