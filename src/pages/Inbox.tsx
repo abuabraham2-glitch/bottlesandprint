@@ -474,6 +474,51 @@ export default function Inbox() {
             </div>
           )}
 
+          {/* Archive filter bar */}
+          {mainTab === "archive" && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                {([
+                  { key: "ALL" as ArchiveCategoryFilter, label: "All", count: allArchivedEmails.length },
+                  { key: "SALES" as ArchiveCategoryFilter, label: "Sales", count: allArchivedEmails.filter(e => e.category === "SALES").length },
+                  { key: "SUPPORT" as ArchiveCategoryFilter, label: "Support", count: allArchivedEmails.filter(e => e.category === "SUPPORT").length },
+                  { key: "SPAM" as ArchiveCategoryFilter, label: "Spam", count: allArchivedEmails.filter(e => e.category === "SPAM").length },
+                  { key: "SENT" as ArchiveCategoryFilter, label: "Sent", count: allArchivedEmails.filter(e => e.status === "approved_sent").length },
+                ]).map(ct => (
+                  <button
+                    key={ct.key}
+                    onClick={() => setArchiveCategoryFilter(ct.key)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
+                      archiveCategoryFilter === ct.key
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {ct.label} {ct.count}
+                  </button>
+                ))}
+                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans font-medium cursor-pointer transition-colors bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted">
+                  <Checkbox
+                    checked={archiveHasAttachments}
+                    onCheckedChange={(v) => setArchiveHasAttachments(v === true)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <Paperclip size={12} />
+                  Attachments
+                </label>
+              </div>
+              <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={archiveSearchQuery}
+                  onChange={e => setArchiveSearchQuery(e.target.value)}
+                  placeholder="Search archived emails..."
+                  className="rounded-xl pl-9 h-9 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Email list */}
           {isLoading ? (
             <div className="text-muted-foreground text-sm font-sans py-8 text-center">Loading emails...</div>
