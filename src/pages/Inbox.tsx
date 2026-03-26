@@ -406,27 +406,29 @@ export default function Inbox() {
           {/* Category filter tabs (inbox only) + search (inbox & sent) */}
           {(mainTab === "inbox" || mainTab === "sent") && (
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                {CATEGORY_TABS.map(ct => (
-                  <button
-                    key={ct.key}
-                    onClick={() => setCategoryFilter(ct.key)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
-                      categoryFilter === ct.key
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {ct.label}
-                  </button>
-                ))}
-              </div>
+              {mainTab === "inbox" && (
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                  {CATEGORY_TABS.map(ct => (
+                    <button
+                      key={ct.key}
+                      onClick={() => setCategoryFilter(ct.key)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
+                        categoryFilter === ct.key
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {ct.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="relative flex-1 min-w-[180px] max-w-[320px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search emails..."
+                  placeholder={mainTab === "sent" ? "Search sent emails..." : "Search emails..."}
                   className="rounded-xl pl-9 h-9 text-sm"
                 />
               </div>
