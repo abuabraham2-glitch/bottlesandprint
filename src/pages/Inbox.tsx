@@ -36,6 +36,7 @@ export default function Inbox() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeTo, setComposeTo] = useState("");
   const [composeCc, setComposeCc] = useState("");
+  const [showCcField, setShowCcField] = useState(false);
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [composeEmailRef, setComposeEmailRef] = useState<Email | null>(null);
@@ -182,7 +183,7 @@ export default function Inbox() {
     if (lastPart.length >= 2) { const s = await searchEmailsAndContacts(lastPart); setCcSuggestions(s); setShowCcSuggestions(s.length > 0); }
     else setShowCcSuggestions(false);
   };
-  const selectToSuggestion = (email: string) => { setComposeTo(email); setComposeCc(""); setCcSuggestions([]); setShowToSuggestions(false); setShowCcSuggestions(false); };
+  const selectToSuggestion = (email: string) => { setComposeTo(email); setShowToSuggestions(false); setShowCcSuggestions(false); };
   const selectCcSuggestion = (email: string) => {
     const parts = composeCc.split(",").map(s => s.trim()).filter(Boolean);
     parts[parts.length - 1] = email;
@@ -202,7 +203,7 @@ export default function Inbox() {
       const response = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: isNewEmail ? "send_new" : "send_email", ...payload }) });
       if (!response.ok) throw new Error("Failed to send email");
       toast.success("Email sent");
-      setComposeOpen(false); setComposeTo(""); setComposeCc(""); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
+      setComposeOpen(false); setComposeTo(""); setComposeCc(""); setShowCcField(false); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
     } catch (err) { console.error("Compose send error:", err); toast.error("Failed to send"); }
     setSending(null);
   };
@@ -689,7 +690,14 @@ export default function Inbox() {
            <div className="space-y-3 overflow-y-auto flex-1 min-h-0" {...{ autoComplete: "off" } as any}>
             <div className="relative">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-sans text-muted-foreground">To</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-sans text-muted-foreground">To</label>
+                  {!showCcField && (
+                    <button onClick={() => setShowCcField(true)} className="text-[10px] font-sans text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/30 hover:border-muted-foreground/60">
+                      CC
+                    </button>
+                  )}
+                </div>
                 <button onClick={() => setContactsOpen(true)} className="text-[10px] font-sans text-primary hover:underline flex items-center gap-0.5">
                   <BookUser size={10} /> Manage Contacts
                 </button>
@@ -705,19 +713,21 @@ export default function Inbox() {
                 </div>
               )}
             </div>
-            <div className="relative">
-              <label className="text-xs font-sans text-muted-foreground">CC</label>
-              <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
-              {showCcSuggestions && ccSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
-                  {ccSuggestions.map((s, i) => (
-                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
-                      {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {showCcField && (
+              <div className="relative">
+                <label className="text-xs font-sans text-muted-foreground">CC</label>
+                <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+                {showCcSuggestions && ccSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                    {ccSuggestions.map((s, i) => (
+                      <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
+                        {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <label className="text-xs font-sans text-muted-foreground">Subject</label>
               <Input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} className="rounded-xl" />
