@@ -66,6 +66,12 @@ export default function Inbox() {
     [allEmails]
   );
 
+  const sentEmails = React.useMemo(() =>
+    allEmails.filter(e => e.status === "approved_sent")
+      .sort((a, b) => new Date(b.resolved_at || b.created_at || 0).getTime() - new Date(a.resolved_at || a.created_at || 0).getTime()),
+    [allEmails]
+  );
+
   const archivedEmails = React.useMemo(() =>
     allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent").slice(0, 50),
     [allEmails]
