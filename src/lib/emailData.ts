@@ -294,10 +294,12 @@ export function useInboxCounts() {
         .eq("status", "auto_sent")
         .gte("auto_sent_at", today.toISOString());
 
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { count: newCalls } = await supabase
         .from("calls")
         .select("*", { count: "exact", head: true })
-        .neq("status", "resolved");
+        .neq("status", "resolved")
+        .gte("created_at", sevenDaysAgo);
 
       return {
         actionNeeded: actionNeeded || 0,
