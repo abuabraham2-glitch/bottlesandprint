@@ -254,7 +254,7 @@ export default function Inbox() {
   );
 
   // Apply category filter + search
-  const baseEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
+  const baseEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : mainTab === "sent" ? sentEmails : archivedEmails;
 
   const filteredEmails = React.useMemo(() => {
     let list = baseEmails;
