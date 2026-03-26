@@ -20,7 +20,7 @@ import {
   parseMultiTopicCount, stripN8nFooter, getReplyAllCc, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
 
-type MainTab = "inbox" | "drafts" | "archive";
+type MainTab = "inbox" | "drafts" | "sent" | "archive";
 type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
 
 export default function Inbox() {
@@ -63,6 +63,12 @@ export default function Inbox() {
 
   const draftEmails = React.useMemo(() =>
     allEmails.filter(e => e.draft_response && (e.status === "pending" || e.status === "needs_response")),
+    [allEmails]
+  );
+
+  const sentEmails = React.useMemo(() =>
+    allEmails.filter(e => e.status === "approved_sent")
+      .sort((a, b) => new Date(b.resolved_at || b.created_at || 0).getTime() - new Date(a.resolved_at || a.created_at || 0).getTime()),
     [allEmails]
   );
 
@@ -248,7 +254,7 @@ export default function Inbox() {
   );
 
   // Apply category filter + search
-  const baseEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : archivedEmails;
+  const baseEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : mainTab === "sent" ? sentEmails : archivedEmails;
 
   const filteredEmails = React.useMemo(() => {
     let list = baseEmails;
@@ -275,7 +281,9 @@ export default function Inbox() {
         (e.subject?.toLowerCase().includes(q)) ||
         (e.from_name?.toLowerCase().includes(q)) ||
         (e.from_email?.toLowerCase().includes(q)) ||
-        (e.body?.toLowerCase().includes(q))
+        (e.body?.toLowerCase().includes(q)) ||
+        (e.to_recipients?.toLowerCase().includes(q)) ||
+        (e.draft_response?.replace(/<[^>]*>/g, "").toLowerCase().includes(q))
       );
     }
 
@@ -382,6 +390,7 @@ export default function Inbox() {
             {[
               { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary", extra: unreadCount > 0 ? ` · ${unreadCount} unread` : "" },
               { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700", extra: "" },
+              { key: "sent" as MainTab, label: "Sent", icon: Send, count: sentEmails.length, countClass: "bg-green-100 text-green-700", extra: "" },
               { key: "archive" as MainTab, label: "Archive", icon: Archive, count: archivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
             ].map(tab => (
               <button key={tab.key}
@@ -396,30 +405,32 @@ export default function Inbox() {
             ))}
           </div>
 
-          {/* Category filter tabs (inbox only) */}
-          {mainTab === "inbox" && (
+          {/* Category filter tabs (inbox only) + search (inbox & sent) */}
+          {(mainTab === "inbox" || mainTab === "sent") && (
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                {CATEGORY_TABS.map(ct => (
-                  <button
-                    key={ct.key}
-                    onClick={() => setCategoryFilter(ct.key)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
-                      categoryFilter === ct.key
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {ct.label}
-                  </button>
-                ))}
-              </div>
+              {mainTab === "inbox" && (
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                  {CATEGORY_TABS.map(ct => (
+                    <button
+                      key={ct.key}
+                      onClick={() => setCategoryFilter(ct.key)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
+                        categoryFilter === ct.key
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {ct.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="relative flex-1 min-w-[180px] max-w-[320px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search emails..."
+                  placeholder={mainTab === "sent" ? "Search sent emails..." : "Search emails..."}
                   className="rounded-xl pl-9 h-9 text-sm"
                 />
               </div>
@@ -433,7 +444,7 @@ export default function Inbox() {
             <div className="text-center py-12 text-muted-foreground">
               <Mail size={32} className="mx-auto mb-2 opacity-50" />
               <p className="font-sans text-sm">
-                {searchQuery ? "No emails match your search." : mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : "No archived emails."}
+                {searchQuery ? "No emails match your search." : mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : mainTab === "sent" ? "No sent emails." : "No archived emails."}
               </p>
             </div>
           ) : (
@@ -480,7 +491,11 @@ export default function Inbox() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           {email.is_urgent && <span className="text-sm">🔥</span>}
-                          <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
+                          {mainTab === "sent" ? (
+                            <span className="text-sm font-sans font-medium truncate">To: {email.to_recipients || email.from_email || "Unknown"}</span>
+                          ) : (
+                            <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
+                          )}
                           {email.category && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
                               {email.category}
@@ -490,15 +505,22 @@ export default function Inbox() {
                           {email.draft_response && mainTab === "inbox" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
                           )}
-                          {email.status === "approved_sent" && (
+                          {email.status === "approved_sent" && mainTab !== "sent" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">✅ Replied</span>
                           )}
                         </div>
                         <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
+                        {mainTab === "sent" && email.draft_response && (
+                          <div className="text-xs font-sans text-muted-foreground truncate mt-0.5">
+                            {email.draft_response.replace(/<[^>]*>/g, "").substring(0, 100)}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         {mainTab === "drafts" ? (
                           <span className={`text-xs font-sans font-medium ${age.color}`}>{age.text}</span>
+                        ) : mainTab === "sent" ? (
+                          <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.resolved_at)}</span>
                         ) : (
                           <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.created_at)}</span>
                         )}
