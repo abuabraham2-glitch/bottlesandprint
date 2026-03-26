@@ -440,7 +440,7 @@ export default function Inbox() {
             <div className="text-center py-12 text-muted-foreground">
               <Mail size={32} className="mx-auto mb-2 opacity-50" />
               <p className="font-sans text-sm">
-                {searchQuery ? "No emails match your search." : mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : "No archived emails."}
+                {searchQuery ? "No emails match your search." : mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : mainTab === "sent" ? "No sent emails." : "No archived emails."}
               </p>
             </div>
           ) : (
