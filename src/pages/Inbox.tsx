@@ -698,7 +698,7 @@ export default function Inbox() {
               {showToSuggestions && toSuggestions.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                   {toSuggestions.map((s, i) => (
-                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectToSuggestion(s.email)}>
+                    <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={e => { e.preventDefault(); selectToSuggestion(s.email); }}>
                       {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
                     </button>
                   ))}
