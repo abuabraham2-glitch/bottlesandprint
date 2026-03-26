@@ -403,8 +403,8 @@ export default function Inbox() {
             ))}
           </div>
 
-          {/* Category filter tabs (inbox only) */}
-          {mainTab === "inbox" && (
+          {/* Category filter tabs (inbox only) + search (inbox & sent) */}
+          {(mainTab === "inbox" || mainTab === "sent") && (
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
                 {CATEGORY_TABS.map(ct => (
