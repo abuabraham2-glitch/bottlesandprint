@@ -487,7 +487,11 @@ export default function Inbox() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           {email.is_urgent && <span className="text-sm">🔥</span>}
-                          <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
+                          {mainTab === "sent" ? (
+                            <span className="text-sm font-sans font-medium truncate">To: {email.to_recipients || email.from_email || "Unknown"}</span>
+                          ) : (
+                            <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
+                          )}
                           {email.category && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
                               {email.category}
@@ -497,15 +501,22 @@ export default function Inbox() {
                           {email.draft_response && mainTab === "inbox" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
                           )}
-                          {email.status === "approved_sent" && (
+                          {email.status === "approved_sent" && mainTab !== "sent" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">✅ Replied</span>
                           )}
                         </div>
                         <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
+                        {mainTab === "sent" && email.draft_response && (
+                          <div className="text-xs font-sans text-muted-foreground truncate mt-0.5">
+                            {email.draft_response.replace(/<[^>]*>/g, "").substring(0, 100)}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         {mainTab === "drafts" ? (
                           <span className={`text-xs font-sans font-medium ${age.color}`}>{age.text}</span>
+                        ) : mainTab === "sent" ? (
+                          <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.resolved_at)}</span>
                         ) : (
                           <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.created_at)}</span>
                         )}
