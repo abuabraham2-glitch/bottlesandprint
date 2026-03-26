@@ -20,7 +20,7 @@ import {
   parseMultiTopicCount, stripN8nFooter, getReplyAllCc, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
 
-type MainTab = "inbox" | "drafts" | "archive";
+type MainTab = "inbox" | "drafts" | "sent" | "archive";
 type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
 
 export default function Inbox() {
