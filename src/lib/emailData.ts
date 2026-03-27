@@ -304,12 +304,18 @@ export function useInboxCounts() {
         .neq("status", "resolved")
         .gte("created_at", sevenDaysAgo);
 
+      const { count: trashCount } = await supabase
+        .from("emails")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "deleted");
+
       return {
         actionNeeded: actionNeeded || 0,
         activeInbox: activeInbox || 0,
         draftsToReview: draftsToReview || 0,
         autoHandledToday: autoHandledToday || 0,
         newCalls: newCalls || 0,
+        trashCount: trashCount || 0,
       };
     },
   });
