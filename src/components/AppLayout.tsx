@@ -142,7 +142,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
             active={location.pathname === item.to}
             collapsed={collapsed}
             onNavigate={onNavigate}
-            badgeCount={item.to === "/inbox" ? inboxCount : item.to === "/calls" ? callsCount : 0}
+            badgeCount={item.to === "/inbox" ? inboxCount : item.to === "/calls" ? callsCount : item.to === "/trash" ? trashCount : 0}
           />
         ))}
 
