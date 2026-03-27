@@ -30,6 +30,9 @@ export interface Email {
   incoming_summary: string | null;
   is_read: boolean | null;
   is_urgent: boolean | null;
+  label: string | null;
+  quoted_at: string | null;
+  deleted_at: string | null;
 }
 export interface Call {
   id: string;
