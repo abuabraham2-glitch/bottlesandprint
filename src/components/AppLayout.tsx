@@ -19,6 +19,7 @@ const navGroup1 = [
   { to: "/orders", icon: Package, label: "Orders" },
   { to: "/inbox", icon: Mail, label: "Inbox" },
   { to: "/calls", icon: PhoneCall, label: "Calls" },
+  { to: "/trash", icon: Trash2, label: "Trash" },
 ];
 
 const navGroup2 = [
