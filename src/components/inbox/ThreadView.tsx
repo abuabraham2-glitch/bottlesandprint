@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply } from "lucide-react";
+import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -20,9 +20,11 @@ interface ThreadViewProps {
   onOpenDraft: (email: Email) => void;
   onNavigateToEmail: (id: string) => void;
   onArchive?: (email: Email) => void;
+  onDelete?: (email: Email) => void;
+  onUpdateLabel?: (emailId: string, label: string | null) => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive }: ThreadViewProps) {
+export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel }: ThreadViewProps) {
   const queryClient = useQueryClient();
 
   if (!email) return null;
@@ -37,6 +39,18 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
       onArchive(email);
     }
   };
+
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete(email);
+    }
+  };
+
+  const labelOptions = [
+    { value: "receipt", label: "Receipt" },
+    { value: "other", label: "Other" },
+    { value: null, label: "Clear" },
+  ];
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
@@ -84,11 +98,34 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
                   <Archive size={12} /> Archive
                 </Button>
               )}
+              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8 text-destructive hover:text-destructive" onClick={handleDelete}>
+                <Trash2 size={12} />
+              </Button>
             </div>
           </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Label editor for archived emails */}
+          {email.status === "resolved" && onUpdateLabel && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-sans text-muted-foreground font-medium">Label:</span>
+              {labelOptions.map(opt => (
+                <button
+                  key={opt.value || "clear"}
+                  onClick={() => onUpdateLabel(email.id, opt.value)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-sans font-medium transition-colors ${
+                    email.label === opt.value
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* AI Summary */}
           {email.incoming_summary && (
             <div className="text-sm font-sans rounded-lg px-3 py-2 bg-accent/50 text-accent-foreground border border-border">

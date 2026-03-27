@@ -241,4 +241,15 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15) !important;
     }
   }
+  }
+
+  /* Auto-ack sent pill */
+  .auto-ack-pill {
+    background-color: #E1F5EE;
+    color: #085041;
+  }
+  .dark .auto-ack-pill {
+    background-color: #085041;
+    color: #9FE1CB;
+  }
 }

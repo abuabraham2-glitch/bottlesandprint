@@ -30,6 +30,9 @@ export interface Email {
   incoming_summary: string | null;
   is_read: boolean | null;
   is_urgent: boolean | null;
+  label: string | null;
+  quoted_at: string | null;
+  deleted_at: string | null;
 }
 export interface Call {
   id: string;
@@ -301,12 +304,18 @@ export function useInboxCounts() {
         .neq("status", "resolved")
         .gte("created_at", sevenDaysAgo);
 
+      const { count: trashCount } = await supabase
+        .from("emails")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "deleted");
+
       return {
         actionNeeded: actionNeeded || 0,
         activeInbox: activeInbox || 0,
         draftsToReview: draftsToReview || 0,
         autoHandledToday: autoHandledToday || 0,
         newCalls: newCalls || 0,
+        trashCount: trashCount || 0,
       };
     },
   });

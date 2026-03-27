@@ -109,6 +109,8 @@ export interface CatalogItem {
   last_run: string | null;
   archived: boolean;
   created_at: string;
+  artwork_url?: string | null;
+  artwork_url_2?: string | null;
   clients?: Client;
 }
 

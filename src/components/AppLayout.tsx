@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Search, X } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Search, X, Trash2 } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ const navGroup1 = [
   { to: "/orders", icon: Package, label: "Orders" },
   { to: "/inbox", icon: Mail, label: "Inbox" },
   { to: "/calls", icon: PhoneCall, label: "Calls" },
+  { to: "/trash", icon: Trash2, label: "Trash" },
 ];
 
 const navGroup2 = [
@@ -98,7 +99,7 @@ function SidebarDivider() {
   return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
-function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, showCloseButton, onClose }: {
+function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, trashCount, showCloseButton, onClose }: {
   onNavigate?: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -106,6 +107,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
   onToggleDark: () => void;
   inboxCount: number;
   callsCount: number;
+  trashCount: number;
   showCloseButton?: boolean;
   onClose?: () => void;
 }) {
@@ -140,7 +142,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
             active={location.pathname === item.to}
             collapsed={collapsed}
             onNavigate={onNavigate}
-            badgeCount={item.to === "/inbox" ? inboxCount : item.to === "/calls" ? callsCount : 0}
+            badgeCount={item.to === "/inbox" ? inboxCount : item.to === "/calls" ? callsCount : item.to === "/trash" ? trashCount : 0}
           />
         ))}
 
@@ -238,6 +240,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
           onToggleDark={() => setDarkMode(d => !d)}
           inboxCount={inboxCounts?.activeInbox || 0}
           callsCount={inboxCounts?.newCalls || 0}
+          trashCount={inboxCounts?.trashCount || 0}
         />
       </aside>
 
@@ -253,6 +256,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               onToggleDark={() => setDarkMode(d => !d)}
               inboxCount={inboxCounts?.activeInbox || 0}
               callsCount={inboxCounts?.newCalls || 0}
+              trashCount={inboxCounts?.trashCount || 0}
               showCloseButton
               onClose={() => setMobileOpen(false)}
             />

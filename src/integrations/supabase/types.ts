@@ -60,18 +60,21 @@ export type Database = {
         Row: {
           ack_type: string
           email_address: string
+          gmail_id: string | null
           id: string
           sent_at: string | null
         }
         Insert: {
           ack_type: string
           email_address: string
+          gmail_id?: string | null
           id?: string
           sent_at?: string | null
         }
         Update: {
           ack_type?: string
           email_address?: string
+          gmail_id?: string | null
           id?: string
           sent_at?: string | null
         }
@@ -147,6 +150,7 @@ export type Database = {
         Row: {
           archived: boolean
           artwork_url: string | null
+          artwork_url_2: string | null
           client_id: string
           component: string | null
           container_color: string | null
@@ -163,6 +167,7 @@ export type Database = {
         Insert: {
           archived?: boolean
           artwork_url?: string | null
+          artwork_url_2?: string | null
           client_id: string
           component?: string | null
           container_color?: string | null
@@ -179,6 +184,7 @@ export type Database = {
         Update: {
           archived?: boolean
           artwork_url?: string | null
+          artwork_url_2?: string | null
           client_id?: string
           component?: string | null
           container_color?: string | null
@@ -347,6 +353,7 @@ export type Database = {
           converted: boolean | null
           created_at: string | null
           cross_match_note: string | null
+          deleted_at: string | null
           draft_response: string | null
           from_email: string | null
           from_name: string | null
@@ -385,6 +392,7 @@ export type Database = {
           converted?: boolean | null
           created_at?: string | null
           cross_match_note?: string | null
+          deleted_at?: string | null
           draft_response?: string | null
           from_email?: string | null
           from_name?: string | null
@@ -423,6 +431,7 @@ export type Database = {
           converted?: boolean | null
           created_at?: string | null
           cross_match_note?: string | null
+          deleted_at?: string | null
           draft_response?: string | null
           from_email?: string | null
           from_name?: string | null
