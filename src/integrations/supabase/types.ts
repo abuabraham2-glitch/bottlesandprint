@@ -356,9 +356,11 @@ export type Database = {
           incoming_summary: string | null
           is_read: boolean | null
           is_urgent: boolean | null
+          label: string | null
           multi_topic_alert: string | null
           po_received_at: string | null
           quote_data: Json | null
+          quoted_at: string | null
           resolved_at: string | null
           same_company_alert: string | null
           same_company_link_id: string | null
@@ -392,9 +394,11 @@ export type Database = {
           incoming_summary?: string | null
           is_read?: boolean | null
           is_urgent?: boolean | null
+          label?: string | null
           multi_topic_alert?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
+          quoted_at?: string | null
           resolved_at?: string | null
           same_company_alert?: string | null
           same_company_link_id?: string | null
@@ -428,9 +432,11 @@ export type Database = {
           incoming_summary?: string | null
           is_read?: boolean | null
           is_urgent?: boolean | null
+          label?: string | null
           multi_topic_alert?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
+          quoted_at?: string | null
           resolved_at?: string | null
           same_company_alert?: string | null
           same_company_link_id?: string | null
