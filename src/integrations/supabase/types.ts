@@ -60,18 +60,21 @@ export type Database = {
         Row: {
           ack_type: string
           email_address: string
+          gmail_id: string | null
           id: string
           sent_at: string | null
         }
         Insert: {
           ack_type: string
           email_address: string
+          gmail_id?: string | null
           id?: string
           sent_at?: string | null
         }
         Update: {
           ack_type?: string
           email_address?: string
+          gmail_id?: string | null
           id?: string
           sent_at?: string | null
         }
