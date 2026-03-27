@@ -90,6 +90,10 @@ export function parseAttachments(att: any): any[] {
 }
 
 export function getAttachmentUrl(att: any): string {
+  // Build download URL from gmail_id + attachmentId when available
+  if (att.gmail_id && att.attachmentId) {
+    return `https://bottlesandprint.app.n8n.cloud/webhook/download-attachment?messageId=${encodeURIComponent(att.gmail_id)}&attachmentId=${encodeURIComponent(att.attachmentId)}&filename=${encodeURIComponent(att.name || "attachment")}`;
+  }
   if (att.url) return att.url;
   if (att.driveId) return `https://drive.google.com/file/d/${att.driveId}/view`;
   return "#";
