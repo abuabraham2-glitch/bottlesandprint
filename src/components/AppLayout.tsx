@@ -99,7 +99,7 @@ function SidebarDivider() {
   return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
-function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, showCloseButton, onClose }: {
+function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, trashCount, showCloseButton, onClose }: {
   onNavigate?: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -107,6 +107,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
   onToggleDark: () => void;
   inboxCount: number;
   callsCount: number;
+  trashCount: number;
   showCloseButton?: boolean;
   onClose?: () => void;
 }) {
