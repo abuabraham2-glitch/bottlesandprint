@@ -4,14 +4,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { AlertBanners } from "./AlertBanners";
 import {
-  CATEGORY_COLORS, CATEGORIES, displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
+  displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
   formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
 
@@ -20,9 +19,10 @@ interface ThreadViewProps {
   onClose: () => void;
   onOpenDraft: (email: Email) => void;
   onNavigateToEmail: (id: string) => void;
+  onArchive?: (email: Email) => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: ThreadViewProps) {
+export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive }: ThreadViewProps) {
   const queryClient = useQueryClient();
 
   if (!email) return null;
@@ -31,36 +31,11 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
   const hasDraft = !!email.draft_response;
   const isResolved = email.status === "resolved" || email.status === "approved_sent";
 
-  const handleChangeCategory = async (newCategory: string) => {
-    const updates: any = { category: newCategory };
-    if (newCategory === "SPAM") {
-      updates.status = "resolved";
-      updates.resolved_at = new Date().toISOString();
-    } else {
-      updates.status = "needs_response";
-      updates.resolved_at = null;
+  const handleArchive = () => {
+    if (onArchive) {
+      onClose();
+      onArchive(email);
     }
-    await supabase.from("emails").update(updates).eq("id", email.id);
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
-    queryClient.invalidateQueries({ queryKey: ["all-emails"] });
-    toast.success(`Category → ${newCategory}`);
-    if (newCategory === "SPAM") onClose();
-  };
-
-  const handleArchive = async () => {
-    const now = new Date().toISOString();
-    const { error } = await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
-    if (error) console.error("[ThreadView] Archive error:", error);
-    if (email.thread_id) {
-      await supabase.from("emails")
-        .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
-        .eq("thread_id", email.thread_id)
-        .in("status", ["pending", "needs_response"])
-        .neq("id", email.id);
-    }
-    await queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success("Archived");
-    onClose();
   };
 
   return (
@@ -110,21 +85,6 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail }: T
                 </Button>
               )}
             </div>
-          </div>
-          {/* Category dropdown */}
-          <div className="flex items-center gap-2 mt-2">
-            <Select value={email.category || "OTHER"} onValueChange={handleChangeCategory}>
-              <SelectTrigger className="w-[130px] h-7 text-xs rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map(cat => (
-                  <SelectItem key={cat} value={cat}>
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${CATEGORY_COLORS[cat]}`}>{cat}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </SheetHeader>
 

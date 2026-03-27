@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, useFollowUps, Email } from "@/lib/emailData";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
-import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, CheckSquare, Search, Flame, RefreshCw } from "lucide-react";
+import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, Search, Flame, RefreshCw, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
@@ -16,21 +16,21 @@ import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { ThreadView } from "@/components/inbox/ThreadView";
 import { DraftEditor } from "@/components/inbox/DraftEditor";
 import {
-  CATEGORY_COLORS, displaySenderName, formatTime, formatAge, parseAttachments,
-  parseMultiTopicCount, stripN8nFooter, getReplyAllCc, SIGNATURE,
+  displaySenderName, formatTime, formatAge, parseAttachments,
+  stripN8nFooter, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
 
-type MainTab = "inbox" | "drafts" | "sent" | "archive";
-type CategoryFilter = "ALL" | "SALES" | "SUPPORT" | "OTHER" | "SPAM" | "URGENT";
-type ArchiveCategoryFilter = "ALL" | "SALES" | "SUPPORT" | "SPAM" | "SENT";
+type MainTab = "needs_reply" | "waiting" | "spam" | "archive";
 
 export default function Inbox() {
-  const [mainTab, setMainTab] = useState<MainTab>("inbox");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
+  const [mainTab, setMainTab] = useState<MainTab>("needs_reply");
   const [searchQuery, setSearchQuery] = useState("");
-  const [archiveCategoryFilter, setArchiveCategoryFilter] = useState<ArchiveCategoryFilter>("ALL");
-  const [archiveHasAttachments, setArchiveHasAttachments] = useState(false);
+  const [archiveFilterQuoted, setArchiveFilterQuoted] = useState(false);
+  const [archiveFilterAttachments, setArchiveFilterAttachments] = useState(false);
+  const [archiveFilterReceipt, setArchiveFilterReceipt] = useState(false);
+  const [archiveFilterOther, setArchiveFilterOther] = useState(false);
   const [archiveSearchQuery, setArchiveSearchQuery] = useState("");
+  const [archiveSearchDebounced, setArchiveSearchDebounced] = useState("");
   const [threadEmail, setThreadEmail] = useState<Email | null>(null);
   const [draftEmail, setDraftEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -53,57 +53,57 @@ export default function Inbox() {
   const [newContactName, setNewContactName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [spamDeleteAllOpen, setSpamDeleteAllOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Archive label prompt state
+  const [archiveLabelOpen, setArchiveLabelOpen] = useState(false);
+  const [archiveLabelTargetIds, setArchiveLabelTargetIds] = useState<string[]>([]);
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
   const { data: followUps = [] } = useFollowUps();
   const queryClient = useQueryClient();
 
-  // Derived lists
-  const activeEmails = React.useMemo(() =>
-    allEmails.filter(e => e.status === "pending" || e.status === "needs_response" || e.status === "approved_sent"),
+  // Debounce archive search
+  useEffect(() => {
+    const timer = setTimeout(() => setArchiveSearchDebounced(archiveSearchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [archiveSearchQuery]);
+
+  // Derived lists for each tab
+  const needsReplyEmails = useMemo(() =>
+    allEmails.filter(e => (e.status === "pending" || e.status === "needs_response") && e.category !== "SPAM")
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
     [allEmails]
   );
 
-  const draftEmails = React.useMemo(() =>
-    allEmails.filter(e => e.draft_response && (e.status === "pending" || e.status === "needs_response")),
-    [allEmails]
-  );
-
-  const sentEmails = React.useMemo(() =>
+  const waitingEmails = useMemo(() =>
     allEmails.filter(e => e.status === "approved_sent")
-      .sort((a, b) => new Date(b.resolved_at || b.created_at || 0).getTime() - new Date(a.resolved_at || a.created_at || 0).getTime()),
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
     [allEmails]
   );
 
-  const allArchivedEmails = React.useMemo(() =>
-    allEmails.filter(e => e.status === "resolved" || e.status === "approved_sent"),
+  const spamEmails = useMemo(() =>
+    allEmails.filter(e => e.category === "SPAM" && e.status !== "deleted" && e.status !== "resolved")
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
     [allEmails]
   );
 
-  const archivedEmails = React.useMemo(() => {
-    let list = allArchivedEmails;
+  const archivedEmails = useMemo(() => {
+    let list = allEmails.filter(e => e.status === "resolved");
 
-    // Category filter
-    switch (archiveCategoryFilter) {
-      case "SALES": list = list.filter(e => e.category === "SALES"); break;
-      case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
-      case "SPAM": list = list.filter(e => e.category === "SPAM"); break;
-      case "SENT": list = list.filter(e => e.status === "approved_sent"); break;
-    }
-
-    // Has attachments filter
-    if (archiveHasAttachments) {
+    if (archiveFilterQuoted) list = list.filter(e => (e as any).quoted_at != null);
+    if (archiveFilterAttachments) {
       list = list.filter(e => {
         const atts = parseAttachments(e.attachments);
         return atts.length > 0;
       });
     }
+    if (archiveFilterReceipt) list = list.filter(e => (e as any).label === "receipt");
+    if (archiveFilterOther) list = list.filter(e => (e as any).label === "other");
 
-    // Search
-    if (archiveSearchQuery.trim()) {
-      const q = archiveSearchQuery.toLowerCase();
+    if (archiveSearchDebounced.trim()) {
+      const q = archiveSearchDebounced.toLowerCase();
       list = list.filter(e =>
         (e.subject?.toLowerCase().includes(q)) ||
         (e.from_name?.toLowerCase().includes(q)) ||
@@ -112,31 +112,28 @@ export default function Inbox() {
       );
     }
 
-    return list;
-  }, [allArchivedEmails, archiveCategoryFilter, archiveHasAttachments, archiveSearchQuery]);
+    return list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [allEmails, archiveFilterQuoted, archiveFilterAttachments, archiveFilterReceipt, archiveFilterOther, archiveSearchDebounced]);
 
   // Clear selection when switching tabs
   useEffect(() => { setSelectedIds(new Set()); }, [mainTab]);
 
-  // Keep threadEmail in sync with latest data from allEmails
+  // Keep threadEmail in sync
   useEffect(() => {
     if (threadEmail) {
       const updated = allEmails.find(e => e.id === threadEmail.id);
       if (updated && updated.status !== threadEmail.status) {
-        console.log("[Inbox] threadEmail status synced:", threadEmail.id, threadEmail.status, "→", updated.status);
         setThreadEmail(updated);
       }
     }
   }, [allEmails, threadEmail]);
 
-  // Keep draftEmail in sync with latest data from allEmails
+  // Keep draftEmail in sync
   useEffect(() => {
     if (draftEmail) {
       const updated = allEmails.find(e => e.id === draftEmail.id);
       if (updated && updated.status !== draftEmail.status) {
-        console.log("[Inbox] draftEmail status synced:", draftEmail.id, draftEmail.status, "→", updated.status);
         if (updated.status === "resolved" || updated.status === "approved_sent") {
-          console.log("[Inbox] Draft email resolved/sent, closing editor");
           setDraftEmail(null);
         } else {
           setDraftEmail(updated);
@@ -223,114 +220,72 @@ export default function Inbox() {
     setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   };
 
-  const bulkArchive = async () => {
+  // Archive with label prompt
+  const archiveWithLabel = async (ids: string[], label: string | null) => {
     const now = new Date().toISOString();
-    for (const id of selectedIds) {
-      await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", id);
+    const updates: any = { status: "resolved", draft_response: null, resolved_at: now };
+    if (label) updates.label = label;
+    for (const id of ids) {
+      await supabase.from("emails").update(updates).eq("id", id);
+      // Also archive thread siblings
+      const email = allEmails.find(e => e.id === id);
+      if (email?.thread_id) {
+        await supabase.from("emails")
+          .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
+          .eq("thread_id", email.thread_id)
+          .in("status", ["pending", "needs_response"])
+          .neq("id", id);
+      }
     }
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`Archived ${selectedIds.size} emails`);
+    toast.success(`Archived ${ids.length} email(s)`);
+    setArchiveLabelOpen(false);
+    setArchiveLabelTargetIds([]);
     setSelectedIds(new Set());
   };
 
-  const bulkSetCategory = async (category: string) => {
-    const now = new Date().toISOString();
-    const updates: any = { category };
-    if (category === "SPAM") {
-      updates.status = "resolved";
-      updates.resolved_at = now;
-      updates.draft_response = null;
+  const initiateArchive = (ids: string[]) => {
+    // Check if any of the target emails need labeling
+    const needsLabel = ids.some(id => {
+      const email = allEmails.find(e => e.id === id);
+      return !(email as any)?.label;
+    });
+    if (needsLabel) {
+      setArchiveLabelTargetIds(ids);
+      setArchiveLabelOpen(true);
     } else {
-      // Re-activate email: set to needs_response and clear resolved state
-      updates.status = "needs_response";
-      updates.resolved_at = null;
+      archiveWithLabel(ids, null);
     }
-    for (const id of selectedIds) {
-      await supabase.from("emails").update(updates).eq("id", id);
-    }
-    queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`${selectedIds.size} → ${category}`);
-    setSelectedIds(new Set());
   };
+
+  const bulkArchive = () => initiateArchive(Array.from(selectedIds));
 
   const deleteEmails = async (ids: Set<string> | string[]) => {
     const idArray = Array.from(ids);
     if (idArray.length === 0) return;
-
     const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
     const now = new Date().toISOString();
-    const allEmailsList = allEmails || [];
-
     const results = await Promise.allSettled(
       idArray.map(async (id) => {
-        const email = allEmailsList.find((row) => row.id === id);
-        const payload = {
-          action: "delete",
-          gmail_id: email?.gmail_id || "",
-          email_id: id,
-        };
-
-        console.log("[Delete] Request:", {
-          url: WEBHOOK_URL,
-          method: "POST",
-          payload,
-        });
-
-        const res = await fetch(WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
+        const email = allEmails.find((row) => row.id === id);
+        const payload = { action: "delete", gmail_id: email?.gmail_id || "", email_id: id };
+        console.log("[Delete] Request:", { url: WEBHOOK_URL, method: "POST", payload });
+        const res = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const responseBody = await res.text();
-
-        console.log("[Delete] Response:", {
-          status: res.status,
-          body: responseBody,
-          emailId: id,
-        });
-
-        if (!res.ok) {
-          throw new Error(`Delete webhook failed for ${id} (${res.status})`);
-        }
-
+        console.log("[Delete] Response:", { status: res.status, body: responseBody, emailId: id });
+        if (!res.ok) throw new Error(`Delete webhook failed for ${id} (${res.status})`);
         return id;
       }),
     );
-
-    const successfulIds = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-    const failedCount = results.length - successfulIds.length;
-
-    results.forEach((result) => {
-      if (result.status === "rejected") {
-        console.error("[Delete] Webhook error:", result.reason);
-      }
-    });
-
+    const successfulIds = results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
     if (successfulIds.length > 0) {
       queryClient.setQueriesData({ queryKey: ["emails"] }, (oldData: Email[] | undefined) =>
         Array.isArray(oldData) ? oldData.filter((email) => !successfulIds.includes(email.id)) : oldData,
       );
-
-      const { error } = await supabase
-        .from("emails")
-        .update({ status: "deleted", resolved_at: now } as any)
-        .in("id", successfulIds);
-
-      if (error) {
-        console.error("[Delete] Failed to persist delete status:", error);
-      }
+      await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).in("id", successfulIds);
     }
-
-    if (successfulIds.length > 0 && failedCount === 0) {
-      toast.success(`Deleted ${successfulIds.length} email(s)`);
-    } else if (successfulIds.length > 0) {
-      toast.success(`Deleted ${successfulIds.length} email(s)`);
-      toast.error(`${failedCount} email(s) failed to delete`);
-    } else {
-      toast.error("Failed to delete email(s)");
-    }
-
+    if (successfulIds.length > 0) toast.success(`Deleted ${successfulIds.length} email(s)`);
+    else toast.error("Failed to delete email(s)");
     setSelectedIds(new Set());
     setDeleteConfirmOpen(false);
   };
@@ -340,8 +295,7 @@ export default function Inbox() {
   const bulkToggleUrgent = async () => {
     for (const id of selectedIds) {
       const email = allEmails.find(e => e.id === id);
-      const newVal = !(email?.is_urgent);
-      await supabase.from("emails").update({ is_urgent: newVal } as any).eq("id", id);
+      await supabase.from("emails").update({ is_urgent: !(email?.is_urgent) } as any).eq("id", id);
     }
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success(`Toggled 🔥 on ${selectedIds.size} emails`);
@@ -353,74 +307,71 @@ export default function Inbox() {
     queryClient.invalidateQueries({ queryKey: ["emails"] });
   };
 
-  const handleOpenEmail = (email: Email) => {
-    if (!email.is_read) markAsRead(email.id);
-    if (mainTab === "drafts") setDraftEmail(email);
-    else setThreadEmail(email);
+  const toggleUrgent = async (e: React.MouseEvent, emailId: string) => {
+    e.stopPropagation();
+    const email = allEmails.find(em => em.id === emailId);
+    await supabase.from("emails").update({ is_urgent: !(email?.is_urgent) } as any).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
   };
 
-  const unreadCount = React.useMemo(() =>
-    activeEmails.filter(e => !e.is_read).length,
-    [activeEmails]
-  );
+  const handleOpenEmail = (email: Email) => {
+    if (!email.is_read) markAsRead(email.id);
+    setThreadEmail(email);
+  };
 
-  // Apply category filter + search
-  const baseEmails = mainTab === "inbox" ? activeEmails : mainTab === "drafts" ? draftEmails : mainTab === "sent" ? sentEmails : archivedEmails;
+  const handleNotSpam = async (e: React.MouseEvent, emailId: string) => {
+    e.stopPropagation();
+    await supabase.from("emails").update({ category: "SALES", status: "needs_response", resolved_at: null } as any).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success("Moved to Needs My Reply");
+  };
 
-  const filteredEmails = React.useMemo(() => {
-    let list = baseEmails;
+  const handleDeleteAllSpam = async () => {
+    const now = new Date().toISOString();
+    const spamIds = spamEmails.map(e => e.id);
+    if (spamIds.length === 0) return;
+    await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).in("id", spamIds);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(`Deleted ${spamIds.length} spam emails`);
+    setSpamDeleteAllOpen(false);
+  };
 
-    // Category filter (only in inbox tab)
-    if (mainTab === "inbox") {
-      switch (categoryFilter) {
-        case "SALES": list = list.filter(e => e.category === "SALES"); break;
-        case "SUPPORT": list = list.filter(e => e.category === "SUPPORT"); break;
-        case "OTHER": list = list.filter(e => e.category === "OTHER"); break;
-        case "SPAM": list = allEmails.filter(e => e.category === "SPAM"); break;
-        case "URGENT": list = list.filter(e => e.is_urgent); break;
-      }
+  // Get displayed emails for current tab
+  const displayedEmails = useMemo(() => {
+    let list: Email[] = [];
+    switch (mainTab) {
+      case "needs_reply": list = needsReplyEmails; break;
+      case "waiting": list = waitingEmails; break;
+      case "spam": list = spamEmails; break;
+      case "archive": list = archivedEmails; break;
     }
-
-    // Search across all fields
-    if (searchQuery.trim()) {
+    // Apply search (for non-archive tabs)
+    if (mainTab !== "archive" && searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      // When searching, search across ALL emails (not just filtered by tab/category)
-      const searchPool = categoryFilter === "ALL" && mainTab === "inbox"
-        ? allEmails
-        : list;
-      list = searchPool.filter(e =>
+      list = list.filter(e =>
         (e.subject?.toLowerCase().includes(q)) ||
         (e.from_name?.toLowerCase().includes(q)) ||
         (e.from_email?.toLowerCase().includes(q)) ||
-        (e.body?.toLowerCase().includes(q)) ||
-        (e.to_recipients?.toLowerCase().includes(q)) ||
-        (e.draft_response?.replace(/<[^>]*>/g, "").toLowerCase().includes(q))
+        (e.body?.toLowerCase().includes(q))
       );
     }
-
     return list;
-  }, [baseEmails, allEmails, mainTab, categoryFilter, searchQuery]);
+  }, [mainTab, needsReplyEmails, waitingEmails, spamEmails, archivedEmails, searchQuery]);
 
-  const displayedEmails = filteredEmails;
-
-  const CATEGORY_TABS: { key: CategoryFilter; label: string }[] = [
-    { key: "ALL", label: "All" },
-    { key: "SALES", label: "Sales" },
-    { key: "SUPPORT", label: "Support" },
-    { key: "OTHER", label: "Other" },
-    { key: "SPAM", label: "Spam" },
-    { key: "URGENT", label: "🔥 Urgent" },
-  ];
+  // Tab counts
+  const tabCounts = useMemo(() => ({
+    needs_reply: needsReplyEmails.length,
+    waiting: waitingEmails.length,
+    spam: spamEmails.length,
+    archive: archivedEmails.length,
+  }), [needsReplyEmails, waitingEmails, spamEmails, archivedEmails]);
 
   // Select All logic
   const allVisibleSelected = displayedEmails.length > 0 && displayedEmails.every(e => selectedIds.has(e.id));
   const someVisibleSelected = displayedEmails.some(e => selectedIds.has(e.id));
   const handleSelectAll = (checked: boolean | "indeterminate") => {
-    if (checked === true) {
-      setSelectedIds(new Set(displayedEmails.map(e => e.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
+    if (checked === true) setSelectedIds(new Set(displayedEmails.map(e => e.id)));
+    else setSelectedIds(new Set());
   };
 
   const handleRefresh = async () => {
@@ -429,12 +380,16 @@ export default function Inbox() {
       await fetch("https://bottlesandprint.app.n8n.cloud/webhook/manual-refresh");
       toast("Checking for new emails…", { duration: 3000 });
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["all-emails"] }), 3000);
-    } catch {
-      toast.error("Refresh failed");
-    } finally {
-      setRefreshing(false);
-    }
+    } catch { toast.error("Refresh failed"); }
+    finally { setRefreshing(false); }
   };
+
+  const TABS: { key: MainTab; label: string }[] = [
+    { key: "needs_reply", label: "NEEDS MY REPLY" },
+    { key: "waiting", label: "WAITING ON THEM" },
+    { key: "spam", label: "SPAM" },
+    { key: "archive", label: "ARCHIVE" },
+  ];
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1200px]">
@@ -496,55 +451,34 @@ export default function Inbox() {
         </div>
       ) : (
         <>
-          {/* THREE TABS: INBOX | DRAFTS | ARCHIVE */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
-            {[
-              { key: "inbox" as MainTab, label: "Inbox", icon: InboxIcon, count: activeEmails.length, countClass: "bg-primary/10 text-primary", extra: unreadCount > 0 ? ` · ${unreadCount} unread` : "" },
-              { key: "drafts" as MainTab, label: "Drafts", icon: FileText, count: draftEmails.length, countClass: "bg-orange-100 text-orange-700", extra: "" },
-              { key: "sent" as MainTab, label: "Sent", icon: Send, count: sentEmails.length, countClass: "bg-green-100 text-green-700", extra: "" },
-              { key: "archive" as MainTab, label: "Archive", icon: Archive, count: allArchivedEmails.length, countClass: "bg-muted text-muted-foreground", extra: "" },
-            ].map(tab => (
+          {/* 4 TABS */}
+          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit overflow-x-auto">
+            {TABS.map(tab => (
               <button key={tab.key}
                 onClick={() => setMainTab(tab.key)}
-                className={`px-4 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-lg text-xs font-sans font-semibold tracking-wide transition-colors min-h-[40px] whitespace-nowrap flex items-center gap-1.5 ${
                   mainTab === tab.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}>
-                <tab.icon size={15} />
                 {tab.label}
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab.countClass}`}>{tab.count}{tab.extra}</span>
+                {tabCounts[tab.key] > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{tabCounts[tab.key]}</span>
+                )}
               </button>
             ))}
           </div>
 
-          {/* Category filter tabs (inbox only) + search (inbox & sent) */}
-          {(mainTab === "inbox" || mainTab === "sent") && (
+          {/* Search bar (non-archive tabs) */}
+          {mainTab !== "archive" && (
             <div className="flex items-center gap-3 flex-wrap">
-              {mainTab === "inbox" && (
-                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                  {CATEGORY_TABS.map(ct => (
-                    <button
-                      key={ct.key}
-                      onClick={() => setCategoryFilter(ct.key)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
-                        categoryFilter === ct.key
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {ct.label}
-                    </button>
-                  ))}
-                </div>
-              )}
               <div className="relative flex-1 min-w-[180px] max-w-[320px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={mainTab === "sent" ? "Search sent emails..." : "Search emails..."}
-                  className="rounded-xl pl-9 h-9 text-sm"
-                />
+                <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search emails..." className="rounded-xl pl-9 h-9 text-sm" />
               </div>
+              {mainTab === "spam" && spamEmails.length > 0 && (
+                <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setSpamDeleteAllOpen(true)}>
+                  <Trash2 size={12} /> Delete All Spam
+                </Button>
+              )}
             </div>
           )}
 
@@ -552,43 +486,23 @@ export default function Inbox() {
           {mainTab === "archive" && (
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                {([
-                  { key: "ALL" as ArchiveCategoryFilter, label: "All", count: allArchivedEmails.length },
-                  { key: "SALES" as ArchiveCategoryFilter, label: "Sales", count: allArchivedEmails.filter(e => e.category === "SALES").length },
-                  { key: "SUPPORT" as ArchiveCategoryFilter, label: "Support", count: allArchivedEmails.filter(e => e.category === "SUPPORT").length },
-                  { key: "SPAM" as ArchiveCategoryFilter, label: "Spam", count: allArchivedEmails.filter(e => e.category === "SPAM").length },
-                  { key: "SENT" as ArchiveCategoryFilter, label: "Sent", count: allArchivedEmails.filter(e => e.status === "approved_sent").length },
-                ]).map(ct => (
-                  <button
-                    key={ct.key}
-                    onClick={() => setArchiveCategoryFilter(ct.key)}
+                {[
+                  { label: "Quoted", active: archiveFilterQuoted, toggle: () => setArchiveFilterQuoted(v => !v) },
+                  { label: "Has Attachments", active: archiveFilterAttachments, toggle: () => setArchiveFilterAttachments(v => !v) },
+                  { label: "Receipt", active: archiveFilterReceipt, toggle: () => setArchiveFilterReceipt(v => !v) },
+                  { label: "Other", active: archiveFilterOther, toggle: () => setArchiveFilterOther(v => !v) },
+                ].map(pill => (
+                  <button key={pill.label} onClick={pill.toggle}
                     className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
-                      archiveCategoryFilter === ct.key
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {ct.label} {ct.count}
+                      pill.active ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}>
+                    {pill.label}
                   </button>
                 ))}
-                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans font-medium cursor-pointer transition-colors bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted">
-                  <Checkbox
-                    checked={archiveHasAttachments}
-                    onCheckedChange={(v) => setArchiveHasAttachments(v === true)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <Paperclip size={12} />
-                  Attachments
-                </label>
               </div>
               <div className="relative flex-1 min-w-[180px] max-w-[320px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={archiveSearchQuery}
-                  onChange={e => setArchiveSearchQuery(e.target.value)}
-                  placeholder="Search archived emails..."
-                  className="rounded-xl pl-9 h-9 text-sm"
-                />
+                <Input value={archiveSearchQuery} onChange={e => setArchiveSearchQuery(e.target.value)} placeholder="Search archived emails..." className="rounded-xl pl-9 h-9 text-sm" />
               </div>
             </div>
           )}
@@ -600,15 +514,14 @@ export default function Inbox() {
             <div className="text-center py-12 text-muted-foreground">
               <Mail size={32} className="mx-auto mb-2 opacity-50" />
               <p className="font-sans text-sm">
-                {searchQuery ? "No emails match your search." : mainTab === "inbox" ? "No active emails." : mainTab === "drafts" ? "No drafts waiting for review." : mainTab === "sent" ? "No sent emails." : "No archived emails."}
+                {mainTab === "needs_reply" ? "No emails need your reply." : mainTab === "waiting" ? "No emails waiting on them." : mainTab === "spam" ? "No spam emails." : "No archived emails."}
               </p>
             </div>
           ) : (
             <div className="space-y-1">
-              {/* Select All header row */}
+              {/* Select All header */}
               <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20 rounded-t-xl">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 flex-shrink-0" />
                   <Checkbox
                     checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
                     onCheckedChange={handleSelectAll}
@@ -619,72 +532,55 @@ export default function Inbox() {
                   {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
                 </span>
                 <Button size="sm" variant="outline" className="hidden md:inline-flex rounded-xl gap-1.5 text-xs h-8" onClick={handleRefresh} disabled={refreshing}>
-                  <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-                  Refresh
+                  <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
                 </Button>
               </div>
-              {displayedEmails.map(email => {
-                const atts = parseAttachments(email.attachments);
-                const age = formatAge(email.created_at);
-                const isSelected = selectedIds.has(email.id);
-
-                return (
-                  <div key={email.id}
-                    className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${isSelected ? "ring-2 ring-primary/50" : ""}`}
-                    onClick={() => handleOpenEmail(email)}>
-                    <div className="flex items-start gap-3">
-                      {/* Unread dot */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <div className="w-2 flex-shrink-0">
-                          {!email.is_read && mainTab === "inbox" && (
-                            <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
-                          )}
-                        </div>
-                        <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
-                          <Checkbox checked={isSelected} className="h-4 w-4" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          {email.is_urgent && <span className="text-sm">🔥</span>}
-                          {mainTab === "sent" ? (
-                            <span className="text-sm font-sans font-medium truncate">To: {email.to_recipients || email.from_email || "Unknown"}</span>
-                          ) : (
-                            <span className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-bold" : "font-medium"}`}>{displaySenderName(email.from_name, email.from_email)}</span>
-                          )}
-                          {email.category && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-medium ${CATEGORY_COLORS[email.category] || CATEGORY_COLORS.UNKNOWN}`}>
-                              {email.category}
-                            </span>
-                          )}
-                          {atts.length > 0 && <Paperclip size={12} className="text-muted-foreground" />}
-                          {email.draft_response && mainTab === "inbox" && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-sans font-medium">✏️ Draft</span>
-                          )}
-                          {email.status === "approved_sent" && mainTab !== "sent" && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-sans font-medium">✅ Replied</span>
-                          )}
-                        </div>
-                        <div className={`text-sm font-sans truncate ${!email.is_read && mainTab === "inbox" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{email.subject}</div>
-                        {mainTab === "sent" && email.draft_response && (
-                          <div className="text-xs font-sans text-muted-foreground truncate mt-0.5">
-                            {email.draft_response.replace(/<[^>]*>/g, "").substring(0, 100)}
-                          </div>
+              {displayedEmails.map(email => (
+                <div key={email.id}
+                  className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
+                  onClick={() => handleOpenEmail(email)}>
+                  <div className="flex items-center gap-3">
+                    {/* Unread dot + checkbox */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 flex-shrink-0">
+                        {!email.is_read && mainTab === "needs_reply" && (
+                          <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {mainTab === "drafts" ? (
-                          <span className={`text-xs font-sans font-medium ${age.color}`}>{age.text}</span>
-                        ) : mainTab === "sent" ? (
-                          <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.resolved_at)}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(email.created_at)}</span>
-                        )}
+                      <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
+                        <Checkbox checked={selectedIds.has(email.id)} className="h-4 w-4" />
                       </div>
                     </div>
+                    {/* Flame */}
+                    <div className="w-5 flex-shrink-0 flex items-center justify-center">
+                      {email.is_urgent ? (
+                        <button onClick={(e) => toggleUrgent(e, email.id)} className="hover:scale-110 transition-transform" title="Remove flag">🔥</button>
+                      ) : (
+                        <button onClick={(e) => toggleUrgent(e, email.id)} className="opacity-0 hover:opacity-50 transition-opacity text-muted-foreground" title="Flag as urgent">
+                          <Flame size={14} />
+                        </button>
+                      )}
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 flex items-center gap-3">
+                      <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
+                        {displaySenderName(email.from_name, email.from_email)}
+                      </span>
+                      <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                        {email.subject}
+                      </span>
+                    </div>
+                    {/* Not Spam button (spam tab only) */}
+                    {mainTab === "spam" && (
+                      <Button size="sm" variant="outline" className="rounded-xl text-[10px] h-7 gap-1 shrink-0" onClick={(e) => handleNotSpam(e, email.id)}>
+                        <ShieldOff size={10} /> Not Spam
+                      </Button>
+                    )}
+                    {/* Timestamp */}
+                    <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(email.created_at)}</span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
 
@@ -698,24 +594,10 @@ export default function Inbox() {
               <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkToggleUrgent}>
                 <Flame size={12} /> 🔥 Flag
               </Button>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SALES")}>
-                Mark Sales
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SUPPORT")}>
-                Mark Support
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("SPAM")}>
-                Mark Spam
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={() => bulkSetCategory("OTHER")}>
-                Mark Other
-              </Button>
               <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setDeleteConfirmOpen(true)}>
                 <Trash2 size={12} /> Delete
               </Button>
-              <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>
-                Clear
-              </button>
+              <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>Clear</button>
             </div>
           )}
 
@@ -724,18 +606,42 @@ export default function Inbox() {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete selected email(s)?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete the selected email(s)? This cannot be undone.
-                </AlertDialogDescription>
+                <AlertDialogDescription>Are you sure? This cannot be undone.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Confirm
-                </AlertDialogAction>
+                <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* Spam Delete All Confirmation */}
+          <AlertDialog open={spamDeleteAllOpen} onOpenChange={setSpamDeleteAllOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete all spam emails?</AlertDialogTitle>
+                <AlertDialogDescription>This cannot be undone. All {spamEmails.length} spam emails will be deleted.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAllSpam} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete All</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Archive Label Prompt */}
+          <Dialog open={archiveLabelOpen} onOpenChange={(open) => { if (!open) { setArchiveLabelOpen(false); setArchiveLabelTargetIds([]); } }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="font-serif">Label before archiving?</DialogTitle>
+              </DialogHeader>
+              <div className="flex items-center gap-3 justify-center py-4">
+                <Button variant="outline" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, "receipt")}>Receipt</Button>
+                <Button variant="outline" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, "other")}>Other</Button>
+                <Button variant="ghost" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, null)}>Skip</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
 
@@ -745,6 +651,7 @@ export default function Inbox() {
         onClose={() => setThreadEmail(null)}
         onOpenDraft={(e) => { setThreadEmail(null); setTimeout(() => setDraftEmail(e), 150); }}
         onNavigateToEmail={navigateToEmailById}
+        onArchive={(email) => initiateArchive([email.id])}
       />
 
       {/* Draft Editor */}
@@ -770,9 +677,7 @@ export default function Inbox() {
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-sans text-muted-foreground">To</label>
                     {!showCcField && (
-                      <button onClick={() => setShowCcField(true)} className="text-[10px] font-sans text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/30 hover:border-muted-foreground/60">
-                        CC
-                      </button>
+                      <button onClick={() => setShowCcField(true)} className="text-[10px] font-sans text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/30 hover:border-muted-foreground/60">CC</button>
                     )}
                   </div>
                   <button onClick={() => setContactsOpen(true)} className="text-[10px] font-sans text-primary hover:underline flex items-center gap-0.5">
