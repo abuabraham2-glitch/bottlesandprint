@@ -240,6 +240,7 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
           onToggleDark={() => setDarkMode(d => !d)}
           inboxCount={inboxCounts?.activeInbox || 0}
           callsCount={inboxCounts?.newCalls || 0}
+          trashCount={inboxCounts?.trashCount || 0}
         />
       </aside>
 
