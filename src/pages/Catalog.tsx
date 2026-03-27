@@ -35,6 +35,54 @@ function parseRunDate(val: string | null): number {
 type SortKey = "client" | "first_run" | "last_run";
 type SortDir = "asc" | "desc";
 
+const isImage = (url: string) => /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url);
+
+function ArtworkSlot({ label, url, uploading, onUpload, onRemove, fileInputRef }: {
+  label: string;
+  url: string | null;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  return (
+    <div>
+      <Label className="font-semibold text-xs">{label}</Label>
+      <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.ai,.eps,.svg"
+        onChange={e => { if (e.target.files?.[0]) onUpload(e.target.files[0]); e.target.value = ''; }} />
+      {url ? (
+        <div className="mt-1 space-y-1.5">
+          <div className="border rounded-[9px] p-2 bg-background">
+            {isImage(url) ? (
+              <img src={url} alt="Artwork" className="max-h-28 rounded object-contain mx-auto" />
+            ) : (
+              <div className="flex items-center gap-2 text-xs"><Paperclip size={14} className="text-primary" /><span className="truncate">{url.split('/').pop()}</span></div>
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => window.open(url, '_blank')} className="gap-1 rounded-[9px] text-[10px] h-7"><ExternalLink size={10} />View</Button>
+            <Button variant="outline" size="sm" asChild className="gap-1 rounded-[9px] text-[10px] h-7"><a href={url} download><Download size={10} />Download</a></Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1 rounded-[9px] text-[10px] h-7"><Upload size={10} />Replace</Button>
+            <Button variant="ghost" size="sm" onClick={onRemove} className="gap-1 text-destructive rounded-[9px] text-[10px] h-7"><X size={10} />Remove</Button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`mt-1 border-2 border-dashed rounded-[9px] p-4 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) onUpload(e.dataTransfer.files[0]); }}
+        >
+          <Upload size={18} className="mx-auto text-muted-foreground mb-1" />
+          <p className="text-[10px] text-muted-foreground">{uploading ? 'Uploading...' : 'Drop or click to browse'}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Catalog() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
@@ -52,11 +100,13 @@ export default function Catalog() {
   const [sortKey, setSortKey] = useState<SortKey>("client");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  // Artwork upload
-  const [uploading, setUploading] = useState(false);
+  // Artwork uploads (2 slots)
+  const [uploading1, setUploading1] = useState(false);
+  const [uploading2, setUploading2] = useState(false);
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
+  const [artworkUrl2, setArtworkUrl2] = useState<string | null>(null);
+  const fileInputRef1 = useRef<HTMLInputElement>(null);
+  const fileInputRef2 = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const productId = searchParams.get("product");
@@ -100,7 +150,8 @@ export default function Catalog() {
 
   const openEdit = (item: CatalogItem) => {
     setEditItem(item);
-    setArtworkUrl((item as any).artwork_url || null);
+    setArtworkUrl(item.artwork_url || null);
+    setArtworkUrl2(item.artwork_url_2 || null);
     setEditForm({
       product_name: item.product_name || "", size: item.size || "", component: item.component || "",
       material: item.material || "", container_color: item.container_color || "",
@@ -109,17 +160,23 @@ export default function Catalog() {
     });
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (file: File, slot: 1 | 2) => {
     if (!editItem) return;
+    const setUploading = slot === 1 ? setUploading1 : setUploading2;
     setUploading(true);
     try {
       const ext = file.name.split('.').pop();
-      const path = `catalog/${editItem.id}/${Date.now()}.${ext}`;
+      const path = `catalog/${editItem.id}/${slot === 1 ? 'primary' : 'secondary'}_${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from("proofs").upload(path, file, { upsert: true });
       if (uploadErr) throw uploadErr;
       const { data: { publicUrl } } = supabase.storage.from("proofs").getPublicUrl(path);
-      setArtworkUrl(publicUrl);
-      await updateItem.mutateAsync({ id: editItem.id, artwork_url: publicUrl } as any);
+      if (slot === 1) {
+        setArtworkUrl(publicUrl);
+        await updateItem.mutateAsync({ id: editItem.id, artwork_url: publicUrl } as any);
+      } else {
+        setArtworkUrl2(publicUrl);
+        await updateItem.mutateAsync({ id: editItem.id, artwork_url_2: publicUrl } as any);
+      }
       toast.success("Artwork uploaded");
     } catch (err: any) {
       toast.error("Upload failed: " + err.message);
@@ -128,10 +185,15 @@ export default function Catalog() {
     }
   };
 
-  const removeArtwork = async () => {
+  const removeArtwork = async (slot: 1 | 2) => {
     if (!editItem) return;
-    setArtworkUrl(null);
-    await updateItem.mutateAsync({ id: editItem.id, artwork_url: null } as any);
+    if (slot === 1) {
+      setArtworkUrl(null);
+      await updateItem.mutateAsync({ id: editItem.id, artwork_url: null } as any);
+    } else {
+      setArtworkUrl2(null);
+      await updateItem.mutateAsync({ id: editItem.id, artwork_url_2: null } as any);
+    }
     toast.success("Artwork removed");
   };
 
@@ -163,8 +225,6 @@ export default function Catalog() {
   };
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
-
-  const isImage = (url: string) => /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url);
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1600px]">
@@ -214,7 +274,9 @@ export default function Catalog() {
                   <td className="p-3">{item.print_colors}</td>
                   <td className="p-3">{item.first_run || "—"}</td>
                   <td className="p-3">{formatLastRun(item.last_run)}</td>
-                  <td className="p-3">{(item as any).artwork_url && <Paperclip size={14} className="text-primary" />}</td>
+                  <td className="p-3">
+                    {(item.artwork_url || item.artwork_url_2) && <Paperclip size={14} className="text-primary" />}
+                  </td>
                   <td className="p-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       {activeTab === "active" && <button onClick={(e) => handleArchiveClick(item.id, item.product_name, e)} className="text-muted-foreground hover:text-foreground" title="Archive"><Archive size={14} /></button>}
@@ -247,41 +309,24 @@ export default function Catalog() {
               <div><Label className="font-semibold">Last Run</Label><Input value={editForm.last_run} onChange={e => setEditForm(f => ({ ...f, last_run: e.target.value }))} placeholder="e.g. Mar 2024" /></div>
             </div>
 
-            {/* Artwork section */}
-            <div>
-              <Label className="font-semibold">Artwork / File</Label>
-              <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.ai,.eps,.svg"
-                onChange={e => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); e.target.value = ''; }} />
-
-              {artworkUrl ? (
-                <div className="mt-2 space-y-2">
-                  <div className="border rounded-[9px] p-3 bg-background">
-                    {isImage(artworkUrl) ? (
-                      <img src={artworkUrl} alt="Artwork" className="max-h-40 rounded object-contain mx-auto" />
-                    ) : (
-                      <div className="flex items-center gap-2 text-sm"><Paperclip size={16} className="text-primary" /><span className="truncate">{artworkUrl.split('/').pop()}</span></div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => window.open(artworkUrl, '_blank')} className="gap-1.5 rounded-[9px]"><ExternalLink size={12} />View</Button>
-                    <Button variant="outline" size="sm" asChild className="gap-1.5 rounded-[9px]"><a href={artworkUrl} download><Download size={12} />Download</a></Button>
-                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5 rounded-[9px]"><Upload size={12} />Replace</Button>
-                    <Button variant="ghost" size="sm" onClick={removeArtwork} className="gap-1.5 text-destructive rounded-[9px]"><X size={12} />Remove</Button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`mt-2 border-2 border-dashed rounded-[9px] p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]); }}
-                >
-                  <Upload size={24} className="mx-auto text-muted-foreground mb-2" />
-                  <p className="text-xs text-muted-foreground">{uploading ? 'Uploading...' : 'Drop file here or click to browse'}</p>
-                  <p className="text-[10px] text-text-light mt-1">Images, PDFs, AI, EPS, SVG</p>
-                </div>
-              )}
+            {/* Two artwork slots */}
+            <div className="grid grid-cols-2 gap-3">
+              <ArtworkSlot
+                label="Artwork / File 1"
+                url={artworkUrl}
+                uploading={uploading1}
+                onUpload={(f) => handleFileUpload(f, 1)}
+                onRemove={() => removeArtwork(1)}
+                fileInputRef={fileInputRef1 as React.RefObject<HTMLInputElement>}
+              />
+              <ArtworkSlot
+                label="Artwork / File 2"
+                url={artworkUrl2}
+                uploading={uploading2}
+                onUpload={(f) => handleFileUpload(f, 2)}
+                onRemove={() => removeArtwork(2)}
+                fileInputRef={fileInputRef2 as React.RefObject<HTMLInputElement>}
+              />
             </div>
           </div>
           <DialogFooter>
