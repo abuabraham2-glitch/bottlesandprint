@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, useFollowUps, Email } from "@/lib/emailData";
+import { useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, Email } from "@/lib/emailData";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
-import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, Search, Flame, RefreshCw, ShieldOff } from "lucide-react";
+import { Send, Mail, Plus, Paperclip, BookUser, Trash2, FileText, Archive, Inbox as InboxIcon, Search, Flame, RefreshCw, ShieldOff, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
@@ -42,7 +42,6 @@ export default function Inbox() {
   const [composeEmailRef, setComposeEmailRef] = useState<Email | null>(null);
   const [composeAttachments, setComposeAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState<string | null>(null);
-  const [showFollowUps, setShowFollowUps] = useState(false);
   const [toSuggestions, setToSuggestions] = useState<{email: string; name?: string}[]>([]);
   const [ccSuggestions, setCcSuggestions] = useState<{email: string; name?: string}[]>([]);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
@@ -61,7 +60,6 @@ export default function Inbox() {
   const composeBodyRef = useRef<HTMLDivElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
-  const { data: followUps = [] } = useFollowUps();
   const queryClient = useQueryClient();
 
   // Debounce archive search
@@ -92,15 +90,15 @@ export default function Inbox() {
   const archivedEmails = useMemo(() => {
     let list = allEmails.filter(e => e.status === "resolved");
 
-    if (archiveFilterQuoted) list = list.filter(e => (e as any).quoted_at != null);
+    if (archiveFilterQuoted) list = list.filter(e => e.quoted_at != null);
     if (archiveFilterAttachments) {
       list = list.filter(e => {
         const atts = parseAttachments(e.attachments);
         return atts.length > 0;
       });
     }
-    if (archiveFilterReceipt) list = list.filter(e => (e as any).label === "receipt");
-    if (archiveFilterOther) list = list.filter(e => (e as any).label === "other");
+    if (archiveFilterReceipt) list = list.filter(e => e.label === "receipt");
+    if (archiveFilterOther) list = list.filter(e => e.label === "other");
 
     if (archiveSearchDebounced.trim()) {
       const q = archiveSearchDebounced.toLowerCase();
@@ -227,7 +225,6 @@ export default function Inbox() {
     if (label) updates.label = label;
     for (const id of ids) {
       await supabase.from("emails").update(updates).eq("id", id);
-      // Also archive thread siblings
       const email = allEmails.find(e => e.id === id);
       if (email?.thread_id) {
         await supabase.from("emails")
@@ -245,10 +242,9 @@ export default function Inbox() {
   };
 
   const initiateArchive = (ids: string[]) => {
-    // Check if any of the target emails need labeling
     const needsLabel = ids.some(id => {
       const email = allEmails.find(e => e.id === id);
-      return !(email as any)?.label;
+      return !email?.label;
     });
     if (needsLabel) {
       setArchiveLabelTargetIds(ids);
@@ -260,6 +256,7 @@ export default function Inbox() {
 
   const bulkArchive = () => initiateArchive(Array.from(selectedIds));
 
+  // Delete: set status=deleted, deleted_at=now, keep in DB for trash
   const deleteEmails = async (ids: Set<string> | string[]) => {
     const idArray = Array.from(ids);
     if (idArray.length === 0) return;
@@ -279,15 +276,19 @@ export default function Inbox() {
     );
     const successfulIds = results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
     if (successfulIds.length > 0) {
-      queryClient.setQueriesData({ queryKey: ["emails"] }, (oldData: Email[] | undefined) =>
-        Array.isArray(oldData) ? oldData.filter((email) => !successfulIds.includes(email.id)) : oldData,
-      );
-      await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).in("id", successfulIds);
+      await supabase.from("emails").update({ status: "deleted", deleted_at: now } as any).in("id", successfulIds);
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
     }
     if (successfulIds.length > 0) toast.success(`Deleted ${successfulIds.length} email(s)`);
     else toast.error("Failed to delete email(s)");
     setSelectedIds(new Set());
     setDeleteConfirmOpen(false);
+  };
+
+  // Delete from detail view
+  const handleDeleteFromDetail = async (email: Email) => {
+    setThreadEmail(null);
+    await deleteEmails([email.id]);
   };
 
   const bulkDelete = () => deleteEmails(selectedIds);
@@ -330,10 +331,17 @@ export default function Inbox() {
     const now = new Date().toISOString();
     const spamIds = spamEmails.map(e => e.id);
     if (spamIds.length === 0) return;
-    await supabase.from("emails").update({ status: "deleted", resolved_at: now } as any).in("id", spamIds);
+    await supabase.from("emails").update({ status: "deleted", deleted_at: now } as any).in("id", spamIds);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success(`Deleted ${spamIds.length} spam emails`);
     setSpamDeleteAllOpen(false);
+  };
+
+  // Update label on archived email
+  const handleUpdateLabel = async (emailId: string, label: string | null) => {
+    await supabase.from("emails").update({ label } as any).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(label ? `Labeled as ${label}` : "Label removed");
   };
 
   // Get displayed emails for current tab
@@ -345,7 +353,6 @@ export default function Inbox() {
       case "spam": list = spamEmails; break;
       case "archive": list = archivedEmails; break;
     }
-    // Apply search (for non-archive tabs)
     if (mainTab !== "archive" && searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(e =>
@@ -397,253 +404,219 @@ export default function Inbox() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h1 className="text-2xl font-serif font-normal">Email</h1>
         <div className="flex items-center gap-2">
-          {showFollowUps ? (
-            <Button size="sm" variant="outline" className="rounded-xl text-xs" onClick={() => setShowFollowUps(false)}>← Back</Button>
-          ) : (
-            <>
-              <button onClick={() => setShowFollowUps(true)} className="text-xs text-muted-foreground hover:text-foreground font-sans underline">Follow-ups</button>
-              <Button size="icon" variant="outline" className="md:hidden rounded-xl min-h-[44px] min-w-[44px]" onClick={handleRefresh} disabled={refreshing}>
-                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
-              </Button>
-              <Button size="sm" className="rounded-xl gap-1 min-h-[44px]" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
-                <Plus size={14} /> Compose
-              </Button>
-            </>
-          )}
+          <Button size="icon" variant="outline" className="md:hidden rounded-xl min-h-[44px] min-w-[44px]" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          </Button>
+          <Button size="sm" className="rounded-xl gap-1 min-h-[44px]" onClick={() => { setComposeOpen(true); setComposeEmailRef(null); setComposeBody(SIGNATURE); }}>
+            <Plus size={14} /> Compose
+          </Button>
         </div>
       </div>
 
-      {showFollowUps ? (
-        <div className="floating-card">
-          <h2 className="text-lg font-serif mb-4">Scheduled Follow-ups</h2>
-          {followUps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No follow-ups scheduled.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl">
-              <table className="w-full text-sm font-sans min-w-[500px]">
-                <thead>
-                  <tr className="border-b bg-muted/40">
-                    <th className="text-left p-3 font-medium text-muted-foreground">Client</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Subject</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Scheduled</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {followUps.map(fu => (
-                    <tr key={fu.id} className="border-b last:border-b-0">
-                      <td className="p-3">{fu.client_name || fu.client_email}</td>
-                      <td className="p-3">{fu.subject}</td>
-                      <td className="p-3">{fu.scheduled_for ? format(new Date(fu.scheduled_for), "MMM d, yyyy") : "—"}</td>
-                      <td className="p-3">{fu.follow_up_number}</td>
-                      <td className="p-3">
-                        <Badge variant="secondary" className={`text-xs ${fu.cancelled ? "bg-red-100 text-red-700" : fu.sent ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                          {fu.cancelled ? "Cancelled" : fu.sent ? "Sent" : "Pending"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* 4 TABS */}
+      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit overflow-x-auto">
+        {TABS.map(tab => (
+          <button key={tab.key}
+            onClick={() => setMainTab(tab.key)}
+            className={`px-4 py-2 rounded-lg text-xs font-sans font-semibold tracking-wide transition-colors min-h-[40px] whitespace-nowrap flex items-center gap-1.5 ${
+              mainTab === tab.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}>
+            {tab.label}
+            {tabCounts[tab.key] > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{tabCounts[tab.key]}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Search bar (non-archive tabs) */}
+      {mainTab !== "archive" && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search emails..." className="rounded-xl pl-9 h-9 text-sm" />
+          </div>
+          {mainTab === "spam" && spamEmails.length > 0 && (
+            <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setSpamDeleteAllOpen(true)}>
+              <Trash2 size={12} /> Delete All Spam
+            </Button>
           )}
         </div>
-      ) : (
-        <>
-          {/* 4 TABS */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit overflow-x-auto">
-            {TABS.map(tab => (
-              <button key={tab.key}
-                onClick={() => setMainTab(tab.key)}
-                className={`px-4 py-2 rounded-lg text-xs font-sans font-semibold tracking-wide transition-colors min-h-[40px] whitespace-nowrap flex items-center gap-1.5 ${
-                  mainTab === tab.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+      )}
+
+      {/* Archive filter bar */}
+      {mainTab === "archive" && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            {[
+              { label: "Quoted", active: archiveFilterQuoted, toggle: () => setArchiveFilterQuoted(v => !v) },
+              { label: "Has Attachments", active: archiveFilterAttachments, toggle: () => setArchiveFilterAttachments(v => !v) },
+              { label: "Receipt", active: archiveFilterReceipt, toggle: () => setArchiveFilterReceipt(v => !v) },
+              { label: "Other", active: archiveFilterOther, toggle: () => setArchiveFilterOther(v => !v) },
+            ].map(pill => (
+              <button key={pill.label} onClick={pill.toggle}
+                className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
+                  pill.active ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}>
-                {tab.label}
-                {tabCounts[tab.key] > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{tabCounts[tab.key]}</span>
-                )}
+                {pill.label}
               </button>
             ))}
           </div>
+          <div className="relative flex-1 min-w-[180px] max-w-[320px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={archiveSearchQuery} onChange={e => setArchiveSearchQuery(e.target.value)} placeholder="Search archived emails..." className="rounded-xl pl-9 h-9 text-sm" />
+          </div>
+        </div>
+      )}
 
-          {/* Search bar (non-archive tabs) */}
-          {mainTab !== "archive" && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="relative flex-1 min-w-[180px] max-w-[320px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search emails..." className="rounded-xl pl-9 h-9 text-sm" />
-              </div>
-              {mainTab === "spam" && spamEmails.length > 0 && (
-                <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setSpamDeleteAllOpen(true)}>
-                  <Trash2 size={12} /> Delete All Spam
-                </Button>
-              )}
+      {/* Email list */}
+      {isLoading ? (
+        <div className="text-muted-foreground text-sm font-sans py-8 text-center">Loading emails...</div>
+      ) : displayedEmails.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Mail size={32} className="mx-auto mb-2 opacity-50" />
+          <p className="font-sans text-sm">
+            {mainTab === "needs_reply" ? "No emails need your reply." : mainTab === "waiting" ? "No emails waiting on them." : mainTab === "spam" ? "No spam emails." : "No archived emails."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {/* Select All header */}
+          <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20 rounded-t-xl">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                onCheckedChange={handleSelectAll}
+                className="h-4 w-4"
+              />
             </div>
-          )}
-
-          {/* Archive filter bar */}
-          {mainTab === "archive" && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-                {[
-                  { label: "Quoted", active: archiveFilterQuoted, toggle: () => setArchiveFilterQuoted(v => !v) },
-                  { label: "Has Attachments", active: archiveFilterAttachments, toggle: () => setArchiveFilterAttachments(v => !v) },
-                  { label: "Receipt", active: archiveFilterReceipt, toggle: () => setArchiveFilterReceipt(v => !v) },
-                  { label: "Other", active: archiveFilterOther, toggle: () => setArchiveFilterOther(v => !v) },
-                ].map(pill => (
-                  <button key={pill.label} onClick={pill.toggle}
-                    className={`px-3 py-1.5 rounded-full text-xs font-sans font-medium transition-colors whitespace-nowrap ${
-                      pill.active ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}>
-                    {pill.label}
-                  </button>
-                ))}
-              </div>
-              <div className="relative flex-1 min-w-[180px] max-w-[320px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input value={archiveSearchQuery} onChange={e => setArchiveSearchQuery(e.target.value)} placeholder="Search archived emails..." className="rounded-xl pl-9 h-9 text-sm" />
-              </div>
-            </div>
-          )}
-
-          {/* Email list */}
-          {isLoading ? (
-            <div className="text-muted-foreground text-sm font-sans py-8 text-center">Loading emails...</div>
-          ) : displayedEmails.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Mail size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="font-sans text-sm">
-                {mainTab === "needs_reply" ? "No emails need your reply." : mainTab === "waiting" ? "No emails waiting on them." : mainTab === "spam" ? "No spam emails." : "No archived emails."}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {/* Select All header */}
-              <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20 rounded-t-xl">
+            <span className="text-xs font-sans text-muted-foreground font-medium flex-1">
+              {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
+            </span>
+            <Button size="sm" variant="outline" className="hidden md:inline-flex rounded-xl gap-1.5 text-xs h-8" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
+            </Button>
+          </div>
+          {displayedEmails.map(email => (
+            <div key={email.id}
+              className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
+              onClick={() => handleOpenEmail(email)}>
+              <div className="flex items-center gap-3">
+                {/* Unread dot + checkbox */}
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
-                    onCheckedChange={handleSelectAll}
-                    className="h-4 w-4"
-                  />
-                </div>
-                <span className="text-xs font-sans text-muted-foreground font-medium flex-1">
-                  {someVisibleSelected ? `${selectedIds.size} selected` : "Select all"}
-                </span>
-                <Button size="sm" variant="outline" className="hidden md:inline-flex rounded-xl gap-1.5 text-xs h-8" onClick={handleRefresh} disabled={refreshing}>
-                  <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
-                </Button>
-              </div>
-              {displayedEmails.map(email => (
-                <div key={email.id}
-                  className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
-                  onClick={() => handleOpenEmail(email)}>
-                  <div className="flex items-center gap-3">
-                    {/* Unread dot + checkbox */}
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 flex-shrink-0">
-                        {!email.is_read && mainTab === "needs_reply" && (
-                          <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
-                        )}
-                      </div>
-                      <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
-                        <Checkbox checked={selectedIds.has(email.id)} className="h-4 w-4" />
-                      </div>
-                    </div>
-                    {/* Flame */}
-                    <div className="w-5 flex-shrink-0 flex items-center justify-center">
-                      {email.is_urgent ? (
-                        <button onClick={(e) => toggleUrgent(e, email.id)} className="hover:scale-110 transition-transform" title="Remove flag">🔥</button>
-                      ) : (
-                        <button onClick={(e) => toggleUrgent(e, email.id)} className="opacity-0 hover:opacity-50 transition-opacity text-muted-foreground" title="Flag as urgent">
-                          <Flame size={14} />
-                        </button>
-                      )}
-                    </div>
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 flex items-center gap-3">
-                      <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
-                        {displaySenderName(email.from_name, email.from_email)}
-                      </span>
-                      <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-                        {email.subject}
-                      </span>
-                    </div>
-                    {/* Not Spam button (spam tab only) */}
-                    {mainTab === "spam" && (
-                      <Button size="sm" variant="outline" className="rounded-xl text-[10px] h-7 gap-1 shrink-0" onClick={(e) => handleNotSpam(e, email.id)}>
-                        <ShieldOff size={10} /> Not Spam
-                      </Button>
+                  <div className="w-2 flex-shrink-0">
+                    {!email.is_read && mainTab === "needs_reply" && (
+                      <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
                     )}
-                    {/* Timestamp */}
-                    <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(email.created_at)}</span>
+                  </div>
+                  <div onClick={(e) => { e.stopPropagation(); toggleSelected(email.id); }}>
+                    <Checkbox checked={selectedIds.has(email.id)} className="h-4 w-4" />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Bulk action bar */}
-          {selectedIds.size > 0 && (
-            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-sans font-medium">✓ {selectedIds.size} selected</span>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkArchive}>
-                <Archive size={12} /> Archive
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkToggleUrgent}>
-                <Flame size={12} /> 🔥 Flag
-              </Button>
-              <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setDeleteConfirmOpen(true)}>
-                <Trash2 size={12} /> Delete
-              </Button>
-              <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>Clear</button>
-            </div>
-          )}
-
-          {/* Delete Confirmation */}
-          <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete selected email(s)?</AlertDialogTitle>
-                <AlertDialogDescription>Are you sure? This cannot be undone.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Spam Delete All Confirmation */}
-          <AlertDialog open={spamDeleteAllOpen} onOpenChange={setSpamDeleteAllOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete all spam emails?</AlertDialogTitle>
-                <AlertDialogDescription>This cannot be undone. All {spamEmails.length} spam emails will be deleted.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteAllSpam} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete All</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Archive Label Prompt */}
-          <Dialog open={archiveLabelOpen} onOpenChange={(open) => { if (!open) { setArchiveLabelOpen(false); setArchiveLabelTargetIds([]); } }}>
-            <DialogContent className="max-w-sm">
-              <DialogHeader>
-                <DialogTitle className="font-serif">Label before archiving?</DialogTitle>
-              </DialogHeader>
-              <div className="flex items-center gap-3 justify-center py-4">
-                <Button variant="outline" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, "receipt")}>Receipt</Button>
-                <Button variant="outline" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, "other")}>Other</Button>
-                <Button variant="ghost" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, null)}>Skip</Button>
+                {/* Flame */}
+                <div className="w-5 flex-shrink-0 flex items-center justify-center">
+                  {email.is_urgent ? (
+                    <button onClick={(e) => toggleUrgent(e, email.id)} className="hover:scale-110 transition-transform" title="Remove flag">🔥</button>
+                  ) : (
+                    <button onClick={(e) => toggleUrgent(e, email.id)} className="opacity-0 hover:opacity-50 transition-opacity text-muted-foreground" title="Flag as urgent">
+                      <Flame size={14} />
+                    </button>
+                  )}
+                </div>
+                {/* Content */}
+                <div className="flex-1 min-w-0 flex items-center gap-3">
+                  <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
+                    {displaySenderName(email.from_name, email.from_email)}
+                  </span>
+                  <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                    {email.subject}
+                  </span>
+                  {/* Archive tab: label pill */}
+                  {mainTab === "archive" && email.label && (
+                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
+                      {email.label}
+                    </span>
+                  )}
+                </div>
+                {/* Auto-ack pill (needs_reply tab only) */}
+                {mainTab === "needs_reply" && email.holding_sent_at && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-sans font-medium px-2 py-0.5 rounded-full shrink-0 auto-ack-pill">
+                    <CheckCircle size={10} />
+                    Auto-ack sent
+                  </span>
+                )}
+                {/* Not Spam button (spam tab only) */}
+                {mainTab === "spam" && (
+                  <Button size="sm" variant="outline" className="rounded-xl text-[10px] h-7 gap-1 shrink-0" onClick={(e) => handleNotSpam(e, email.id)}>
+                    <ShieldOff size={10} /> Not Spam
+                  </Button>
+                )}
+                {/* Timestamp */}
+                <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(email.created_at)}</span>
               </div>
-            </DialogContent>
-          </Dialog>
-        </>
+            </div>
+          ))}
+        </div>
       )}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-sans font-medium">✓ {selectedIds.size} selected</span>
+          <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkArchive}>
+            <Archive size={12} /> Archive
+          </Button>
+          <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1" onClick={bulkToggleUrgent}>
+            <Flame size={12} /> 🔥 Flag
+          </Button>
+          <Button size="sm" variant="destructive" className="rounded-xl text-xs gap-1" onClick={() => setDeleteConfirmOpen(true)}>
+            <Trash2 size={12} /> Delete
+          </Button>
+          <button className="text-xs text-muted-foreground hover:text-foreground font-sans underline" onClick={() => setSelectedIds(new Set())}>Clear</button>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected email(s)?</AlertDialogTitle>
+            <AlertDialogDescription>Emails will be moved to Trash.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Spam Delete All Confirmation */}
+      <AlertDialog open={spamDeleteAllOpen} onOpenChange={setSpamDeleteAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all spam emails?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone. All {spamEmails.length} spam emails will be deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAllSpam} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete All</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Archive Label Prompt */}
+      <Dialog open={archiveLabelOpen} onOpenChange={(open) => { if (!open) { setArchiveLabelOpen(false); setArchiveLabelTargetIds([]); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Label before archiving?</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-3 justify-center py-4">
+            <Button variant="outline" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, "receipt")}>Receipt</Button>
+            <Button variant="outline" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, "other")}>Other</Button>
+            <Button variant="ghost" className="rounded-xl" onClick={() => archiveWithLabel(archiveLabelTargetIds, null)}>Skip</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Thread View */}
       <ThreadView
@@ -652,6 +625,8 @@ export default function Inbox() {
         onOpenDraft={(e) => { setThreadEmail(null); setTimeout(() => setDraftEmail(e), 150); }}
         onNavigateToEmail={navigateToEmailById}
         onArchive={(email) => initiateArchive([email.id])}
+        onDelete={handleDeleteFromDetail}
+        onUpdateLabel={handleUpdateLabel}
       />
 
       {/* Draft Editor */}
