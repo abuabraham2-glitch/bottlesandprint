@@ -19,6 +19,7 @@ import Inbox from "@/pages/Inbox";
 import CallsPage from "@/pages/Calls";
 import Stats from "@/pages/Stats";
 import TrashPage from "@/pages/Trash";
+import QuoteBuilder from "@/pages/QuoteBuilder";
 
 import Login from "@/pages/Login";
 import NotFound from "./pages/NotFound";
@@ -58,6 +59,7 @@ function ProtectedApp() {
         <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/calls" element={<CallsPage />} />
+        <Route path="/quote-builder" element={<QuoteBuilder />} />
         <Route path="/trash" element={<TrashPage />} />
         <Route path="/stats" element={<Stats />} />
         <Route path="/clients" element={<Clients />} />
