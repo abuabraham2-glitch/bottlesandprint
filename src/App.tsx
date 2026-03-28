@@ -19,6 +19,7 @@ import Inbox from "@/pages/Inbox";
 import CallsPage from "@/pages/Calls";
 import Stats from "@/pages/Stats";
 import TrashPage from "@/pages/Trash";
+import QuoteBuilder from "@/pages/QuoteBuilder";
 
 import Login from "@/pages/Login";
 import NotFound from "./pages/NotFound";
