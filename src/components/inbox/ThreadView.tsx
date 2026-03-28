@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Email } from "@/lib/emailData";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2 } from "lucide-react";
+import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -13,6 +13,7 @@ import {
   displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
   formatTimeFull, parseAttachments, getAttachmentUrl,
 } from "./InboxHelpers";
+import { format } from "date-fns";
 
 interface ThreadViewProps {
   email: Email | null;
@@ -26,6 +27,7 @@ interface ThreadViewProps {
 
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel }: ThreadViewProps) {
   const queryClient = useQueryClient();
+  const [markingQuoted, setMarkingQuoted] = useState(false);
 
   if (!email) return null;
 
@@ -46,11 +48,25 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     }
   };
 
+  const handleMarkAsQuoted = async () => {
+    setMarkingQuoted(true);
+    try {
+      await supabase.from("emails").update({ quoted_at: new Date().toISOString() } as any).eq("id", email.id);
+      await queryClient.invalidateQueries({ queryKey: ["emails"] });
+      toast.success("Marked as quoted");
+    } catch {
+      toast.error("Failed to mark as quoted");
+    }
+    setMarkingQuoted(false);
+  };
+
   const labelOptions = [
     { value: "receipt", label: "Receipt" },
     { value: "other", label: "Other" },
     { value: null, label: "Clear" },
   ];
+
+  const quotedAt = (email as any).quoted_at;
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
@@ -165,6 +181,19 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
             <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
               dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
           </div>
+        </div>
+
+        {/* Bottom action bar with Mark as Quoted */}
+        <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
+          {quotedAt ? (
+            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[36px] bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-300 cursor-default" disabled>
+              <BookCheck size={12} /> Quoted ✓ {format(new Date(quotedAt), "MMM d")}
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[36px]" onClick={handleMarkAsQuoted} disabled={markingQuoted}>
+              <BookCheck size={12} /> Mark as Quoted
+            </Button>
+          )}
         </div>
       </SheetContent>
     </Sheet>
