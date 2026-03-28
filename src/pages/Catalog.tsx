@@ -52,7 +52,7 @@ function ArtworkSlot({ label, url, uploading, onUpload, onRemove, fileInputRef }
       <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.ai,.eps,.svg"
         onChange={e => { if (e.target.files?.[0]) onUpload(e.target.files[0]); e.target.value = ''; }} />
       {url ? (
-        <div className="mt-1 space-y-1.5">
+        <div className="mt-1 space-y-2">
           <div className="border rounded-[9px] p-2 bg-background">
             {isImage(url) ? (
               <img src={url} alt="Artwork" className="max-h-28 rounded object-contain mx-auto" />
@@ -60,11 +60,11 @@ function ArtworkSlot({ label, url, uploading, onUpload, onRemove, fileInputRef }
               <div className="flex items-center gap-2 text-xs"><Paperclip size={14} className="text-primary" /><span className="truncate">{url.split('/').pop()}</span></div>
             )}
           </div>
-          <div className="flex gap-1.5">
-            <Button variant="outline" size="sm" onClick={() => window.open(url, '_blank')} className="gap-1 rounded-[9px] text-[10px] h-7"><ExternalLink size={10} />View</Button>
-            <Button variant="outline" size="sm" asChild className="gap-1 rounded-[9px] text-[10px] h-7"><a href={url} download><Download size={10} />Download</a></Button>
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1 rounded-[9px] text-[10px] h-7"><Upload size={10} />Replace</Button>
-            <Button variant="ghost" size="sm" onClick={onRemove} className="gap-1 text-destructive rounded-[9px] text-[10px] h-7"><X size={10} />Remove</Button>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => window.open(url, '_blank')} className="gap-1 rounded-[9px] text-[10px] h-7 w-full"><ExternalLink size={10} />View</Button>
+            <Button variant="outline" size="sm" asChild className="gap-1 rounded-[9px] text-[10px] h-7 w-full"><a href={url} download><Download size={10} />Download</a></Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1 rounded-[9px] text-[10px] h-7 w-full"><Upload size={10} />Replace</Button>
+            <Button variant="ghost" size="sm" onClick={onRemove} className="gap-1 text-destructive rounded-[9px] text-[10px] h-7 w-full"><X size={10} />Remove</Button>
           </div>
         </div>
       ) : (
@@ -82,7 +82,6 @@ function ArtworkSlot({ label, url, uploading, onUpload, onRemove, fileInputRef }
     </div>
   );
 }
-
 export default function Catalog() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
