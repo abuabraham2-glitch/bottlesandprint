@@ -59,6 +59,7 @@ function ProtectedApp() {
         <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/calls" element={<CallsPage />} />
+        <Route path="/quote-builder" element={<QuoteBuilder />} />
         <Route path="/trash" element={<TrashPage />} />
         <Route path="/stats" element={<Stats />} />
         <Route path="/clients" element={<Clients />} />

@@ -18,6 +18,7 @@ const navGroup1 = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/orders", icon: Package, label: "Orders" },
   { to: "/inbox", icon: Mail, label: "Inbox" },
+  { to: "/quote-builder", icon: FilePenLine, label: "Quote Builder" },
   { to: "/calls", icon: PhoneCall, label: "Calls" },
   { to: "/trash", icon: Trash2, label: "Trash" },
 ];
