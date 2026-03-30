@@ -232,17 +232,62 @@ export default function Calls() {
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-serif font-normal">Calls</h1>
-        <Button
-          size="sm"
-          className="rounded-xl gap-1.5 text-xs"
-          onClick={() => {
-            setOutboundNumber("");
-            setOutboundName("");
-            setOutboundOpen(true);
-          }}
-        >
-          <Phone size={14} /> + New Call
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl gap-1.5 text-xs"
+                disabled={clearingResolved || resolvedCalls.length === 0}
+              >
+                <Trash2 size={14} /> Clear Resolved
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear resolved calls?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Mark all resolved calls as archived? This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setClearingResolved(true);
+                    try {
+                      const { error } = await supabase
+                        .from("calls")
+                        .update({ status: "archived" } as any)
+                        .eq("status", "resolved");
+                      if (error) throw error;
+                      queryClient.invalidateQueries({ queryKey: ["calls"] });
+                      toast.success("Resolved calls archived");
+                    } catch {
+                      toast.error("Failed to archive calls");
+                    } finally {
+                      setClearingResolved(false);
+                    }
+                  }}
+                >
+                  Archive All
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button
+            size="sm"
+            className="rounded-xl gap-1.5 text-xs"
+            onClick={() => {
+              setOutboundNumber("");
+              setOutboundName("");
+              setOutboundOpen(true);
+            }}
+          >
+            <Phone size={14} /> + New Call
+          </Button>
+        </div>
       </div>
 
       {/* Status tabs */}
