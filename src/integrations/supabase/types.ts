@@ -359,6 +359,7 @@ export type Database = {
           from_name: string | null
           gmail_id: string | null
           holding_sent_at: string | null
+          html_body: string | null
           id: string
           incoming_summary: string | null
           is_read: boolean | null
@@ -398,6 +399,7 @@ export type Database = {
           from_name?: string | null
           gmail_id?: string | null
           holding_sent_at?: string | null
+          html_body?: string | null
           id?: string
           incoming_summary?: string | null
           is_read?: boolean | null
@@ -437,6 +439,7 @@ export type Database = {
           from_name?: string | null
           gmail_id?: string | null
           holding_sent_at?: string | null
+          html_body?: string | null
           id?: string
           incoming_summary?: string | null
           is_read?: boolean | null
