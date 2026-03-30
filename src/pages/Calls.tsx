@@ -53,6 +53,9 @@ export default function Calls() {
   const [sendingQuote, setSendingQuote] = useState(false);
   const [editableEmail, setEditableEmail] = useState("");
   const [quoteAttachments, setQuoteAttachments] = useState<AttachedFile[]>([]);
+  const [outboundOpen, setOutboundOpen] = useState(false);
+  const [outboundNumber, setOutboundNumber] = useState("");
+  const [outboundName, setOutboundName] = useState("");
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Sync editable email when selectedCall changes
