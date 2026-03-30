@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
+import { OutboundCallModal } from "@/components/OutboundCallModal";
 
 
 type StatusTab = "pending" | "resolved";
