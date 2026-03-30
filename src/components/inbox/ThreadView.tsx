@@ -151,7 +151,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
 
           {/* Alert banners */}
           <AlertBanners email={email} onNavigateToEmail={onNavigateToEmail} />
-          <EmailCrossMatchBanner email={email} onClose={onClose} />
+          
 
           {/* Attachments */}
           {atts.length > 0 && (
