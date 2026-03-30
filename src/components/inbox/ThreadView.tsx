@@ -178,8 +178,26 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
           {/* Email body */}
           <div>
             <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Email Body</span>
-            <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
-              dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
+            {email.body && email.body.trim() ? (
+              <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
+                dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body)) }} />
+            ) : (email as any).html_body ? (
+              <iframe
+                srcDoc={(email as any).html_body}
+                title="Email content"
+                className="w-full bg-white rounded-xl border min-h-[300px]"
+                sandbox="allow-same-origin"
+                style={{ border: 'none' }}
+                onLoad={(e) => {
+                  const iframe = e.currentTarget;
+                  if (iframe.contentDocument?.body) {
+                    iframe.style.height = iframe.contentDocument.body.scrollHeight + 32 + 'px';
+                  }
+                }}
+              />
+            ) : (
+              <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans text-muted-foreground italic">No content available</div>
+            )}
           </div>
         </div>
 
