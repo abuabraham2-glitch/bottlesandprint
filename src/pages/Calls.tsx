@@ -563,6 +563,15 @@ export default function Calls() {
                   </div>
                 )}
 
+                {/* Related Emails */}
+                <RelatedEmails
+                  email={selectedCall.email}
+                  onNavigateToEmail={(emailId) => {
+                    setSelectedCall(null);
+                    navigate("/inbox", { state: { openEmailId: emailId } });
+                  }}
+                />
+
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-2 border-t">
                   {selectedCall.status !== "resolved" ? (
