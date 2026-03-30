@@ -57,6 +57,7 @@ export default function Calls() {
   const [outboundOpen, setOutboundOpen] = useState(false);
   const [outboundNumber, setOutboundNumber] = useState("");
   const [outboundName, setOutboundName] = useState("");
+  const [clearingResolved, setClearingResolved] = useState(false);
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Sync editable email when selectedCall changes
