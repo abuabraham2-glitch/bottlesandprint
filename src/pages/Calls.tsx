@@ -228,7 +228,20 @@ export default function Calls() {
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
-      <h1 className="text-2xl font-serif font-normal">Calls</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-serif font-normal">Calls</h1>
+        <Button
+          size="sm"
+          className="rounded-xl gap-1.5 text-xs"
+          onClick={() => {
+            setOutboundNumber("");
+            setOutboundName("");
+            setOutboundOpen(true);
+          }}
+        >
+          <Phone size={14} /> + New Call
+        </Button>
+      </div>
 
       {/* Status tabs */}
       <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
