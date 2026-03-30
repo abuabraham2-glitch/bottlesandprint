@@ -155,8 +155,13 @@ export function useCalls(filter?: { eq?: string; neq?: string }) {
     queryKey: ["calls", filter],
     queryFn: async () => {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      let query = supabase.from("calls").select("*").order("created_at", { ascending: false });
-      if (filter?.eq) query = query.eq("status", filter.eq);
+      let query = supabase.from("calls").select("*").neq("status", "archived").order("created_at", { ascending: false });
+      if (filter?.eq) {
+        query = query.eq("status", filter.eq);
+        // For resolved tab, hide calls resolved more than 30 days ago
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte("resolved_at", thirtyDaysAgo);
+      }
       if (filter?.neq) {
         query = query.neq("status", filter.neq).gte("created_at", sevenDaysAgo);
       }

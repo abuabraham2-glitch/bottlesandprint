@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCalls, useUpdateCall, Call } from "@/lib/emailData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Mail, CheckCircle, PhoneCall, AlertTriangle, Loader2, Send } from "lucide-react";
+import { Phone, Mail, CheckCircle, PhoneCall, AlertTriangle, Loader2, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { OutboundCallModal } from "@/components/OutboundCallModal";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { RelatedEmails } from "@/components/calls/RelatedEmails";
 
 
 type StatusTab = "pending" | "resolved";
@@ -56,6 +58,7 @@ export default function Calls() {
   const [outboundOpen, setOutboundOpen] = useState(false);
   const [outboundNumber, setOutboundNumber] = useState("");
   const [outboundName, setOutboundName] = useState("");
+  const [clearingResolved, setClearingResolved] = useState(false);
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Sync editable email when selectedCall changes
@@ -230,17 +233,62 @@ export default function Calls() {
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-serif font-normal">Calls</h1>
-        <Button
-          size="sm"
-          className="rounded-xl gap-1.5 text-xs"
-          onClick={() => {
-            setOutboundNumber("");
-            setOutboundName("");
-            setOutboundOpen(true);
-          }}
-        >
-          <Phone size={14} /> + New Call
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl gap-1.5 text-xs"
+                disabled={clearingResolved || resolvedCalls.length === 0}
+              >
+                <Trash2 size={14} /> Clear Resolved
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear resolved calls?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Mark all resolved calls as archived? This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setClearingResolved(true);
+                    try {
+                      const { error } = await supabase
+                        .from("calls")
+                        .update({ status: "archived" } as any)
+                        .eq("status", "resolved");
+                      if (error) throw error;
+                      queryClient.invalidateQueries({ queryKey: ["calls"] });
+                      toast.success("Resolved calls archived");
+                    } catch {
+                      toast.error("Failed to archive calls");
+                    } finally {
+                      setClearingResolved(false);
+                    }
+                  }}
+                >
+                  Archive All
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button
+            size="sm"
+            className="rounded-xl gap-1.5 text-xs"
+            onClick={() => {
+              setOutboundNumber("");
+              setOutboundName("");
+              setOutboundOpen(true);
+            }}
+          >
+            <Phone size={14} /> + New Call
+          </Button>
+        </div>
       </div>
 
       {/* Status tabs */}
@@ -515,6 +563,15 @@ export default function Calls() {
                     <p className="text-sm font-sans whitespace-pre-wrap bg-muted/50 rounded-xl p-4 max-h-60 overflow-y-auto">{selectedCall.transcript}</p>
                   </div>
                 )}
+
+                {/* Related Emails */}
+                <RelatedEmails
+                  email={selectedCall.email}
+                  onNavigateToEmail={(emailId) => {
+                    setSelectedCall(null);
+                    navigate("/inbox", { state: { openEmailId: emailId } });
+                  }}
+                />
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-2 border-t">
