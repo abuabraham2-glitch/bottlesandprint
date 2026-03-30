@@ -107,19 +107,6 @@ export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
         );
       })()}
 
-      {/* Same company alert */}
-      {e.same_company_alert && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans" style={{ backgroundColor: '#DBEAFE', border: '1px solid #BFDBFE' }}>
-          <UsersRound size={16} className="shrink-0" style={{ color: '#2563EB' }} />
-          <span className="flex-1" style={{ color: '#1E3A5F' }}>{e.same_company_alert}</span>
-          {e.same_company_link_id && (
-            <button className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap" style={{ backgroundColor: '#2563EB', color: '#fff' }}
-              onClick={() => onNavigateToEmail(e.same_company_link_id)}>
-              View <ArrowRight size={12} />
-            </button>
-          )}
-        </div>
-      )}
     </>
   );
 }
