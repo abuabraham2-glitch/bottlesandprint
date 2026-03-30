@@ -533,6 +533,12 @@ export default function Calls() {
           )}
         </SheetContent>
       </Sheet>
+      <OutboundCallModal
+        open={outboundOpen}
+        onOpenChange={setOutboundOpen}
+        prefillNumber={outboundNumber}
+        prefillName={outboundName}
+      />
     </div>
   );
 }
