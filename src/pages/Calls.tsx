@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCalls, useUpdateCall, Call } from "@/lib/emailData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Mail, CheckCircle, PhoneCall, AlertTriangle, Loader2, Send } from "lucide-react";
+import { Phone, Mail, CheckCircle, PhoneCall, AlertTriangle, Loader2, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { OutboundCallModal } from "@/components/OutboundCallModal";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 type StatusTab = "pending" | "resolved";
