@@ -388,9 +388,17 @@ export default function Calls() {
                 {/* Contact info */}
                 <div className="flex items-center gap-4">
                   {selectedCall.phone_number && (
-                    <a href={`tel:${selectedCall.phone_number}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline font-sans">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOutboundNumber(selectedCall.phone_number || "");
+                        setOutboundName(selectedCall.caller_name || "");
+                        setOutboundOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 text-sm text-primary hover:underline font-sans"
+                    >
                       <Phone size={14} /> {selectedCall.phone_number}
-                    </a>
+                    </button>
                   )}
                   {selectedCall.email && (
                     <button
