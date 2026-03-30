@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
+import { OutboundCallModal } from "@/components/OutboundCallModal";
 
 
 type StatusTab = "pending" | "resolved";
@@ -52,6 +53,9 @@ export default function Calls() {
   const [sendingQuote, setSendingQuote] = useState(false);
   const [editableEmail, setEditableEmail] = useState("");
   const [quoteAttachments, setQuoteAttachments] = useState<AttachedFile[]>([]);
+  const [outboundOpen, setOutboundOpen] = useState(false);
+  const [outboundNumber, setOutboundNumber] = useState("");
+  const [outboundName, setOutboundName] = useState("");
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Sync editable email when selectedCall changes
@@ -224,7 +228,20 @@ export default function Calls() {
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
-      <h1 className="text-2xl font-serif font-normal">Calls</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-serif font-normal">Calls</h1>
+        <Button
+          size="sm"
+          className="rounded-xl gap-1.5 text-xs"
+          onClick={() => {
+            setOutboundNumber("");
+            setOutboundName("");
+            setOutboundOpen(true);
+          }}
+        >
+          <Phone size={14} /> + New Call
+        </Button>
+      </div>
 
       {/* Status tabs */}
       <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
@@ -371,9 +388,17 @@ export default function Calls() {
                 {/* Contact info */}
                 <div className="flex items-center gap-4">
                   {selectedCall.phone_number && (
-                    <a href={`tel:${selectedCall.phone_number}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline font-sans">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOutboundNumber(selectedCall.phone_number || "");
+                        setOutboundName(selectedCall.caller_name || "");
+                        setOutboundOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 text-sm text-primary hover:underline font-sans"
+                    >
                       <Phone size={14} /> {selectedCall.phone_number}
-                    </a>
+                    </button>
                   )}
                   {selectedCall.email && (
                     <button
@@ -508,6 +533,12 @@ export default function Calls() {
           )}
         </SheetContent>
       </Sheet>
+      <OutboundCallModal
+        open={outboundOpen}
+        onOpenChange={setOutboundOpen}
+        prefillNumber={outboundNumber}
+        prefillName={outboundName}
+      />
     </div>
   );
 }
