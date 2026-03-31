@@ -84,6 +84,7 @@ export type Database = {
         Row: {
           action_items: Json | null
           call_reason: string | null
+          call_sid: string | null
           caller_name: string | null
           category: string | null
           company_name: string | null
@@ -107,6 +108,7 @@ export type Database = {
         Insert: {
           action_items?: Json | null
           call_reason?: string | null
+          call_sid?: string | null
           caller_name?: string | null
           category?: string | null
           company_name?: string | null
@@ -130,6 +132,7 @@ export type Database = {
         Update: {
           action_items?: Json | null
           call_reason?: string | null
+          call_sid?: string | null
           caller_name?: string | null
           category?: string | null
           company_name?: string | null
