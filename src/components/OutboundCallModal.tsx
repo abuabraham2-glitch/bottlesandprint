@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ export function OutboundCallModal({ open, onOpenChange, prefillNumber = "", pref
   const deviceRef = useRef<Device | null>(null);
   const activeCallRef = useRef<Call | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync prefill when modal opens
   useEffect(() => {
@@ -164,12 +165,20 @@ export function OutboundCallModal({ open, onOpenChange, prefillNumber = "", pref
           {(callState === "ready" || callState === "connecting") && (
             <>
               <Input
+                ref={inputRef}
                 type="tel"
                 placeholder="+1 (555) 123-4567"
                 value={phoneNumber}
                 onChange={e => setPhoneNumber(e.target.value)}
                 className="rounded-xl h-11 text-base"
                 disabled={callState === "connecting"}
+                autoFocus
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === "Enter" && callState === "ready" && !loading) {
+                    e.preventDefault();
+                    handleCall();
+                  }
+                }}
               />
               <div className="flex gap-2">
                 <Button

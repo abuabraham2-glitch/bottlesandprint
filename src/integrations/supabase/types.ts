@@ -82,6 +82,7 @@ export type Database = {
       }
       calls: {
         Row: {
+          action_items: Json | null
           call_reason: string | null
           caller_name: string | null
           category: string | null
@@ -90,6 +91,7 @@ export type Database = {
           cross_match_note: string | null
           draft_response: string | null
           email: string | null
+          has_quote_request: boolean | null
           holding_sent_at: string | null
           id: string
           is_existing_client: boolean | null
@@ -103,6 +105,7 @@ export type Database = {
           transcript: string | null
         }
         Insert: {
+          action_items?: Json | null
           call_reason?: string | null
           caller_name?: string | null
           category?: string | null
@@ -111,6 +114,7 @@ export type Database = {
           cross_match_note?: string | null
           draft_response?: string | null
           email?: string | null
+          has_quote_request?: boolean | null
           holding_sent_at?: string | null
           id?: string
           is_existing_client?: boolean | null
@@ -124,6 +128,7 @@ export type Database = {
           transcript?: string | null
         }
         Update: {
+          action_items?: Json | null
           call_reason?: string | null
           caller_name?: string | null
           category?: string | null
@@ -132,6 +137,7 @@ export type Database = {
           cross_match_note?: string | null
           draft_response?: string | null
           email?: string | null
+          has_quote_request?: boolean | null
           holding_sent_at?: string | null
           id?: string
           is_existing_client?: boolean | null
