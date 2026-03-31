@@ -232,7 +232,8 @@ export async function sendEmailViaWebhook(params: {
   original_draft?: string;
 }) {
   const { original_draft, ...rest } = params;
-  const action = params.gmail_id ? "send_email" : "send_new";
+  const hasRealGmailId = params.gmail_id && !params.gmail_id.startsWith("manual-");
+  const action = hasRealGmailId ? "send_email" : "send_new";
   const body: any = { action, ...rest, attachments: params.attachments ?? [] };
   // Only include original_draft for send_email actions (not send_new)
   if (original_draft) body.original_draft = original_draft;
