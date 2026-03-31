@@ -165,12 +165,20 @@ export function OutboundCallModal({ open, onOpenChange, prefillNumber = "", pref
           {(callState === "ready" || callState === "connecting") && (
             <>
               <Input
+                ref={inputRef}
                 type="tel"
                 placeholder="+1 (555) 123-4567"
                 value={phoneNumber}
                 onChange={e => setPhoneNumber(e.target.value)}
                 className="rounded-xl h-11 text-base"
                 disabled={callState === "connecting"}
+                autoFocus
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === "Enter" && callState === "ready" && !loading) {
+                    e.preventDefault();
+                    handleCall();
+                  }
+                }}
               />
               <div className="flex gap-2">
                 <Button
