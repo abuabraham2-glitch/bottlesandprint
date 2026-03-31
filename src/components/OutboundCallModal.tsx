@@ -152,8 +152,12 @@ export function OutboundCallModal({ open, onOpenChange, prefillNumber = "", pref
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[400px]">
+    <Dialog open={open} onOpenChange={(v) => { if (!v && (callState === "live" || callState === "connecting")) return; handleClose(); }}>
+      <DialogContent
+        className="sm:max-w-[400px]"
+        onPointerDownOutside={(e) => { if (callState === "live" || callState === "connecting") e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (callState === "live" || callState === "connecting") e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle className="font-serif">
             {callState === "ready" || callState === "connecting" ? "Make a Call" : callState === "live" ? "Call in Progress" : "Call Ended"}
