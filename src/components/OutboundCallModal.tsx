@@ -26,6 +26,7 @@ export function OutboundCallModal({ open, onOpenChange, prefillNumber = "", pref
   const deviceRef = useRef<Device | null>(null);
   const activeCallRef = useRef<Call | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync prefill when modal opens
   useEffect(() => {
