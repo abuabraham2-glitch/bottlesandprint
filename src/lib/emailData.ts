@@ -49,6 +49,7 @@ export interface Call {
   is_existing_client: boolean | null;
   draft_response: string | null;
   transcript: string | null;
+  action_items: any[] | null;
   created_at: string | null;
   resolved_at: string | null;
 }
