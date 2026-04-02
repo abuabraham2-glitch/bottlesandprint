@@ -304,7 +304,27 @@ export default function Calls() {
         </div>
       </div>
 
-      {/* Status tabs */}
+      {/* Direction sub-tabs: Inbound / Outbound */}
+      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
+        {([
+          { key: "inbound" as DirectionTab, label: "Inbound", count: inboundPendingCount },
+          { key: "outbound" as DirectionTab, label: "Outbound", count: outboundPendingCount },
+        ]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setDirectionTab(t.key)}
+            className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] ${
+              directionTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+            {t.count > 0 && (
+              <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
         {([
           { key: "pending" as StatusTab, label: "Pending", count: pendingCalls.length },
