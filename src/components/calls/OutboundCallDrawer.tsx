@@ -20,6 +20,7 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
   const [addingIdx, setAddingIdx] = useState<number | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
+  const [localActionItems, setLocalActionItems] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
   // Sync local state when call changes
