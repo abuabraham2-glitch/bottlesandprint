@@ -194,6 +194,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
                 <label className="text-xs font-sans text-muted-foreground">CC</label>
                 <Input value={ccValue} onChange={e => setCcValue(e.target.value)} placeholder="cc@example.com" className="rounded-xl h-8 text-sm" />
               </div>
+              <div>
+                <label className="text-xs font-sans text-muted-foreground">BCC</label>
+                <Input value={bccValue} onChange={e => setBccValue(e.target.value)} placeholder="bcc@example.com" className="rounded-xl h-8 text-sm" />
+              </div>
               <FormattingToolbar />
               <div ref={editRef} contentEditable suppressContentEditableWarning
                 className="flex-1 text-sm font-sans rounded-xl border bg-background p-4 min-h-[300px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none overflow-y-auto"

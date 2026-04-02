@@ -672,19 +672,25 @@ export default function Inbox() {
                 )}
               </div>
               {showCcField && (
-                <div className="relative">
-                  <label className="text-xs font-sans text-muted-foreground">CC</label>
-                  <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
-                  {showCcSuggestions && ccSuggestions.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
-                      {ccSuggestions.map((s, i) => (
-                        <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
-                          {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <>
+                  <div className="relative">
+                    <label className="text-xs font-sans text-muted-foreground">CC</label>
+                    <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+                    {showCcSuggestions && ccSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                        {ccSuggestions.map((s, i) => (
+                          <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
+                            {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-sans text-muted-foreground">BCC</label>
+                    <Input name="compose-bcc-field" autoComplete="off" value={composeBcc} onChange={e => setComposeBcc(e.target.value)} placeholder="bcc@example.com" className="rounded-xl" />
+                  </div>
+                </>
               )}
               <div>
                 <label className="text-xs font-sans text-muted-foreground">Subject</label>
