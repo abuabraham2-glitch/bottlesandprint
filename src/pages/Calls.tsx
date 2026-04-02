@@ -19,6 +19,7 @@ import { RelatedEmails } from "@/components/calls/RelatedEmails";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
+type DirectionTab = "inbound" | "outbound";
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   SALES_NEW: { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300" },
