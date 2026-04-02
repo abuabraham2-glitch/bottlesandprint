@@ -136,11 +136,11 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 font-sans flex items-center gap-1.5">
               <ListChecks size={14} /> Action Items
             </h3>
-            {actionItems.length === 0 ? (
+            {localActionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground font-sans italic">No action items.</p>
             ) : (
               <div className="space-y-2">
-                {actionItems.map((item, idx) => (
+                {localActionItems.map((item, idx) => (
                   <div
                     key={idx}
                     className="flex items-start gap-2 bg-muted/40 rounded-lg p-3"
