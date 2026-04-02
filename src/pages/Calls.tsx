@@ -15,7 +15,7 @@ import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { OutboundCallModal } from "@/components/OutboundCallModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { RelatedEmails } from "@/components/calls/RelatedEmails";
-
+import { OutboundCallDrawer } from "@/components/calls/OutboundCallDrawer";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
