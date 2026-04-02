@@ -33,6 +33,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState(false);
   const [ccValue, setCcValue] = useState("");
+  const [bccValue, setBccValue] = useState("");
   const [quotePromptOpen, setQuotePromptOpen] = useState(false);
   const updateEmail = useUpdateEmail();
   const queryClient = useQueryClient();
