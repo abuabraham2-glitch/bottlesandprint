@@ -49,6 +49,7 @@ function hasQuoteDetails(qd: any): boolean {
 
 export default function Calls() {
   const [statusTab, setStatusTab] = useState<StatusTab>("pending");
+  const [directionTab, setDirectionTab] = useState<DirectionTab>("inbound");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [search, setSearch] = useState("");
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
