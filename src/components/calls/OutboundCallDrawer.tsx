@@ -17,13 +17,22 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [dismissingIdx, setDismissingIdx] = useState<number | null>(null);
   const [addingIdx, setAddingIdx] = useState<number | null>(null);
+  const [localActionItems, setLocalActionItems] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
-  if (!call) return null;
+  // Sync local state when call changes
+  const callId = call?.id;
+  useState(() => {});
+  
+  // Reset local items when call changes
+  const [prevCallId, setPrevCallId] = useState<string | null>(null);
+  if (callId && callId !== prevCallId) {
+    setPrevCallId(callId);
+    const items = Array.isArray(call?.action_items) ? (call.action_items as string[]) : [];
+    setLocalActionItems(items);
+  }
 
-  const actionItems: string[] = Array.isArray(call.action_items)
-    ? (call.action_items as string[])
-    : [];
+  if (!call) return null;
 
   const handleAddTodo = async (item: string, idx: number) => {
     setAddingIdx(idx);
