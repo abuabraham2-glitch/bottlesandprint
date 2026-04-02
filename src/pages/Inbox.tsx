@@ -192,7 +192,7 @@ export default function Inbox() {
     try {
       const htmlContent = stripN8nFooter(composeBodyRef.current?.innerHTML || composeBody);
       const isNewEmail = !composeEmailRef?.gmail_id;
-      const payload: any = { to_email: composeTo, subject: composeSubject, draft: htmlContent, cc: composeCc || undefined, attachments: composeAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })) };
+      const payload: any = { to_email: composeTo, subject: composeSubject, draft: htmlContent, cc: composeCc || undefined, bcc: composeBcc || undefined, attachments: composeAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })) };
       if (isNewEmail) { payload.action = "send_new"; payload.email_id = composeEmailRef?.id || ""; }
       else { payload.gmail_id = composeEmailRef?.gmail_id; payload.email_id = composeEmailRef?.id; }
       const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
