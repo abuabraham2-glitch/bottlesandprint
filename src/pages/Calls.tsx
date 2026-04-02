@@ -219,7 +219,18 @@ export default function Calls() {
     return filtered;
   };
 
-  const baseCalls = statusTab === "pending" ? pendingCalls : resolvedCalls;
+  // Filter by direction (inbound vs outbound)
+  const inboundPending = pendingCalls.filter(c => c.category !== "OUTBOUND");
+  const outboundPending = pendingCalls.filter(c => c.category === "OUTBOUND");
+  const inboundPendingCount = inboundPending.filter(c => c.status === "pending").length;
+  const outboundPendingCount = outboundPending.filter(c => c.status === "pending").length;
+
+  const directionFilteredPending = directionTab === "inbound" ? inboundPending : outboundPending;
+  const directionFilteredResolved = directionTab === "inbound"
+    ? resolvedCalls.filter(c => c.category !== "OUTBOUND")
+    : resolvedCalls.filter(c => c.category === "OUTBOUND");
+
+  const baseCalls = statusTab === "pending" ? directionFilteredPending : directionFilteredResolved;
   const calls = filterCalls(baseCalls);
   const loading = statusTab === "pending" ? loadingPending : loadingResolved;
 
