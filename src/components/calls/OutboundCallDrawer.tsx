@@ -49,15 +49,15 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
   };
 
   const handleDismissItem = async (idx: number) => {
-    setDismissingIdx(idx);
+    // Optimistic: remove from local state immediately
+    const updated = localActionItems.filter((_, i) => i !== idx);
+    setLocalActionItems(updated);
     try {
-      const updated = actionItems.filter((_, i) => i !== idx);
       const { error } = await supabase
         .from("calls")
         .update({ action_items: updated } as any)
         .eq("id", call.id);
       if (error) throw error;
-      // Update local state via refetch
       queryClient.invalidateQueries({ queryKey: ["calls"] });
       toast.success("Action item dismissed");
     } catch {
