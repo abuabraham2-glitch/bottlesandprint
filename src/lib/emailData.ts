@@ -228,6 +228,7 @@ export async function sendEmailViaWebhook(params: {
   email_id?: string;
   order_id?: string;
   cc?: string;
+  bcc?: string;
   attachments?: { filename: string; mimeType: string; data: string }[];
   original_draft?: string;
 }) {

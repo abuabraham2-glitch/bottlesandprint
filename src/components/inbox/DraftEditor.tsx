@@ -33,6 +33,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState(false);
   const [ccValue, setCcValue] = useState("");
+  const [bccValue, setBccValue] = useState("");
   const [quotePromptOpen, setQuotePromptOpen] = useState(false);
   const updateEmail = useUpdateEmail();
   const queryClient = useQueryClient();
@@ -69,6 +70,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         gmail_id: email.gmail_id || undefined,
         email_id: email.id,
         cc: ccValue || undefined,
+        bcc: bccValue || undefined,
         attachments: attachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         original_draft: email.draft_response || undefined,
       };
@@ -191,6 +193,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
               <div>
                 <label className="text-xs font-sans text-muted-foreground">CC</label>
                 <Input value={ccValue} onChange={e => setCcValue(e.target.value)} placeholder="cc@example.com" className="rounded-xl h-8 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-sans text-muted-foreground">BCC</label>
+                <Input value={bccValue} onChange={e => setBccValue(e.target.value)} placeholder="bcc@example.com" className="rounded-xl h-8 text-sm" />
               </div>
               <FormattingToolbar />
               <div ref={editRef} contentEditable suppressContentEditableWarning

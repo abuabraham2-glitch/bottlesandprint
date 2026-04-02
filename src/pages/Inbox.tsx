@@ -36,6 +36,7 @@ export default function Inbox() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeTo, setComposeTo] = useState("");
   const [composeCc, setComposeCc] = useState("");
+  const [composeBcc, setComposeBcc] = useState("");
   const [showCcField, setShowCcField] = useState(false);
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
@@ -191,14 +192,14 @@ export default function Inbox() {
     try {
       const htmlContent = stripN8nFooter(composeBodyRef.current?.innerHTML || composeBody);
       const isNewEmail = !composeEmailRef?.gmail_id;
-      const payload: any = { to_email: composeTo, subject: composeSubject, draft: htmlContent, cc: composeCc || undefined, attachments: composeAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })) };
+      const payload: any = { to_email: composeTo, subject: composeSubject, draft: htmlContent, cc: composeCc || undefined, bcc: composeBcc || undefined, attachments: composeAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })) };
       if (isNewEmail) { payload.action = "send_new"; payload.email_id = composeEmailRef?.id || ""; }
       else { payload.gmail_id = composeEmailRef?.gmail_id; payload.email_id = composeEmailRef?.id; }
       const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
       const response = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: isNewEmail ? "send_new" : "send_email", ...payload }) });
       if (!response.ok) throw new Error("Failed to send email");
       toast.success("Email sent");
-      setComposeOpen(false); setComposeTo(""); setComposeCc(""); setShowCcField(false); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
+      setComposeOpen(false); setComposeTo(""); setComposeCc(""); setComposeBcc(""); setShowCcField(false); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
     } catch (err) { console.error("Compose send error:", err); toast.error("Failed to send"); }
     setSending(null);
   };
@@ -671,19 +672,25 @@ export default function Inbox() {
                 )}
               </div>
               {showCcField && (
-                <div className="relative">
-                  <label className="text-xs font-sans text-muted-foreground">CC</label>
-                  <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
-                  {showCcSuggestions && ccSuggestions.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
-                      {ccSuggestions.map((s, i) => (
-                        <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
-                          {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <>
+                  <div className="relative">
+                    <label className="text-xs font-sans text-muted-foreground">CC</label>
+                    <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+                    {showCcSuggestions && ccSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                        {ccSuggestions.map((s, i) => (
+                          <button key={i} className="w-full text-left px-3 py-2 text-sm font-sans hover:bg-muted/50 transition-colors" onMouseDown={() => selectCcSuggestion(s.email)}>
+                            {s.name ? <><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">&lt;{s.email}&gt;</span></> : s.email}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-sans text-muted-foreground">BCC</label>
+                    <Input name="compose-bcc-field" autoComplete="off" value={composeBcc} onChange={e => setComposeBcc(e.target.value)} placeholder="bcc@example.com" className="rounded-xl" />
+                  </div>
+                </>
               )}
               <div>
                 <label className="text-xs font-sans text-muted-foreground">Subject</label>
