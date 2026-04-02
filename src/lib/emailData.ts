@@ -42,6 +42,7 @@ export interface Call {
   email: string | null;
   call_reason: string | null;
   category: string | null;
+  has_quote_request: boolean | null;
   quote_details: any;
   summary: string | null;
   status: string | null;
