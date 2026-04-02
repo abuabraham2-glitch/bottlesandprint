@@ -15,7 +15,7 @@ import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { OutboundCallModal } from "@/components/OutboundCallModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { RelatedEmails } from "@/components/calls/RelatedEmails";
-
+import { OutboundCallDrawer } from "@/components/calls/OutboundCallDrawer";
 
 type StatusTab = "pending" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
@@ -428,8 +428,15 @@ export default function Calls() {
         ))
       )}
 
-      {/* Detail Side Sheet */}
-      <Sheet open={!!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
+      {/* Outbound Call Drawer */}
+      <OutboundCallDrawer
+        call={directionTab === "outbound" ? selectedCall : null}
+        open={directionTab === "outbound" && !!selectedCall}
+        onClose={() => setSelectedCall(null)}
+      />
+
+      {/* Inbound Detail Side Sheet */}
+      <Sheet open={directionTab === "inbound" && !!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
         <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
           {selectedCall && (
             <>
