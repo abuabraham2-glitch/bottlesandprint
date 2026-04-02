@@ -43,6 +43,7 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
       const { error } = await supabase.from("dashboard_todos").insert({ text: item } as any);
       if (error) throw error;
       toast.success("Added to to-do list");
+      setEditingIdx(null);
       queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] });
     } catch {
       toast.error("Failed to add to-do");
