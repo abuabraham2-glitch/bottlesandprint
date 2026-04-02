@@ -3,7 +3,8 @@ import { Call, useUpdateCall } from "@/lib/emailData";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Phone, Mail, Loader2, Plus, X, ListChecks } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Phone, Mail, Loader2, Plus, X, ListChecks, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -17,6 +18,8 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [dismissingIdx, setDismissingIdx] = useState<number | null>(null);
   const [addingIdx, setAddingIdx] = useState<number | null>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
   const [localActionItems, setLocalActionItems] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
@@ -40,6 +43,7 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
       const { error } = await supabase.from("dashboard_todos").insert({ text: item } as any);
       if (error) throw error;
       toast.success("Added to to-do list");
+      setEditingIdx(null);
       queryClient.invalidateQueries({ queryKey: ["dashboard_todos"] });
     } catch {
       toast.error("Failed to add to-do");
@@ -143,28 +147,60 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
                 {localActionItems.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-start gap-2 bg-muted/40 rounded-lg p-3"
+                    className="flex flex-col gap-2 bg-muted/40 rounded-lg p-3"
                   >
-                    <p className="flex-1 text-sm font-sans">{item}</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="shrink-0 h-7 px-2 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
-                      disabled={addingIdx === idx}
-                      onClick={() => handleAddTodo(item, idx)}
-                    >
-                      {addingIdx === idx ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-                      Add
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="shrink-0 h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                      disabled={dismissingIdx === idx}
-                      onClick={() => handleDismissItem(idx)}
-                    >
-                      {dismissingIdx === idx ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                    </Button>
+                    {editingIdx === idx ? (
+                      <>
+                        <Input
+                          value={editText}
+                          onChange={e => setEditText(e.target.value)}
+                          className="text-sm font-sans"
+                          autoFocus
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                            disabled={addingIdx === idx || !editText.trim()}
+                            onClick={() => handleAddTodo(editText.trim(), idx)}
+                          >
+                            {addingIdx === idx ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                            Confirm
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground"
+                            onClick={() => setEditingIdx(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <p className="flex-1 text-sm font-sans">{item}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 h-7 px-2 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                          onClick={() => { setEditingIdx(idx); setEditText(item); }}
+                        >
+                          <Plus size={12} />
+                          Add
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="shrink-0 h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                          disabled={dismissingIdx === idx}
+                          onClick={() => handleDismissItem(idx)}
+                        >
+                          {dismissingIdx === idx ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
