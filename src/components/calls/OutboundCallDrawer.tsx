@@ -72,6 +72,8 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
           quote_details: call.quote_details,
           summary: call.summary,
           call_id: call.id,
+          has_quote_request: call.has_quote_request ?? false,
+          action_items: JSON.stringify(call.action_items ?? []),
         }),
       });
       if (!res.ok) throw new Error("Webhook failed");
