@@ -499,7 +499,7 @@ export default function Calls() {
                     onClick={() => handleGenerateQuote(selectedCall)}
                   >
                     {generatingQuote ? <Loader2 size={14} className="animate-spin" /> : null}
-                    Generate Quote
+                    Create Draft
                   </Button>
                 )}
 
