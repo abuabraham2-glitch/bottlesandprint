@@ -70,6 +70,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         gmail_id: email.gmail_id || undefined,
         email_id: email.id,
         cc: ccValue || undefined,
+        bcc: bccValue || undefined,
         attachments: attachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         original_draft: email.draft_response || undefined,
       };
