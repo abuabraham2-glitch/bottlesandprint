@@ -17,13 +17,22 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [dismissingIdx, setDismissingIdx] = useState<number | null>(null);
   const [addingIdx, setAddingIdx] = useState<number | null>(null);
+  const [localActionItems, setLocalActionItems] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
-  if (!call) return null;
+  // Sync local state when call changes
+  const callId = call?.id;
+  useState(() => {});
+  
+  // Reset local items when call changes
+  const [prevCallId, setPrevCallId] = useState<string | null>(null);
+  if (callId && callId !== prevCallId) {
+    setPrevCallId(callId);
+    const items = Array.isArray(call?.action_items) ? (call.action_items as string[]) : [];
+    setLocalActionItems(items);
+  }
 
-  const actionItems: string[] = Array.isArray(call.action_items)
-    ? (call.action_items as string[])
-    : [];
+  if (!call) return null;
 
   const handleAddTodo = async (item: string, idx: number) => {
     setAddingIdx(idx);
@@ -40,15 +49,15 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
   };
 
   const handleDismissItem = async (idx: number) => {
-    setDismissingIdx(idx);
+    // Optimistic: remove from local state immediately
+    const updated = localActionItems.filter((_, i) => i !== idx);
+    setLocalActionItems(updated);
     try {
-      const updated = actionItems.filter((_, i) => i !== idx);
       const { error } = await supabase
         .from("calls")
         .update({ action_items: updated } as any)
         .eq("id", call.id);
       if (error) throw error;
-      // Update local state via refetch
       queryClient.invalidateQueries({ queryKey: ["calls"] });
       toast.success("Action item dismissed");
     } catch {
@@ -127,11 +136,11 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 font-sans flex items-center gap-1.5">
               <ListChecks size={14} /> Action Items
             </h3>
-            {actionItems.length === 0 ? (
+            {localActionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground font-sans italic">No action items.</p>
             ) : (
               <div className="space-y-2">
-                {actionItems.map((item, idx) => (
+                {localActionItems.map((item, idx) => (
                   <div
                     key={idx}
                     className="flex items-start gap-2 bg-muted/40 rounded-lg p-3"
