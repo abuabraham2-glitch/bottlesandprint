@@ -376,7 +376,9 @@ export default function Calls() {
       ) : calls.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <PhoneCall size={32} className="mx-auto mb-2 opacity-50" />
-          <p className="font-sans text-sm">No calls found.</p>
+          <p className="font-sans text-sm">
+            {directionTab === "outbound" ? "No outbound calls recorded yet." : "No calls found."}
+          </p>
         </div>
       ) : (
         calls.map(call => (
