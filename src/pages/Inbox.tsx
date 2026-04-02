@@ -36,6 +36,7 @@ export default function Inbox() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeTo, setComposeTo] = useState("");
   const [composeCc, setComposeCc] = useState("");
+  const [composeBcc, setComposeBcc] = useState("");
   const [showCcField, setShowCcField] = useState(false);
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
