@@ -26,7 +26,7 @@ interface ThreadViewProps {
   onMoveToWaiting?: (email: Email) => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel }: ThreadViewProps) {
+export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
 
