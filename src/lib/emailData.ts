@@ -311,7 +311,7 @@ export function useInboxCounts() {
       const { count: newCalls } = await supabase
         .from("calls")
         .select("*", { count: "exact", head: true })
-        .neq("status", "resolved")
+        .eq("status", "pending")
         .gte("created_at", sevenDaysAgo);
 
       const { count: trashCount } = await supabase
