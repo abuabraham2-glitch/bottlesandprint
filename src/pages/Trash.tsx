@@ -36,6 +36,7 @@ export default function Trash() {
     await supabase.from("emails").update({ status: "needs_response", deleted_at: null } as any).eq("id", id);
     setEmails(prev => prev.filter(e => e.id !== id));
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
     toast.success("Email restored");
   };
 
