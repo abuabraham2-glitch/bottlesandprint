@@ -43,6 +43,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   // Reset CC and subject when email changes
   React.useEffect(() => {
     if (!email) return;
+    setToValue(email.from_email || "");
     const replyAllCc = getReplyAllCc(email);
     setCcValue(replyAllCc || email.cc_recipients || "");
     setSubjectValue(`Re: ${email.subject || ""}`);
