@@ -36,24 +36,40 @@ export default function Trash() {
     await supabase.from("emails").update({ status: "needs_response", deleted_at: null } as any).eq("id", id);
     setEmails(prev => prev.filter(e => e.id !== id));
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
     toast.success("Email restored");
   };
 
   const handlePermanentDelete = async (id: string) => {
-    await supabase.from("emails").delete().eq("id", id);
+    const { error } = await supabase.from("emails").delete().eq("id", id);
+    if (error) {
+      console.error("Delete failed:", error);
+      toast.error("Failed to delete email");
+      setPermanentDeleteTarget(null);
+      return;
+    }
     setEmails(prev => prev.filter(e => e.id !== id));
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
     toast.success("Permanently deleted");
     setPermanentDeleteTarget(null);
   };
 
   const handleEmptyTrash = async () => {
-    const ids = emails.map(e => e.id);
-    if (ids.length === 0) return;
-    await supabase.from("emails").delete().in("id", ids);
+    if (emails.length === 0) return;
+    // Delete all emails with status 'deleted' directly — avoids hitting the 'in' limit
+    const { error } = await supabase.from("emails").delete().eq("status", "deleted");
+    if (error) {
+      console.error("Empty trash failed:", error);
+      toast.error("Failed to empty trash");
+      setEmptyConfirmOpen(false);
+      return;
+    }
+    const count = emails.length;
     setEmails([]);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`Permanently deleted ${ids.length} emails`);
+    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+    toast.success(`Permanently deleted ${count} emails`);
     setEmptyConfirmOpen(false);
   };
 
