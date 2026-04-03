@@ -336,69 +336,76 @@ export default function Calls() {
           </p>
         </div>
       ) : (
-        calls.map(call => (
-          <div
-            key={call.id}
-            className="floating-card mb-3 cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all"
-            onClick={() => {
-              setSelectedCall(call);
-              if (!call.is_read) {
-                supabase.from("calls").update({ is_read: true } as any).eq("id", call.id).then(() => {
-                  queryClient.invalidateQueries({ queryKey: ["calls"] });
-                  queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
-                });
-              }
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="font-medium text-sm font-sans">{call.caller_name || "Unknown Caller"}</span>
-                  {call.company_name && (
-                    <span className="text-xs text-muted-foreground font-sans">• {call.company_name}</span>
-                  )}
-                  {call.is_urgent && (
-                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
-                      <AlertTriangle size={10} /> URGENT
-                    </Badge>
-                  )}
-                  <CategoryBadge category={call.category} />
-                   {call.status === "quote_generated" && (
-                     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                       Quote Ready
-                     </span>
-                   )}
-                   {call.status === "resolved" && emailResolvedCallIds.includes(call.id) && (
-                     <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                       <Send size={9} /> Email Sent
-                     </span>
-                   )}
-                    {call.is_actionable !== true && call.has_quote_request !== true && (mainTab === "outbound" || mainTab === "resolved") && (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+        calls.map(call => {
+          const showNoActionNeeded =
+            (mainTab === "outbound" || mainTab === "resolved") &&
+            call.is_actionable !== true &&
+            call.has_quote_request !== true;
+
+          return (
+            <div
+              key={call.id}
+              className="floating-card mb-3 cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all"
+              onClick={() => {
+                setSelectedCall(call);
+                if (!call.is_read) {
+                  supabase.from("calls").update({ is_read: true } as any).eq("id", call.id).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["calls"] });
+                    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                  });
+                }
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="font-medium text-sm font-sans">{call.caller_name || "Unknown Caller"}</span>
+                    {showNoActionNeeded && (
+                      <Badge variant="secondary" className="shrink-0 border-transparent px-2 py-0.5 text-[10px] font-semibold leading-none">
                         No Action Needed
+                      </Badge>
+                    )}
+                    {call.company_name && (
+                      <span className="text-xs text-muted-foreground font-sans">• {call.company_name}</span>
+                    )}
+                    {call.is_urgent && (
+                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
+                        <AlertTriangle size={10} /> URGENT
+                      </Badge>
+                    )}
+                    <CategoryBadge category={call.category} />
+                    {call.status === "quote_generated" && (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        Quote Ready
                       </span>
                     )}
-                </div>
-                <div className="text-xs text-muted-foreground font-sans">{formatTime(call.created_at)}</div>
-                {call.summary && (
-                  <div className="text-sm text-foreground/80 font-sans mt-1.5 line-clamp-2">{call.summary}</div>
-                )}
-                <div className="flex items-center gap-3 mt-2">
-                  {call.phone_number && (
-                    <span className="flex items-center gap-1 text-xs text-primary font-sans">
-                      <Phone size={12} /> {call.phone_number}
-                    </span>
+                    {call.status === "resolved" && emailResolvedCallIds.includes(call.id) && (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                        <Send size={9} /> Email Sent
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-sans">{formatTime(call.created_at)}</div>
+                  {call.summary && (
+                    <div className="text-sm text-foreground/80 font-sans mt-1.5 line-clamp-2">{call.summary}</div>
                   )}
-                  {call.email && (
-                    <span className="flex items-center gap-1 text-xs text-primary font-sans">
-                      <Mail size={12} /> {call.email}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-3 mt-2">
+                    {call.phone_number && (
+                      <span className="flex items-center gap-1 text-xs text-primary font-sans">
+                        <Phone size={12} /> {call.phone_number}
+                      </span>
+                    )}
+                    {call.email && (
+                      <span className="flex items-center gap-1 text-xs text-primary font-sans">
+                        <Mail size={12} /> {call.email}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))
+          );
+        })
       )}
 
       {/* Outbound Call Drawer */}
