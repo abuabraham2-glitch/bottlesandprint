@@ -53,6 +53,7 @@ export interface Call {
   action_items: any[] | null;
   created_at: string | null;
   resolved_at: string | null;
+  is_read: boolean | null;
 }
 
 export interface FollowUp {
