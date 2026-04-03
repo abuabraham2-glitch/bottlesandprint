@@ -361,7 +361,7 @@ export default function Calls() {
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="font-medium text-sm font-sans">{call.caller_name || "Unknown Caller"}</span>
                     {showNoActionNeeded && (
-                      <Badge variant="secondary" className="shrink-0 border-transparent px-2 py-0.5 text-[10px] font-semibold leading-none">
+                      <Badge variant="secondary" className="shrink-0 border-transparent bg-foreground text-background px-2 py-0.5 text-[10px] font-semibold leading-none">
                         No Action Needed
                       </Badge>
                     )}
