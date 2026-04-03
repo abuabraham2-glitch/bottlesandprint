@@ -437,7 +437,7 @@ export default function Inbox() {
               mainTab === tab.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}>
             {tab.label}
-            {tabCounts[tab.key] > 0 && (
+            {tab.key !== "archive" && tabCounts[tab.key] > 0 && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{tabCounts[tab.key]}</span>
             )}
           </button>
