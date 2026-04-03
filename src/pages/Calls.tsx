@@ -385,7 +385,15 @@ export default function Calls() {
           <div
             key={call.id}
             className="floating-card mb-3 cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all"
-            onClick={() => setSelectedCall(call)}
+            onClick={() => {
+              setSelectedCall(call);
+              if (!call.is_read) {
+                supabase.from("calls").update({ is_read: true } as any).eq("id", call.id).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ["calls"] });
+                  queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                });
+              }
+            }}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
