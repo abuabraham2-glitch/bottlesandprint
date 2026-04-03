@@ -106,8 +106,8 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         } catch {}
       }
       // Silently resolve linked call if present
-      if (email.call_id) {
-        await supabase.from("calls").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", email.call_id);
+      if ((email as any).call_id) {
+        await supabase.from("calls").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", (email as any).call_id);
       }
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success(markAsQuoted ? "Email sent & marked as quoted" : "Email sent");
