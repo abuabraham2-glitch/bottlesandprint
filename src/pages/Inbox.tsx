@@ -79,17 +79,29 @@ export default function Inbox() {
   );
 
   const waitingEmails = useMemo(() => {
-    const waiting = allEmails
-      .filter(e => e.status === "approved_sent")
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    // Show only the most recent email per thread_id; null thread_id = unique
-    const seen = new Set<string>();
-    return waiting.filter(e => {
-      if (!e.thread_id) return true;
-      if (seen.has(e.thread_id)) return false;
-      seen.add(e.thread_id);
-      return true;
-    });
+    const getCreatedAtTime = (email: Email) => new Date(email.created_at || 0).getTime();
+    const waiting = allEmails.filter(e => e.status === "approved_sent");
+    const waitingThreadIds = new Set(
+      waiting
+        .map(e => e.thread_id)
+        .filter((threadId): threadId is string => Boolean(threadId))
+    );
+
+    const latestByThread = new Map<string, Email>();
+
+    allEmails
+      .filter((email) => email.thread_id && waitingThreadIds.has(email.thread_id))
+      .sort((a, b) => getCreatedAtTime(b) - getCreatedAtTime(a))
+      .forEach((email) => {
+        if (!latestByThread.has(email.thread_id!)) {
+          latestByThread.set(email.thread_id!, email);
+        }
+      });
+
+    return [
+      ...waiting.filter(e => !e.thread_id),
+      ...Array.from(latestByThread.values()),
+    ].sort((a, b) => getCreatedAtTime(b) - getCreatedAtTime(a));
   }, [allEmails]);
 
   const spamEmails = useMemo(() =>
