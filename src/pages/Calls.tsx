@@ -361,7 +361,7 @@ export default function Calls() {
         <div className="text-center py-12 text-muted-foreground">
           <PhoneCall size={32} className="mx-auto mb-2 opacity-50" />
           <p className="font-sans text-sm">
-            {directionTab === "outbound" ? "No outbound calls recorded yet." : "No calls found."}
+            {mainTab === "outbound" ? "No outbound calls recorded yet." : mainTab === "resolved" ? "No resolved calls." : "No calls found."}
           </p>
         </div>
       ) : (
