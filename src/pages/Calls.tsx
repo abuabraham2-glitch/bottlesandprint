@@ -238,11 +238,7 @@ export default function Calls() {
   const outboundPendingCount = outboundPending.filter(c => c.status === "pending" && !c.is_read).length;
 
   const directionFilteredPending = directionTab === "inbound" ? inboundPending : outboundPending;
-  const directionFilteredResolved = directionTab === "inbound"
-    ? resolvedCalls.filter(c => c.category !== "OUTBOUND")
-    : resolvedCalls.filter(c => c.category === "OUTBOUND");
-
-  const baseCalls = statusTab === "pending" ? directionFilteredPending : directionFilteredResolved;
+  const baseCalls = statusTab === "pending" ? directionFilteredPending : resolvedCalls;
   const calls = filterCalls(baseCalls);
   const loading = statusTab === "pending" ? loadingPending : loadingResolved;
 
