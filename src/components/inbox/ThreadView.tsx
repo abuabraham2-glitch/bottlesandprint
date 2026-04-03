@@ -23,6 +23,7 @@ interface ThreadViewProps {
   onArchive?: (email: Email) => void;
   onDelete?: (email: Email) => void;
   onUpdateLabel?: (emailId: string, label: string | null) => void;
+  onMoveToWaiting?: (email: Email) => void;
 }
 
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel }: ThreadViewProps) {
