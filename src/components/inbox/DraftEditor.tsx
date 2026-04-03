@@ -32,6 +32,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const editRef = useRef<HTMLDivElement>(null);
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState(false);
+  const [toValue, setToValue] = useState("");
   const [ccValue, setCcValue] = useState("");
   const [bccValue, setBccValue] = useState("");
   const [quotePromptOpen, setQuotePromptOpen] = useState(false);
@@ -42,6 +43,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   // Reset CC and subject when email changes
   React.useEffect(() => {
     if (!email) return;
+    setToValue(email.from_email || "");
     const replyAllCc = getReplyAllCc(email);
     setCcValue(replyAllCc || email.cc_recipients || "");
     setSubjectValue(`Re: ${email.subject || ""}`);
@@ -61,12 +63,12 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   })();
 
   const executeSend = async (markAsQuoted: boolean) => {
-    if (!email.from_email || !email.draft_response) return;
+    if (!toValue || !email.draft_response) return;
     setSending(true);
     try {
       const draftContent = editRef.current ? editRef.current.innerHTML : email.draft_response;
       const payload = {
-        to_email: email.from_email,
+        to_email: toValue,
         subject: subjectValue,
         draft: stripN8nFooter(draftContent),
         gmail_id: email.gmail_id || undefined,
@@ -119,7 +121,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   };
 
   const handleSend = () => {
-    if (!email.from_email || !email.draft_response) return;
+    if (!toValue || !email.draft_response) return;
     if (isQuoteDraft) {
       setQuotePromptOpen(true);
     } else {
@@ -155,10 +157,17 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       <Sheet open={!!email} onOpenChange={() => onClose()}>
         <SheetContent side="right" className="w-full sm:max-w-[80vw] p-0 flex flex-col h-full">
           <SheetHeader className="p-4 pb-3 border-b shrink-0">
-            <div className="text-sm text-muted-foreground font-sans">
-              <span className="font-medium text-foreground">{email.from_name || email.from_email}</span>
-              <span className="ml-1">&lt;{email.from_email}&gt;</span>
-            </div>
+            {email.gmail_id?.startsWith("manual-") ? (
+              <div>
+                <label className="text-xs font-sans text-muted-foreground">To</label>
+                <Input value={toValue} onChange={e => setToValue(e.target.value)} placeholder="recipient@example.com" className="rounded-xl h-8 text-sm" />
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground font-sans">
+                <span className="font-medium text-foreground">{email.from_name || email.from_email}</span>
+                <span className="ml-1">&lt;{email.from_email}&gt;</span>
+              </div>
+            )}
             <div>
               <label className="text-xs font-sans text-muted-foreground">Subject</label>
               <Input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} className="rounded-xl h-8 text-sm" />
