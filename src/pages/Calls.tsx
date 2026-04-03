@@ -30,11 +30,11 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 function CategoryBadge({ category }: { category: string | null }) {
-  if (!category) return null;
+  if (!category || !category.startsWith("SALES")) return null;
   const colors = CATEGORY_COLORS[category] || { bg: "bg-secondary", text: "text-secondary-foreground" };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.bg} ${colors.text}`}>
-      {category.replace(/_/g, " ")}
+      SALES
     </span>
   );
 }
