@@ -55,12 +55,20 @@ export default function Trash() {
   };
 
   const handleEmptyTrash = async () => {
-    const ids = emails.map(e => e.id);
-    if (ids.length === 0) return;
-    await supabase.from("emails").delete().in("id", ids);
+    if (emails.length === 0) return;
+    // Delete all emails with status 'deleted' directly — avoids hitting the 'in' limit
+    const { error } = await supabase.from("emails").delete().eq("status", "deleted");
+    if (error) {
+      console.error("Empty trash failed:", error);
+      toast.error("Failed to empty trash");
+      setEmptyConfirmOpen(false);
+      return;
+    }
+    const count = emails.length;
     setEmails([]);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success(`Permanently deleted ${ids.length} emails`);
+    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+    toast.success(`Permanently deleted ${count} emails`);
     setEmptyConfirmOpen(false);
   };
 
