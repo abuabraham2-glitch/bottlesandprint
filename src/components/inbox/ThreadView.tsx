@@ -110,6 +110,11 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
               <Button size="sm" className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
                 <Reply size={12} /> Reply
               </Button>
+              {!isResolved && onMoveToWaiting && email.status !== "approved_sent" && (
+                <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onMoveToWaiting(email); onClose(); }}>
+                  <ArrowRightLeft size={12} /> Waiting on Them
+                </Button>
+              )}
               {!isResolved && (
                 <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
                   <Archive size={12} /> Archive
