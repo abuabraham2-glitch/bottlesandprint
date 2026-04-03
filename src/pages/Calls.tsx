@@ -70,6 +70,18 @@ export default function Calls() {
 
   const { data: pendingCalls = [], isLoading: loadingPending } = useCalls({ neq: "resolved" });
   const { data: resolvedCalls = [], isLoading: loadingResolved } = useCalls({ eq: "resolved" });
+
+  // Fetch call IDs that were auto-resolved via email send
+  const { data: emailResolvedCallIds = [] } = useQuery({
+    queryKey: ["email_resolved_calls"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("emails")
+        .select("call_id")
+        .not("call_id", "is", null);
+      return (data || []).map(r => r.call_id).filter(Boolean) as string[];
+    },
+  });
   const updateCall = useUpdateCall();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
