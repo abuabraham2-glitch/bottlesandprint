@@ -210,11 +210,11 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
               <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">Draft Response</h3>
               <div>
                 <label className="text-xs font-sans text-muted-foreground">CC</label>
-                <Input value={ccValue} onChange={e => setCcValue(e.target.value)} placeholder="cc@example.com" className="rounded-xl h-8 text-sm" />
+                <Input name="draft-cc" autoComplete="off" value={ccValue} onChange={e => setCcValue(e.target.value)} placeholder="cc@example.com" className="rounded-xl h-8 text-sm" />
               </div>
               <div>
                 <label className="text-xs font-sans text-muted-foreground">BCC</label>
-                <Input value={bccValue} onChange={e => setBccValue(e.target.value)} placeholder="bcc@example.com" className="rounded-xl h-8 text-sm" />
+                <Input name="draft-bcc" autoComplete="off" value={bccValue} onChange={e => setBccValue(e.target.value)} placeholder="bcc@example.com" className="rounded-xl h-8 text-sm" />
               </div>
               <FormattingToolbar />
               <div ref={editRef} contentEditable suppressContentEditableWarning
