@@ -651,6 +651,14 @@ export default function Inbox() {
         onDelete={handleDeleteFromDetail}
         onUpdateLabel={handleUpdateLabel}
         onMoveToWaiting={async (email) => {
+          // Archive older same-thread emails that are also in Waiting
+          if (email.thread_id) {
+            await supabase.from("emails")
+              .update({ status: "resolved" } as any)
+              .eq("thread_id", email.thread_id)
+              .eq("status", "approved_sent")
+              .neq("id", email.id);
+          }
           await supabase.from("emails").update({ status: "approved_sent" } as any).eq("id", email.id);
           queryClient.invalidateQueries({ queryKey: ["emails"] });
           queryClient.invalidateQueries({ queryKey: ["all-emails"] });
