@@ -211,11 +211,6 @@ export default function Calls() {
 
   const filterCalls = (calls: Call[]) => {
     let filtered = calls;
-    if (categoryFilter === "sales") filtered = filtered.filter(c => c.category?.startsWith("SALES"));
-    else if (categoryFilter === "support") filtered = filtered.filter(c => c.category === "SUPPORT");
-    else if (categoryFilter === "callback") filtered = filtered.filter(c => c.category === "CALLBACK_REQUEST");
-    else if (categoryFilter === "urgent") filtered = filtered.filter(c => c.is_urgent);
-
     if (search.trim()) {
       const q = search.toLowerCase();
       filtered = filtered.filter(c =>
