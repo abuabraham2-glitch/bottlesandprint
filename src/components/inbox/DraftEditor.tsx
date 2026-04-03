@@ -39,11 +39,12 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const updateEmail = useUpdateEmail();
   const queryClient = useQueryClient();
 
-  // Reset CC when email changes
+  // Reset CC and subject when email changes
   React.useEffect(() => {
     if (!email) return;
     const replyAllCc = getReplyAllCc(email);
     setCcValue(replyAllCc || email.cc_recipients || "");
+    setSubjectValue(`Re: ${email.subject || ""}`);
   }, [email?.id]);
 
   if (!email) return null;
