@@ -420,11 +420,16 @@ export default function Calls() {
                     </Badge>
                   )}
                   <CategoryBadge category={call.category} />
-                  {call.status === "quote_generated" && (
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                      Quote Ready
-                    </span>
-                  )}
+                   {call.status === "quote_generated" && (
+                     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                       Quote Ready
+                     </span>
+                   )}
+                   {call.status === "resolved" && emailResolvedCallIds.includes(call.id) && (
+                     <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                       <Send size={9} /> Email Sent
+                     </span>
+                   )}
                 </div>
                 <div className="text-xs text-muted-foreground font-sans">{formatTime(call.created_at)}</div>
                 {call.summary && (
