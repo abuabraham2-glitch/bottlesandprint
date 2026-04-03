@@ -427,13 +427,13 @@ export default function Calls() {
 
       {/* Outbound Call Drawer */}
       <OutboundCallDrawer
-        call={directionTab === "outbound" ? selectedCall : null}
-        open={directionTab === "outbound" && !!selectedCall}
+        call={selectedCall?.category === "OUTBOUND" ? selectedCall : null}
+        open={selectedCall?.category === "OUTBOUND" && !!selectedCall}
         onClose={() => setSelectedCall(null)}
       />
 
       {/* Inbound Detail Side Sheet */}
-      <Sheet open={directionTab === "inbound" && !!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
+      <Sheet open={selectedCall?.category !== "OUTBOUND" && !!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
         <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
           {selectedCall && (
             <>
