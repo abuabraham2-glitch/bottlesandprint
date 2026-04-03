@@ -151,10 +151,13 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       <Sheet open={!!email} onOpenChange={() => onClose()}>
         <SheetContent side="right" className="w-full sm:max-w-[80vw] p-0 flex flex-col h-full">
           <SheetHeader className="p-4 pb-3 border-b shrink-0">
-            <SheetTitle className="font-serif text-lg leading-tight">{email.subject}</SheetTitle>
             <div className="text-sm text-muted-foreground font-sans">
               <span className="font-medium text-foreground">{email.from_name || email.from_email}</span>
               <span className="ml-1">&lt;{email.from_email}&gt;</span>
+            </div>
+            <div>
+              <label className="text-xs font-sans text-muted-foreground">Subject</label>
+              <Input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} className="rounded-xl h-8 text-sm" />
             </div>
           </SheetHeader>
 
