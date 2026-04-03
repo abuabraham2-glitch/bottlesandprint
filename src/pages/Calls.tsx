@@ -18,7 +18,7 @@ import { RelatedEmails } from "@/components/calls/RelatedEmails";
 import { OutboundCallDrawer } from "@/components/calls/OutboundCallDrawer";
 
 type MainTab = "inbound" | "outbound" | "resolved";
-type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
+
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   SALES_NEW: { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300" },
@@ -30,11 +30,11 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 function CategoryBadge({ category }: { category: string | null }) {
-  if (!category) return null;
+  if (!category || !category.startsWith("SALES")) return null;
   const colors = CATEGORY_COLORS[category] || { bg: "bg-secondary", text: "text-secondary-foreground" };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.bg} ${colors.text}`}>
-      {category.replace(/_/g, " ")}
+      SALES
     </span>
   );
 }
@@ -48,7 +48,6 @@ function hasQuoteDetails(qd: any): boolean {
 
 export default function Calls() {
   const [mainTab, setMainTab] = useState<MainTab>("inbound");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [search, setSearch] = useState("");
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [generatingQuote, setGeneratingQuote] = useState(false);
@@ -211,11 +210,6 @@ export default function Calls() {
 
   const filterCalls = (calls: Call[]) => {
     let filtered = calls;
-    if (categoryFilter === "sales") filtered = filtered.filter(c => c.category?.startsWith("SALES"));
-    else if (categoryFilter === "support") filtered = filtered.filter(c => c.category === "SUPPORT");
-    else if (categoryFilter === "callback") filtered = filtered.filter(c => c.category === "CALLBACK_REQUEST");
-    else if (categoryFilter === "urgent") filtered = filtered.filter(c => c.is_urgent);
-
     if (search.trim()) {
       const q = search.toLowerCase();
       filtered = filtered.filter(c =>
@@ -237,13 +231,6 @@ export default function Calls() {
   const calls = filterCalls(baseCalls);
   const loading = mainTab === "resolved" ? loadingResolved : loadingPending;
 
-  const categoryTabs: { key: CategoryFilter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "sales", label: "Sales" },
-    { key: "support", label: "Support" },
-    { key: "callback", label: "Callback" },
-    { key: "urgent", label: "Urgent" },
-  ];
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
@@ -329,22 +316,6 @@ export default function Calls() {
         ))}
       </div>
 
-      {/* Category filter tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {categoryTabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setCategoryFilter(t.key)}
-            className={`px-3 py-2 rounded-full text-xs font-sans font-medium border transition-colors min-h-[44px] ${
-              categoryFilter === t.key
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-card text-muted-foreground border-border hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       <Input
         placeholder="Search calls..."
