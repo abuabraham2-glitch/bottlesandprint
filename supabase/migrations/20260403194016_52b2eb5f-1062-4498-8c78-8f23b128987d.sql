@@ -1,0 +1,1 @@
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS is_actionable boolean DEFAULT true;

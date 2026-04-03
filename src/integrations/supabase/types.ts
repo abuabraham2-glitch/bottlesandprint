@@ -95,6 +95,7 @@ export type Database = {
           has_quote_request: boolean | null
           holding_sent_at: string | null
           id: string
+          is_actionable: boolean | null
           is_existing_client: boolean | null
           is_read: boolean | null
           is_urgent: boolean | null
@@ -120,6 +121,7 @@ export type Database = {
           has_quote_request?: boolean | null
           holding_sent_at?: string | null
           id?: string
+          is_actionable?: boolean | null
           is_existing_client?: boolean | null
           is_read?: boolean | null
           is_urgent?: boolean | null
@@ -145,6 +147,7 @@ export type Database = {
           has_quote_request?: boolean | null
           holding_sent_at?: string | null
           id?: string
+          is_actionable?: boolean | null
           is_existing_client?: boolean | null
           is_read?: boolean | null
           is_urgent?: boolean | null
