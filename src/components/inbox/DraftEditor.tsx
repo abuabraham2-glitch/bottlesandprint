@@ -68,7 +68,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     try {
       const draftContent = editRef.current ? editRef.current.innerHTML : email.draft_response;
       const payload = {
-        to_email: email.from_email,
+        to_email: toValue,
         subject: subjectValue,
         draft: stripN8nFooter(draftContent),
         gmail_id: email.gmail_id || undefined,
