@@ -63,7 +63,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   })();
 
   const executeSend = async (markAsQuoted: boolean) => {
-    if (!email.from_email || !email.draft_response) return;
+    if (!toValue || !email.draft_response) return;
     setSending(true);
     try {
       const draftContent = editRef.current ? editRef.current.innerHTML : email.draft_response;
