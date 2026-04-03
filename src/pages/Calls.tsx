@@ -17,9 +17,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { RelatedEmails } from "@/components/calls/RelatedEmails";
 import { OutboundCallDrawer } from "@/components/calls/OutboundCallDrawer";
 
-type StatusTab = "pending" | "resolved";
+type MainTab = "inbound" | "outbound" | "resolved";
 type CategoryFilter = "all" | "sales" | "support" | "callback" | "urgent";
-type DirectionTab = "inbound" | "outbound";
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   SALES_NEW: { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-700 dark:text-emerald-300" },
@@ -48,8 +47,7 @@ function hasQuoteDetails(qd: any): boolean {
 }
 
 export default function Calls() {
-  const [statusTab, setStatusTab] = useState<StatusTab>("pending");
-  const [directionTab, setDirectionTab] = useState<DirectionTab>("inbound");
+  const [mainTab, setMainTab] = useState<MainTab>("inbound");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [search, setSearch] = useState("");
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
@@ -234,13 +232,10 @@ export default function Calls() {
   // Filter by direction (inbound vs outbound)
   const inboundPending = pendingCalls.filter(c => c.category !== "OUTBOUND");
   const outboundPending = pendingCalls.filter(c => c.category === "OUTBOUND");
-  const inboundPendingCount = inboundPending.filter(c => c.status === "pending" && !c.is_read).length;
-  const outboundPendingCount = outboundPending.filter(c => c.status === "pending" && !c.is_read).length;
 
-  const directionFilteredPending = directionTab === "inbound" ? inboundPending : outboundPending;
-  const baseCalls = statusTab === "pending" ? directionFilteredPending : resolvedCalls;
+  const baseCalls = mainTab === "inbound" ? inboundPending : mainTab === "outbound" ? outboundPending : resolvedCalls;
   const calls = filterCalls(baseCalls);
-  const loading = statusTab === "pending" ? loadingPending : loadingResolved;
+  const loading = mainTab === "resolved" ? loadingResolved : loadingPending;
 
   const categoryTabs: { key: CategoryFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -312,37 +307,18 @@ export default function Calls() {
         </div>
       </div>
 
-      {/* Direction sub-tabs: Inbound / Outbound */}
+      {/* Main tabs: Inbound / Outbound / Resolved */}
       <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
         {([
-          { key: "inbound" as DirectionTab, label: "Inbound", count: inboundPendingCount },
-          { key: "outbound" as DirectionTab, label: "Outbound", count: outboundPendingCount },
+          { key: "inbound" as MainTab, label: "Inbound", count: inboundPending.length },
+          { key: "outbound" as MainTab, label: "Outbound", count: outboundPending.length },
+          { key: "resolved" as MainTab, label: "Resolved", count: 0 },
         ]).map(t => (
           <button
             key={t.key}
-            onClick={() => setDirectionTab(t.key)}
+            onClick={() => setMainTab(t.key)}
             className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] ${
-              directionTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            {t.count > 0 && (
-              <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{t.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
-        {([
-          { key: "pending" as StatusTab, label: "Pending", count: pendingCalls.length },
-          { key: "resolved" as StatusTab, label: "Resolved", count: resolvedCalls.length },
-        ]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setStatusTab(t.key)}
-            className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] ${
-              statusTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              mainTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {t.label}
@@ -385,7 +361,7 @@ export default function Calls() {
         <div className="text-center py-12 text-muted-foreground">
           <PhoneCall size={32} className="mx-auto mb-2 opacity-50" />
           <p className="font-sans text-sm">
-            {directionTab === "outbound" ? "No outbound calls recorded yet." : "No calls found."}
+            {mainTab === "outbound" ? "No outbound calls recorded yet." : mainTab === "resolved" ? "No resolved calls." : "No calls found."}
           </p>
         </div>
       ) : (
@@ -451,13 +427,13 @@ export default function Calls() {
 
       {/* Outbound Call Drawer */}
       <OutboundCallDrawer
-        call={directionTab === "outbound" ? selectedCall : null}
-        open={directionTab === "outbound" && !!selectedCall}
+        call={selectedCall?.category === "OUTBOUND" ? selectedCall : null}
+        open={selectedCall?.category === "OUTBOUND" && !!selectedCall}
         onClose={() => setSelectedCall(null)}
       />
 
       {/* Inbound Detail Side Sheet */}
-      <Sheet open={directionTab === "inbound" && !!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
+      <Sheet open={selectedCall?.category !== "OUTBOUND" && !!selectedCall} onOpenChange={open => !open && setSelectedCall(null)}>
         <SheetContent side="right" className="w-full sm:max-w-[50vw] p-0 flex flex-col h-full">
           {selectedCall && (
             <>
