@@ -210,7 +210,7 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
         </div>
 
         {/* Footer */}
-        <div className="p-6 pt-4 border-t shrink-0">
+        <div className="p-6 pt-4 border-t shrink-0 space-y-2">
           <Button
             className="w-full rounded-xl gap-2"
             disabled={creatingDraft}
@@ -219,6 +219,50 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
             {creatingDraft ? <Loader2 size={16} className="animate-spin" /> : null}
             Create Draft
           </Button>
+          <Button
+            className="w-full rounded-xl gap-2"
+            onClick={async () => {
+              try {
+                await supabase.from("calls").update({ status: "resolved", resolved_at: new Date().toISOString() } as any).eq("id", call.id);
+                queryClient.invalidateQueries({ queryKey: ["calls"] });
+                queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                toast.success("Marked as resolved");
+                onClose();
+              } catch {
+                toast.error("Failed to resolve call");
+              }
+            }}
+          >
+            <CheckCircle size={16} /> Mark Resolved
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" className="w-full rounded-xl gap-2 text-destructive hover:text-destructive">
+                <Trash2 size={16} /> Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this call?</AlertDialogTitle>
+                <AlertDialogDescription>This will permanently remove this call record. This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={async () => {
+                  try {
+                    const { error } = await supabase.from("calls").delete().eq("id", call.id);
+                    if (error) throw error;
+                    queryClient.invalidateQueries({ queryKey: ["calls"] });
+                    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                    toast.success("Call deleted");
+                    onClose();
+                  } catch {
+                    toast.error("Failed to delete call");
+                  }
+                }}>Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </SheetContent>
     </Sheet>
