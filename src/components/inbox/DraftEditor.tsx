@@ -35,6 +35,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const [ccValue, setCcValue] = useState("");
   const [bccValue, setBccValue] = useState("");
   const [quotePromptOpen, setQuotePromptOpen] = useState(false);
+  const [subjectValue, setSubjectValue] = useState("");
   const updateEmail = useUpdateEmail();
   const queryClient = useQueryClient();
 
