@@ -307,37 +307,18 @@ export default function Calls() {
         </div>
       </div>
 
-      {/* Direction sub-tabs: Inbound / Outbound */}
+      {/* Main tabs: Inbound / Outbound / Resolved */}
       <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
         {([
-          { key: "inbound" as DirectionTab, label: "Inbound", count: inboundPendingCount },
-          { key: "outbound" as DirectionTab, label: "Outbound", count: outboundPendingCount },
+          { key: "inbound" as MainTab, label: "Inbound", count: inboundPending.length },
+          { key: "outbound" as MainTab, label: "Outbound", count: outboundPending.length },
+          { key: "resolved" as MainTab, label: "Resolved", count: 0 },
         ]).map(t => (
           <button
             key={t.key}
-            onClick={() => setDirectionTab(t.key)}
+            onClick={() => setMainTab(t.key)}
             className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] ${
-              directionTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            {t.count > 0 && (
-              <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{t.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit">
-        {([
-          { key: "pending" as StatusTab, label: "Pending", count: pendingCalls.length },
-          { key: "resolved" as StatusTab, label: "Resolved", count: resolvedCalls.length },
-        ]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setStatusTab(t.key)}
-            className={`px-3 py-2 rounded-lg text-sm font-sans font-medium transition-colors min-h-[44px] ${
-              statusTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              mainTab === t.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {t.label}
