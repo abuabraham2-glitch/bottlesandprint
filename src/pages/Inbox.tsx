@@ -563,11 +563,6 @@ export default function Inbox() {
                   <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
                     {displaySenderName(email.from_name, email.from_email)}
                   </span>
-                  {mainTab === "waiting" && email.status === "approved_sent" && (
-                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
-                      You replied
-                    </span>
-                  )}
                   <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {email.subject}
                   </span>
