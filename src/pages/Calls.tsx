@@ -317,22 +317,6 @@ export default function Calls() {
         ))}
       </div>
 
-      {/* Category filter tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {categoryTabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setCategoryFilter(t.key)}
-            className={`px-3 py-2 rounded-full text-xs font-sans font-medium border transition-colors min-h-[44px] ${
-              categoryFilter === t.key
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-card text-muted-foreground border-border hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       <Input
         placeholder="Search calls..."
