@@ -358,6 +358,7 @@ export type Database = {
           attachments: Json | null
           auto_sent_at: string | null
           body: string | null
+          call_id: string | null
           category: string | null
           cc_emails: string | null
           cc_recipients: string | null
@@ -398,6 +399,7 @@ export type Database = {
           attachments?: Json | null
           auto_sent_at?: string | null
           body?: string | null
+          call_id?: string | null
           category?: string | null
           cc_emails?: string | null
           cc_recipients?: string | null
@@ -438,6 +440,7 @@ export type Database = {
           attachments?: Json | null
           auto_sent_at?: string | null
           body?: string | null
+          call_id?: string | null
           category?: string | null
           cc_emails?: string | null
           cc_recipients?: string | null
