@@ -689,7 +689,7 @@ export default function Inbox() {
                 <>
                   <div className="relative">
                     <label className="text-xs font-sans text-muted-foreground">CC</label>
-                    <Input ref={composeCcRef} name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+                    <Input ref={composeCcRef} name="compose-cc-recipient-copy" autoComplete="new-password" data-lpignore="true" data-1p-ignore value={composeCc} onChange={e => { e.stopPropagation(); handleCcChange(e.target.value); }} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
                     {showCcSuggestions && ccSuggestions.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                         {ccSuggestions.map((s, i) => (
@@ -702,7 +702,7 @@ export default function Inbox() {
                   </div>
                   <div>
                     <label className="text-xs font-sans text-muted-foreground">BCC</label>
-                    <Input ref={composeBccRef} name="compose-bcc-field" autoComplete="off" value={composeBcc} onChange={e => setComposeBcc(e.target.value)} placeholder="bcc@example.com" className="rounded-xl" />
+                    <Input ref={composeBccRef} name="compose-bcc-recipient-hidden" autoComplete="new-password" data-lpignore="true" data-1p-ignore value={composeBcc} onChange={e => { e.stopPropagation(); setComposeBcc(e.target.value); }} placeholder="bcc@example.com" className="rounded-xl" />
                   </div>
                 </>
               )}
