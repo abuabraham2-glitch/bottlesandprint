@@ -232,13 +232,10 @@ export default function Calls() {
   // Filter by direction (inbound vs outbound)
   const inboundPending = pendingCalls.filter(c => c.category !== "OUTBOUND");
   const outboundPending = pendingCalls.filter(c => c.category === "OUTBOUND");
-  const inboundPendingCount = inboundPending.filter(c => c.status === "pending" && !c.is_read).length;
-  const outboundPendingCount = outboundPending.filter(c => c.status === "pending" && !c.is_read).length;
 
-  const directionFilteredPending = directionTab === "inbound" ? inboundPending : outboundPending;
-  const baseCalls = statusTab === "pending" ? directionFilteredPending : resolvedCalls;
+  const baseCalls = mainTab === "inbound" ? inboundPending : mainTab === "outbound" ? outboundPending : resolvedCalls;
   const calls = filterCalls(baseCalls);
-  const loading = statusTab === "pending" ? loadingPending : loadingResolved;
+  const loading = mainTab === "resolved" ? loadingResolved : loadingPending;
 
   const categoryTabs: { key: CategoryFilter; label: string }[] = [
     { key: "all", label: "All" },
