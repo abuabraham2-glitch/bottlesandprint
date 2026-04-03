@@ -373,6 +373,11 @@ export default function Calls() {
                        <Send size={9} /> Email Sent
                      </span>
                    )}
+                   {call.is_actionable === false && (mainTab === "outbound" || mainTab === "resolved") && (
+                     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+                       No Action Needed
+                     </span>
+                   )}
                 </div>
                 <div className="text-xs text-muted-foreground font-sans">{formatTime(call.created_at)}</div>
                 {call.summary && (
