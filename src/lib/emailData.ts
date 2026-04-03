@@ -53,6 +53,7 @@ export interface Call {
   action_items: any[] | null;
   created_at: string | null;
   resolved_at: string | null;
+  is_read: boolean | null;
 }
 
 export interface FollowUp {
@@ -312,6 +313,7 @@ export function useInboxCounts() {
         .from("calls")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending")
+        .eq("is_read", false)
         .gte("created_at", sevenDaysAgo);
 
       const { count: trashCount } = await supabase

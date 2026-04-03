@@ -96,6 +96,7 @@ export type Database = {
           holding_sent_at: string | null
           id: string
           is_existing_client: boolean | null
+          is_read: boolean | null
           is_urgent: boolean | null
           phone_number: string | null
           quote_details: Json | null
@@ -120,6 +121,7 @@ export type Database = {
           holding_sent_at?: string | null
           id?: string
           is_existing_client?: boolean | null
+          is_read?: boolean | null
           is_urgent?: boolean | null
           phone_number?: string | null
           quote_details?: Json | null
@@ -144,6 +146,7 @@ export type Database = {
           holding_sent_at?: string | null
           id?: string
           is_existing_client?: boolean | null
+          is_read?: boolean | null
           is_urgent?: boolean | null
           phone_number?: string | null
           quote_details?: Json | null
