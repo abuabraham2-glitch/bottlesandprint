@@ -48,7 +48,7 @@ function hasQuoteDetails(qd: any): boolean {
 
 export default function Calls() {
   const [mainTab, setMainTab] = useState<MainTab>("inbound");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [search, setSearch] = useState("");
   const [search, setSearch] = useState("");
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [generatingQuote, setGeneratingQuote] = useState(false);
