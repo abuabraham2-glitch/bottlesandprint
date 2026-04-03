@@ -634,6 +634,34 @@ export default function Calls() {
                       <Phone size={14} /> Restore to Pending
                     </Button>
                   )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="rounded-xl gap-1.5 text-xs text-destructive hover:text-destructive">
+                        <Trash2 size={14} /> Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this call?</AlertDialogTitle>
+                        <AlertDialogDescription>This will permanently remove this call record. This cannot be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={async () => {
+                          try {
+                            const { error } = await supabase.from("calls").delete().eq("id", selectedCall.id);
+                            if (error) throw error;
+                            queryClient.invalidateQueries({ queryKey: ["calls"] });
+                            queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                            toast.success("Call deleted");
+                            setSelectedCall(null);
+                          } catch {
+                            toast.error("Failed to delete call");
+                          }
+                        }}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </>
