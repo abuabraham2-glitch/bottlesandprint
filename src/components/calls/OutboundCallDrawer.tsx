@@ -219,22 +219,24 @@ export function OutboundCallDrawer({ call, open, onClose }: OutboundCallDrawerPr
             {creatingDraft ? <Loader2 size={16} className="animate-spin" /> : null}
             Create Draft
           </Button>
-          <Button
-            className="w-full rounded-xl gap-2"
-            onClick={async () => {
-              try {
-                await supabase.from("calls").update({ status: "resolved", resolved_at: new Date().toISOString() } as any).eq("id", call.id);
-                queryClient.invalidateQueries({ queryKey: ["calls"] });
-                queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
-                toast.success("Marked as resolved");
-                onClose();
-              } catch {
-                toast.error("Failed to resolve call");
-              }
-            }}
-          >
-            <CheckCircle size={16} /> Mark Resolved
-          </Button>
+          {call.status !== "resolved" && (
+            <Button
+              className="w-full rounded-xl gap-2"
+              onClick={async () => {
+                try {
+                  await supabase.from("calls").update({ status: "resolved", resolved_at: new Date().toISOString() } as any).eq("id", call.id);
+                  queryClient.invalidateQueries({ queryKey: ["calls"] });
+                  queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                  toast.success("Marked as resolved");
+                  onClose();
+                } catch {
+                  toast.error("Failed to resolve call");
+                }
+              }}
+            >
+              <CheckCircle size={16} /> Mark Resolved
+            </Button>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" className="w-full rounded-xl gap-2 text-destructive hover:text-destructive">
