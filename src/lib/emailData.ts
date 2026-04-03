@@ -54,6 +54,7 @@ export interface Call {
   created_at: string | null;
   resolved_at: string | null;
   is_read: boolean | null;
+  is_actionable: boolean | null;
 }
 
 export interface FollowUp {
