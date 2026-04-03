@@ -642,6 +642,13 @@ export default function Inbox() {
         onArchive={(email) => initiateArchive([email.id])}
         onDelete={handleDeleteFromDetail}
         onUpdateLabel={handleUpdateLabel}
+        onMoveToWaiting={async (email) => {
+          await supabase.from("emails").update({ status: "approved_sent" } as any).eq("id", email.id);
+          queryClient.invalidateQueries({ queryKey: ["emails"] });
+          queryClient.invalidateQueries({ queryKey: ["all-emails"] });
+          setThreadEmail(null);
+          toast.success("Moved to Waiting on Them");
+        }}
       />
 
       {/* Draft Editor */}
