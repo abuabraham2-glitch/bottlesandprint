@@ -702,7 +702,7 @@ export default function Inbox() {
                   </div>
                   <div>
                     <label className="text-xs font-sans text-muted-foreground">BCC</label>
-                    <Input ref={composeBccRef} name="compose-bcc-field" autoComplete="off" value={composeBcc} onChange={e => setComposeBcc(e.target.value)} placeholder="bcc@example.com" className="rounded-xl" />
+                    <Input ref={composeBccRef} name="compose-bcc-recipient-hidden" autoComplete="new-password" data-lpignore="true" data-1p-ignore value={composeBcc} onChange={e => { e.stopPropagation(); setComposeBcc(e.target.value); }} placeholder="bcc@example.com" className="rounded-xl" />
                   </div>
                 </>
               )}
