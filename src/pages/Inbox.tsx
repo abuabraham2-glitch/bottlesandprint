@@ -78,11 +78,19 @@ export default function Inbox() {
     [allEmails]
   );
 
-  const waitingEmails = useMemo(() =>
-    allEmails.filter(e => e.status === "approved_sent")
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
-    [allEmails]
-  );
+  const waitingEmails = useMemo(() => {
+    const waiting = allEmails
+      .filter(e => e.status === "approved_sent")
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    // Show only the most recent email per thread_id; null thread_id = unique
+    const seen = new Set<string>();
+    return waiting.filter(e => {
+      if (!e.thread_id) return true;
+      if (seen.has(e.thread_id)) return false;
+      seen.add(e.thread_id);
+      return true;
+    });
+  }, [allEmails]);
 
   const spamEmails = useMemo(() =>
     allEmails.filter(e => e.category === "SPAM" && e.status !== "deleted" && e.status !== "resolved")
@@ -643,6 +651,14 @@ export default function Inbox() {
         onDelete={handleDeleteFromDetail}
         onUpdateLabel={handleUpdateLabel}
         onMoveToWaiting={async (email) => {
+          // Archive older same-thread emails that are also in Waiting
+          if (email.thread_id) {
+            await supabase.from("emails")
+              .update({ status: "resolved" } as any)
+              .eq("thread_id", email.thread_id)
+              .eq("status", "approved_sent")
+              .neq("id", email.id);
+          }
           await supabase.from("emails").update({ status: "approved_sent" } as any).eq("id", email.id);
           queryClient.invalidateQueries({ queryKey: ["emails"] });
           queryClient.invalidateQueries({ queryKey: ["all-emails"] });
