@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck } from "lucide-react";
+import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -23,9 +23,10 @@ interface ThreadViewProps {
   onArchive?: (email: Email) => void;
   onDelete?: (email: Email) => void;
   onUpdateLabel?: (emailId: string, label: string | null) => void;
+  onMoveToWaiting?: (email: Email) => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel }: ThreadViewProps) {
+export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
 
@@ -109,6 +110,11 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
               <Button size="sm" className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
                 <Reply size={12} /> Reply
               </Button>
+              {!isResolved && onMoveToWaiting && email.status !== "approved_sent" && (
+                <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onMoveToWaiting(email); onClose(); }}>
+                  <ArrowRightLeft size={12} /> Waiting on Them
+                </Button>
+              )}
               {!isResolved && (
                 <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
                   <Archive size={12} /> Archive
