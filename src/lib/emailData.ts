@@ -313,6 +313,7 @@ export function useInboxCounts() {
         .from("calls")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending")
+        .eq("is_read", false)
         .gte("created_at", sevenDaysAgo);
 
       const { count: trashCount } = await supabase
