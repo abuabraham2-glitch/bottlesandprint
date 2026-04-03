@@ -40,9 +40,16 @@ export default function Trash() {
   };
 
   const handlePermanentDelete = async (id: string) => {
-    await supabase.from("emails").delete().eq("id", id);
+    const { error } = await supabase.from("emails").delete().eq("id", id);
+    if (error) {
+      console.error("Delete failed:", error);
+      toast.error("Failed to delete email");
+      setPermanentDeleteTarget(null);
+      return;
+    }
     setEmails(prev => prev.filter(e => e.id !== id));
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
     toast.success("Permanently deleted");
     setPermanentDeleteTarget(null);
   };
