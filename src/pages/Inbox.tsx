@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAllEmails, useUpdateEmail, useCreateTriageFeedback, sendEmailViaWebhook, Email } from "@/lib/emailData";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,8 @@ export default function Inbox() {
   const [archiveLabelOpen, setArchiveLabelOpen] = useState(false);
   const [archiveLabelTargetIds, setArchiveLabelTargetIds] = useState<string[]>([]);
   const composeBodyRef = useRef<HTMLDivElement>(null);
+  const composeCcRef = useRef<HTMLInputElement>(null);
+  const composeBccRef = useRef<HTMLInputElement>(null);
 
   const { data: allEmails = [], isLoading } = useAllEmails();
   const queryClient = useQueryClient();
@@ -140,6 +142,18 @@ export default function Inbox() {
       }
     }
   }, [allEmails, draftEmail]);
+
+  useLayoutEffect(() => {
+    if (!showCcField) return;
+
+    if (composeCcRef.current && composeCcRef.current.value !== composeCc) {
+      composeCcRef.current.value = composeCc;
+    }
+
+    if (composeBccRef.current && composeBccRef.current.value !== composeBcc) {
+      composeBccRef.current.value = composeBcc;
+    }
+  }, [composeCc, composeBcc, showCcField]);
 
   // Contacts
   const loadContacts = useCallback(async () => {
@@ -675,7 +689,7 @@ export default function Inbox() {
                 <>
                   <div className="relative">
                     <label className="text-xs font-sans text-muted-foreground">CC</label>
-                    <Input name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
+                    <Input ref={composeCcRef} name="compose-cc-field" autoComplete="off" value={composeCc} onChange={e => handleCcChange(e.target.value)} onBlur={() => setTimeout(() => setShowCcSuggestions(false), 200)} placeholder="cc@example.com" className="rounded-xl" />
                     {showCcSuggestions && ccSuggestions.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-card border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                         {ccSuggestions.map((s, i) => (
@@ -688,7 +702,7 @@ export default function Inbox() {
                   </div>
                   <div>
                     <label className="text-xs font-sans text-muted-foreground">BCC</label>
-                    <Input name="compose-bcc-field" autoComplete="off" value={composeBcc} onChange={e => setComposeBcc(e.target.value)} placeholder="bcc@example.com" className="rounded-xl" />
+                    <Input ref={composeBccRef} name="compose-bcc-field" autoComplete="off" value={composeBcc} onChange={e => setComposeBcc(e.target.value)} placeholder="bcc@example.com" className="rounded-xl" />
                   </div>
                 </>
               )}
