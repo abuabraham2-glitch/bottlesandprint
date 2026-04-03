@@ -232,13 +232,6 @@ export default function Calls() {
   const calls = filterCalls(baseCalls);
   const loading = mainTab === "resolved" ? loadingResolved : loadingPending;
 
-  const categoryTabs: { key: CategoryFilter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "sales", label: "Sales" },
-    { key: "support", label: "Support" },
-    { key: "callback", label: "Callback" },
-    { key: "urgent", label: "Urgent" },
-  ];
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1200px]">
