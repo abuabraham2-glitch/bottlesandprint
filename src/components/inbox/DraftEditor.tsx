@@ -121,7 +121,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   };
 
   const handleSend = () => {
-    if (!email.from_email || !email.draft_response) return;
+    if (!toValue || !email.draft_response) return;
     if (isQuoteDraft) {
       setQuotePromptOpen(true);
     } else {
