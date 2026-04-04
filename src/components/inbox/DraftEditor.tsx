@@ -80,7 +80,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       };
       await sendEmailViaWebhook(payload);
       await supabase.from("emails").update({ status: "approved_sent", direction: "outbound" } as any).eq("id", email.id);
-      await updateEmail.mutateAsync({ id: email.id, status: "approved_sent" as any });
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
       if (markAsQuoted) {
         await supabase.from("emails").update({ quoted_at: new Date().toISOString() } as any).eq("id", email.id);
       }
