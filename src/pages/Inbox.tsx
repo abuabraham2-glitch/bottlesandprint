@@ -72,11 +72,18 @@ export default function Inbox() {
   }, [archiveSearchQuery]);
 
   // Derived lists for each tab
-  const needsReplyEmails = useMemo(() =>
-    allEmails.filter(e => (e.status === "pending" || e.status === "needs_response") && e.category !== "SPAM")
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
-    [allEmails]
-  );
+  const needsReplyEmails = useMemo(() => {
+    // Collect thread_ids that have any email in "Waiting on Them" (approved_sent)
+    const waitingThreadIds = new Set(
+      allEmails
+        .filter(e => e.status === "approved_sent" && e.thread_id)
+        .map(e => e.thread_id!)
+    );
+    return allEmails
+      .filter(e => (e.status === "pending" || e.status === "needs_response") && e.category !== "SPAM")
+      .filter(e => !e.thread_id || !waitingThreadIds.has(e.thread_id))
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [allEmails]);
 
   const waitingEmails = useMemo(() => {
     const getCreatedAtTime = (email: Email) => new Date(email.created_at || 0).getTime();
