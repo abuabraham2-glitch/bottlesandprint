@@ -72,11 +72,18 @@ export default function Inbox() {
   }, [archiveSearchQuery]);
 
   // Derived lists for each tab
-  const needsReplyEmails = useMemo(() =>
-    allEmails.filter(e => (e.status === "pending" || e.status === "needs_response") && e.category !== "SPAM")
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
-    [allEmails]
-  );
+  const needsReplyEmails = useMemo(() => {
+    // Collect thread_ids that have any email in "Waiting on Them" (approved_sent)
+    const waitingThreadIds = new Set(
+      allEmails
+        .filter(e => e.status === "approved_sent" && e.thread_id)
+        .map(e => e.thread_id!)
+    );
+    return allEmails
+      .filter(e => (e.status === "pending" || e.status === "needs_response") && e.category !== "SPAM")
+      .filter(e => !e.thread_id || !waitingThreadIds.has(e.thread_id))
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [allEmails]);
 
   const waitingEmails = useMemo(() => {
     const getCreatedAtTime = (email: Email) => new Date(email.created_at || 0).getTime();
@@ -561,7 +568,9 @@ export default function Inbox() {
                 {/* Content */}
                 <div className="flex-1 min-w-0 flex items-center gap-3">
                   <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
-                    {displaySenderName(email.from_name, email.from_email)}
+                    {mainTab === "waiting" && (email as any).direction === "outbound"
+                      ? `You → ${displaySenderName(email.from_name, email.from_email)}`
+                      : displaySenderName(email.from_name, email.from_email)}
                   </span>
                   <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {email.subject}
@@ -671,7 +680,7 @@ export default function Inbox() {
               .eq("status", "approved_sent")
               .neq("id", email.id);
           }
-          await supabase.from("emails").update({ status: "approved_sent" } as any).eq("id", email.id);
+          await supabase.from("emails").update({ status: "approved_sent", direction: "outbound" } as any).eq("id", email.id);
           queryClient.invalidateQueries({ queryKey: ["emails"] });
           queryClient.invalidateQueries({ queryKey: ["all-emails"] });
           setThreadEmail(null);

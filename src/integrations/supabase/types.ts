@@ -370,6 +370,7 @@ export type Database = {
           created_at: string | null
           cross_match_note: string | null
           deleted_at: string | null
+          direction: string | null
           draft_response: string | null
           from_email: string | null
           from_name: string | null
@@ -411,6 +412,7 @@ export type Database = {
           created_at?: string | null
           cross_match_note?: string | null
           deleted_at?: string | null
+          direction?: string | null
           draft_response?: string | null
           from_email?: string | null
           from_name?: string | null
@@ -452,6 +454,7 @@ export type Database = {
           created_at?: string | null
           cross_match_note?: string | null
           deleted_at?: string | null
+          direction?: string | null
           draft_response?: string | null
           from_email?: string | null
           from_name?: string | null
