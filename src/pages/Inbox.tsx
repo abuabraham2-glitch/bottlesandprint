@@ -568,7 +568,9 @@ export default function Inbox() {
                 {/* Content */}
                 <div className="flex-1 min-w-0 flex items-center gap-3">
                   <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
-                    {displaySenderName(email.from_name, email.from_email)}
+                    {mainTab === "waiting" && (email as any).direction === "outbound"
+                      ? `You → ${displaySenderName(email.from_name, email.from_email)}`
+                      : displaySenderName(email.from_name, email.from_email)}
                   </span>
                   <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {email.subject}
