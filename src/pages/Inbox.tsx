@@ -671,7 +671,7 @@ export default function Inbox() {
               .eq("status", "approved_sent")
               .neq("id", email.id);
           }
-          await supabase.from("emails").update({ status: "approved_sent" } as any).eq("id", email.id);
+          await supabase.from("emails").update({ status: "approved_sent", direction: "outbound" } as any).eq("id", email.id);
           queryClient.invalidateQueries({ queryKey: ["emails"] });
           queryClient.invalidateQueries({ queryKey: ["all-emails"] });
           setThreadEmail(null);
