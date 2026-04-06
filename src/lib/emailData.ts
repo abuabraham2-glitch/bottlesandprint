@@ -290,7 +290,7 @@ export function useInboxCounts() {
       const { count: actionNeeded } = await supabase
         .from("emails")
         .select("*", { count: "exact", head: true })
-        .or("status.eq.needs_response,and(status.eq.pending,tier.eq.TIER_2)");
+        .in("status", ["pending", "needs_response"]);
 
       const { count: activeInbox } = await supabase
         .from("emails")

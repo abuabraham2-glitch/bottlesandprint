@@ -72,53 +72,60 @@ export default function Inbox() {
   }, [archiveSearchQuery]);
 
   // Derived lists for each tab
+  // Threads with any email in 'waiting' status
+  const waitingThreadIds = useMemo(() => new Set(
+    allEmails
+      .filter(e => e.status === "waiting" && e.thread_id)
+      .map(e => e.thread_id!)
+  ), [allEmails]);
+
   const needsReplyEmails = useMemo(() => {
-    // Collect thread_ids that have any email in "Waiting on Them" (approved_sent)
-    const waitingThreadIds = new Set(
-      allEmails
-        .filter(e => e.status === "approved_sent" && e.thread_id)
-        .map(e => e.thread_id!)
-    );
     return allEmails
-      .filter(e => (e.status === "pending" || e.status === "needs_response") && e.category !== "SPAM")
-      .filter(e => !e.thread_id || !waitingThreadIds.has(e.thread_id))
+      .filter(e =>
+        (e.status === "pending" || e.status === "needs_response") &&
+        ((e as any).direction === "inbound" || !(e as any).direction) &&
+        (!e.thread_id || !waitingThreadIds.has(e.thread_id))
+      )
       .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-  }, [allEmails]);
+  }, [allEmails, waitingThreadIds]);
 
   const waitingEmails = useMemo(() => {
-    const getCreatedAtTime = (email: Email) => new Date(email.created_at || 0).getTime();
-    const waiting = allEmails.filter(e => e.status === "approved_sent");
-    const waitingThreadIds = new Set(
-      waiting
-        .map(e => e.thread_id)
-        .filter((threadId): threadId is string => Boolean(threadId))
-    );
+    const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
+    const excludeStatuses = new Set(["deleted", "archived", "spam", "resolved"]);
 
+    // For each thread, find the most recent non-excluded email
     const latestByThread = new Map<string, Email>();
-
     allEmails
-      .filter((email) => email.thread_id && waitingThreadIds.has(email.thread_id))
-      .sort((a, b) => getCreatedAtTime(b) - getCreatedAtTime(a))
-      .forEach((email) => {
-        if (!latestByThread.has(email.thread_id!)) {
-          latestByThread.set(email.thread_id!, email);
-        }
+      .filter(e => e.thread_id && !excludeStatuses.has(e.status || ""))
+      .sort((a, b) => getTime(b) - getTime(a))
+      .forEach(e => {
+        if (!latestByThread.has(e.thread_id!)) latestByThread.set(e.thread_id!, e);
       });
 
-    return [
-      ...waiting.filter(e => !e.thread_id),
-      ...Array.from(latestByThread.values()),
-    ].sort((a, b) => getCreatedAtTime(b) - getCreatedAtTime(a));
+    // A thread qualifies if its latest email is outbound OR has status='waiting'
+    const result: Email[] = [];
+    latestByThread.forEach((latest) => {
+      if ((latest as any).direction === "outbound" || latest.status === "waiting") {
+        result.push(latest);
+      }
+    });
+
+    // Also include non-threaded emails with status='waiting'
+    allEmails
+      .filter(e => !e.thread_id && e.status === "waiting")
+      .forEach(e => result.push(e));
+
+    return result.sort((a, b) => getTime(b) - getTime(a));
   }, [allEmails]);
 
   const spamEmails = useMemo(() =>
-    allEmails.filter(e => e.category === "SPAM" && e.status !== "deleted" && e.status !== "resolved")
+    allEmails.filter(e => (e.status === "spam" || e.category === "SPAM" || (e as any).tier === "SPAM") && e.status !== "deleted")
       .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
     [allEmails]
   );
 
   const archivedEmails = useMemo(() => {
-    let list = allEmails.filter(e => e.status === "resolved");
+    let list = allEmails.filter(e => e.status === "archived" || e.status === "resolved");
 
     if (archiveFilterQuoted) list = list.filter(e => e.quoted_at != null);
     if (archiveFilterAttachments) {
@@ -568,9 +575,7 @@ export default function Inbox() {
                 {/* Content */}
                 <div className="flex-1 min-w-0 flex items-center gap-3">
                   <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
-                    {mainTab === "waiting" && (email as any).direction === "outbound"
-                      ? `You → ${displaySenderName(email.from_name, email.from_email)}`
-                      : displaySenderName(email.from_name, email.from_email)}
+                    {displaySenderName(email.from_name, email.from_email)}
                   </span>
                   <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {email.subject}
@@ -677,10 +682,10 @@ export default function Inbox() {
             await supabase.from("emails")
               .update({ status: "resolved" } as any)
               .eq("thread_id", email.thread_id)
-              .eq("status", "approved_sent")
+              .eq("status", "waiting")
               .neq("id", email.id);
           }
-          await supabase.from("emails").update({ status: "approved_sent", direction: "outbound" } as any).eq("id", email.id);
+          await supabase.from("emails").update({ status: "waiting", direction: "outbound" } as any).eq("id", email.id);
           queryClient.invalidateQueries({ queryKey: ["emails"] });
           queryClient.invalidateQueries({ queryKey: ["all-emails"] });
           setThreadEmail(null);
