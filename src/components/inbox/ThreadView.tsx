@@ -195,30 +195,27 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
                     dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(displayBody)) }} />
                 );
               }
-              return null;
+              if ((email as any).html_body) {
+                return (
+                  <iframe
+                    srcDoc={(email as any).html_body}
+                    title="Email content"
+                    className="w-full bg-white rounded-xl border min-h-[300px]"
+                    sandbox="allow-same-origin"
+                    style={{ border: 'none' }}
+                    onLoad={(e) => {
+                      const iframe = e.currentTarget;
+                      if (iframe.contentDocument?.body) {
+                        iframe.style.height = iframe.contentDocument.body.scrollHeight + 32 + 'px';
+                      }
+                    }}
+                  />
+                );
+              }
+              return (
+                <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans text-muted-foreground italic">No content available</div>
+              );
             })()}
-            {(() => {
-              const isOutbound = (email as any).direction === "outbound";
-              const displayBody = isOutbound && email.draft_response ? email.draft_response : email.body;
-              if (!displayBody || !displayBody.trim()) {
-                if ((email as any).html_body) {
-                  return (
-              <iframe
-                srcDoc={(email as any).html_body}
-                title="Email content"
-                className="w-full bg-white rounded-xl border min-h-[300px]"
-                sandbox="allow-same-origin"
-                style={{ border: 'none' }}
-                onLoad={(e) => {
-                  const iframe = e.currentTarget;
-                  if (iframe.contentDocument?.body) {
-                    iframe.style.height = iframe.contentDocument.body.scrollHeight + 32 + 'px';
-                  }
-                }}
-              />
-            ) : (
-              <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans text-muted-foreground italic">No content available</div>
-            )}
           </div>
         </div>
 
