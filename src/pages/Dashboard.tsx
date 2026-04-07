@@ -132,6 +132,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: recentEmails = [] } = useRecentEmails();
   const { data: latestInsight } = useLatestInsightsNotification();
   const { data: todos = [] } = useTodos();
+  const { data: pipeline } = useSalesPipeline();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
@@ -147,8 +148,10 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [clearNotifsDialog, setClearNotifsDialog] = useState(false);
 
   // Quick notes
-  const [notesOpen, setNotesOpen] = useState(true);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [pipelineOpenMobile, setPipelineOpenMobile] = useState(false);
   const [notes, setNotes] = useState<{ id: string; text: string; color: string }[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
   });
