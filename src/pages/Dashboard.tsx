@@ -398,7 +398,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     const open = mobile ? notesOpenMobile : notesOpen;
     const toggle = () => mobile ? setNotesOpenMobile(o => !o) : setNotesOpen(o => !o);
     return (
-      <div className="rounded-[13px] overflow-hidden bg-card" style={{ border: '0.5px solid hsl(var(--border))' }}>
+      <div className="rounded-[13px] overflow-hidden bg-card" style={{ border: '1.5px solid hsl(var(--primary))' }}>
         <button onClick={toggle}
           className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px]">
           <span className="text-sm font-bold flex items-center gap-2">
