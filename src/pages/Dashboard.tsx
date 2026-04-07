@@ -837,14 +837,18 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             </div>
           </div>
 
-          {/* Notes & To-Do side by side on desktop */}
+          {/* Notes + Pipeline & To-Do side by side on desktop */}
           <div className="hidden md:grid grid-cols-2 gap-[14px]">
-            {renderNotesPanel(false)}
+            <div className="space-y-2">
+              {renderNotesPanel(false)}
+              {renderPipelinePanel(false)}
+            </div>
             {renderTodoPanel(false)}
           </div>
           {/* Mobile: stacked */}
           <div className="md:hidden space-y-3">
             {renderNotesPanel(true)}
+            {renderPipelinePanel(true)}
             {renderTodoPanel(true)}
           </div>
         </div>
