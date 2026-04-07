@@ -126,8 +126,7 @@ function useSalesPipeline() {
     },
   });
 }
-
-
+export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const { data: recentEmails = [] } = useRecentEmails();
