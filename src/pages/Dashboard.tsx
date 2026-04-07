@@ -2,7 +2,7 @@ import { useOrders } from "@/lib/data";
 import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
+import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, ChevronDown, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -98,12 +98,41 @@ function useTodos() {
   });
 }
 
+function useSalesPipeline() {
+  return useQuery({
+    queryKey: ["sales_pipeline"],
+    queryFn: async () => {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [leadsRes, quotedRes, followUpRes, wonRes] = await Promise.all([
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .eq("category", "SALES").in("status", ["pending", "needs_response"]),
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .not("quoted_at", "is", null),
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .eq("status", "waiting").eq("direction", "outbound"),
+        supabase.from("orders").select("*", { count: "exact", head: true })
+          .gte("created_at", monthStart),
+      ]);
+
+      const leads = leadsRes.count || 0;
+      const quoted = quotedRes.count || 0;
+      const followUp = followUpRes.count || 0;
+      const won = wonRes.count || 0;
+      const conversion = leads > 0 ? Math.round((won / leads) * 100) : 0;
+
+      return { leads, quoted, followUp, won, conversion };
+    },
+  });
+}
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const { data: recentEmails = [] } = useRecentEmails();
   const { data: latestInsight } = useLatestInsightsNotification();
   const { data: todos = [] } = useTodos();
+  const { data: pipeline } = useSalesPipeline();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
@@ -119,8 +148,10 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [clearNotifsDialog, setClearNotifsDialog] = useState(false);
 
   // Quick notes
-  const [notesOpen, setNotesOpen] = useState(true);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [pipelineOpenMobile, setPipelineOpenMobile] = useState(false);
   const [notes, setNotes] = useState<{ id: string; text: string; color: string }[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
   });
@@ -367,25 +398,20 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     const open = mobile ? notesOpenMobile : notesOpen;
     const toggle = () => mobile ? setNotesOpenMobile(o => !o) : setNotesOpen(o => !o);
     return (
-      <div className="floating-card !p-0 overflow-hidden">
+      <div className="rounded-[13px] overflow-hidden bg-card" style={{ border: '0.5px solid hsl(var(--border))' }}>
         <button onClick={toggle}
-          className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
-          style={{ borderBottomWidth: '1.5px' }}>
-          <span className="text-sm font-bold">
+          className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px]">
+          <span className="text-sm font-bold flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
             Quick Notes
             {!open && notes.length > 0 && (
-              <span className="ml-2 text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{notes.length}</span>
+              <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{notes.length}</span>
             )}
           </span>
-          <div className="flex items-center gap-2">
-            {notes.length > 0 && open && (
-              <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
-                onClick={(e) => { e.stopPropagation(); setClearNotesDialog(true); }}>Clear all</span>
-            )}
-          </div>
+          <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
         <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
-          <div className="p-3 md:p-4 space-y-2">
+          <div className="px-4 pb-3 space-y-2">
             {notes.map((n, i) => (
               <div key={n.id} className="group flex items-start gap-2 text-sm">
                 <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.color === 'text-warning' ? 'bg-warning' : n.color === 'text-destructive' ? 'bg-destructive' : 'bg-primary'}`} />
@@ -408,6 +434,63 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[40px] md:min-h-[36px]"
               />
               <button onClick={addNote} className="text-primary font-bold text-xs px-2 min-h-[40px] md:min-h-[36px]">+</button>
+            </div>
+            {notes.length > 0 && (
+              <button onClick={() => setClearNotesDialog(true)}
+                className="text-[10px] text-muted-foreground hover:text-foreground">Clear all</button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render sales pipeline panel
+  const renderPipelinePanel = (mobile: boolean) => {
+    const open = mobile ? pipelineOpenMobile : pipelineOpen;
+    const toggle = () => mobile ? setPipelineOpenMobile(o => !o) : setPipelineOpen(o => !o);
+    const p = pipeline || { leads: 0, quoted: 0, followUp: 0, won: 0, conversion: 0 };
+    const maxCount = Math.max(p.leads, p.quoted, p.followUp, p.won, 1);
+
+    const bars = [
+      { label: "Leads", count: p.leads, color: "bg-primary" },
+      { label: "Quoted", count: p.quoted, color: "bg-warning" },
+      { label: "Follow-up", count: p.followUp, color: "bg-[hsl(263,70%,55%)]" },
+      { label: "Won", count: p.won, color: "bg-success" },
+    ];
+
+    return (
+      <div className="rounded-[13px] overflow-hidden bg-card" style={{ border: '1.5px solid hsl(var(--warning))' }}>
+        <button onClick={toggle}
+          className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px]">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
+            <span className="text-sm font-bold">Sales Pipeline</span>
+            {!open && (
+              <span className="text-[10px] text-muted-foreground ml-1">
+                {p.leads} leads · {p.won} won
+              </span>
+            )}
+          </div>
+          <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
+          <div className="px-4 pb-3 space-y-2.5">
+            {bars.map(b => (
+              <div key={b.label} className="flex items-center gap-2">
+                <span className="text-xs font-medium w-16 shrink-0">{b.label}</span>
+                <div className="flex-1 h-5 bg-muted/40 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${b.color} transition-all duration-500`}
+                    style={{ width: `${Math.max((b.count / maxCount) * 100, b.count > 0 ? 8 : 0)}%` }} />
+                </div>
+                <span className="text-xs font-bold w-6 text-right">{b.count}</span>
+              </div>
+            ))}
+            <div className="border-t pt-2 mt-1 flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">Conversion Rate</span>
+              <span className={`text-sm font-bold ${p.conversion >= 20 ? 'text-success' : p.conversion >= 10 ? 'text-warning' : 'text-destructive'}`}>
+                {p.conversion}%
+              </span>
             </div>
           </div>
         </div>
@@ -754,14 +837,18 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             </div>
           </div>
 
-          {/* Notes & To-Do side by side on desktop */}
+          {/* Notes + Pipeline & To-Do side by side on desktop */}
           <div className="hidden md:grid grid-cols-2 gap-[14px]">
-            {renderNotesPanel(false)}
+            <div className="space-y-2">
+              {renderNotesPanel(false)}
+              {renderPipelinePanel(false)}
+            </div>
             {renderTodoPanel(false)}
           </div>
           {/* Mobile: stacked */}
           <div className="md:hidden space-y-3">
             {renderNotesPanel(true)}
+            {renderPipelinePanel(true)}
             {renderTodoPanel(true)}
           </div>
         </div>
