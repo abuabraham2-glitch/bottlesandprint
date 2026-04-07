@@ -98,7 +98,36 @@ function useTodos() {
   });
 }
 
-export default function Dashboard({ searchQuery }: DashboardProps) {
+function useSalesPipeline() {
+  return useQuery({
+    queryKey: ["sales_pipeline"],
+    queryFn: async () => {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [leadsRes, quotedRes, followUpRes, wonRes] = await Promise.all([
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .eq("category", "SALES").in("status", ["pending", "needs_response"]),
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .not("quoted_at", "is", null),
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .eq("status", "waiting").eq("direction", "outbound"),
+        supabase.from("orders").select("*", { count: "exact", head: true })
+          .gte("created_at", monthStart),
+      ]);
+
+      const leads = leadsRes.count || 0;
+      const quoted = quotedRes.count || 0;
+      const followUp = followUpRes.count || 0;
+      const won = wonRes.count || 0;
+      const conversion = leads > 0 ? Math.round((won / leads) * 100) : 0;
+
+      return { leads, quoted, followUp, won, conversion };
+    },
+  });
+}
+
+
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
   const { data: recentEmails = [] } = useRecentEmails();
