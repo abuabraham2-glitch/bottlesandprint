@@ -463,7 +463,7 @@ export default function Inbox() {
       </div>
 
       {/* 4 TABS */}
-      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 w-fit overflow-x-auto">
+      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 max-w-full overflow-x-auto [-webkit-overflow-scrolling:touch] scrollbar-none">
         {TABS.map(tab => (
           <button key={tab.key}
             onClick={() => setMainTab(tab.key)}
