@@ -77,9 +77,9 @@ export default function Clients() {
   };
 
   const exportClients = () => {
-    const headers = ["Company", "Contact Name", "Email", "Phone", "Street Address", "City", "State", "Zip", "Billing Street", "Billing City", "Billing State", "Billing Zip", "Form Signed"];
+    const headers = ["Company", "Primary Contact", "Email", "Phone", "Street Address", "City", "State", "Zip", "Billing Street", "Billing City", "Billing State", "Billing Zip", "Form Signed"];
     const rows = clients.map(c => [
-      c.company, c.contact_name, c.email, c.phone, c.street_address, c.city, c.state, c.zip,
+      c.company, (c as any).orders_contact_name, (c as any).orders_email, (c as any).orders_phone, c.street_address, c.city, c.state, c.zip,
       c.billing_street, c.billing_city, c.billing_state, c.billing_zip, c.form_signed ? "Yes" : "No"
     ]);
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v || ""}"`).join(","))].join("\n");
@@ -148,7 +148,7 @@ export default function Clients() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold text-lg">{client.company}</h3>
-                  {client.contact_name && <p className="text-sm text-muted-foreground">{client.contact_name}</p>}
+                  {(client as any).orders_contact_name && <p className="text-sm text-muted-foreground">{(client as any).orders_contact_name}</p>}
                 </div>
                 <div className="flex items-center gap-1">
                   {activeTab === "active" && (
@@ -166,8 +166,8 @@ export default function Clients() {
                   </button>
                 </div>
               </div>
-              {client.email && <p className="text-sm text-muted-foreground">{client.email}</p>}
-              {client.phone && <p className="text-sm text-muted-foreground">{client.phone}</p>}
+              {(client as any).orders_email && <p className="text-sm text-muted-foreground">{(client as any).orders_email}</p>}
+              {(client as any).orders_phone && <p className="text-sm text-muted-foreground">{(client as any).orders_phone}</p>}
               {addr && <p className="text-sm text-muted-foreground whitespace-pre-line mt-1">{addr}</p>}
               <div className="flex items-center gap-4 mt-3 pt-3 border-t">
                 <span className="text-xs text-muted-foreground">{activeOrders} active order{activeOrders !== 1 ? "s" : ""}</span>
@@ -455,9 +455,6 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
         )}
 
         <div><Label>Company *</Label><Input value={form.company} onChange={e => updateField("company", e.target.value)} required /></div>
-        <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => updateField("contact_name", e.target.value)} /></div>
-        <div><Label>Email</Label><Input type="text" value={form.email} onChange={e => updateField("email", e.target.value)} placeholder="e.g. john@co.com, jane@co.com" className="w-full" /></div>
-        <div><Label>Phone</Label><Input value={form.phone} onChange={e => updateField("phone", e.target.value)} /></div>
 
         <AddressFields
           label="Mailing Address"
@@ -487,11 +484,11 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
 
         <Collapsible defaultOpen>
           <CollapsibleTrigger className="flex items-center gap-2 w-full text-sm font-medium py-2 hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-180">
-            Primary Contact for Orders
+            Primary Contact
             <ChevronDown size={14} className="transition-transform duration-200" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 pt-1">
-            <div><Label>Name</Label><Input value={form.orders_contact_name} onChange={e => updateField("orders_contact_name", e.target.value)} /></div>
+            <div><Label>Name *</Label><Input value={form.orders_contact_name} onChange={e => updateField("orders_contact_name", e.target.value)} required /></div>
             <div><Label>Email</Label><Input type="text" value={form.orders_email} onChange={e => updateField("orders_email", e.target.value)} /></div>
             <div><Label>Phone</Label><Input value={form.orders_phone} onChange={e => updateField("orders_phone", e.target.value)} /></div>
           </CollapsibleContent>
@@ -502,7 +499,7 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
             Accounts Payable Contact
             <ChevronDown size={14} className="transition-transform duration-200" />
           </CollapsibleTrigger>
-          <p className="text-xs text-muted-foreground -mt-1 mb-1">Leave blank if same as primary contact</p>
+          <p className="text-xs text-muted-foreground -mt-1 mb-1">Leave blank if same as Primary Contact</p>
           <CollapsibleContent className="space-y-3 pt-1">
             <div><Label>Name</Label><Input value={form.ap_contact_name} onChange={e => updateField("ap_contact_name", e.target.value)} /></div>
             <div><Label>Email</Label><Input type="text" value={form.ap_email} onChange={e => updateField("ap_email", e.target.value)} /></div>

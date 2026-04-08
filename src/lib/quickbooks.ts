@@ -40,8 +40,8 @@ async function getNextSequenceNumber(counterName: string): Promise<number | null
 
 export async function syncClientToQB(client: {
   company: string;
-  email?: string | null;
-  phone?: string | null;
+  orders_email?: string | null;
+  orders_phone?: string | null;
   street_address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -51,8 +51,8 @@ export async function syncClientToQB(client: {
     const ok = await postToWebhook({
       action: "create_customer",
       company: client.company,
-      email: client.email || "",
-      phone: client.phone || "",
+      email: client.orders_email || "",
+      phone: client.orders_phone || "",
       street: client.street_address || "",
       city: client.city || "",
       state: client.state || "",

@@ -28,15 +28,13 @@ serve(async (req) => {
 
     const systemPrompt = `You are a data extraction assistant. The user will provide a client intake or new client form. Extract the following fields using the label names listed. Return ONLY a valid JSON object with these exact keys — use an empty string for any field not found.
 
+IMPORTANT RULES:
+- The first or only contact person found on the form should ALWAYS go into orders_contact_name, orders_email, orders_phone (Primary Contact). Never leave Primary Contact blank if any contact name is found on the document.
+- Only put someone in ap_contact_name, ap_email, ap_phone if they are explicitly labeled as AP, Accounts Payable, or Billing Contact AND are a different person from the Primary Contact.
+
 Fields to extract:
 
 - company: look for 'Company Name', 'Company', 'Business Name', or 'DBA'
-
-- contact_name: look for the first or general 'Contact Name' or 'Name' field that is not under an Orders or AP section
-
-- email: look for a general 'Email' not under a specific section
-
-- phone: look for a general 'Phone' not under a specific section
 
 - street_address: first line of Mailing Address
 
@@ -54,17 +52,17 @@ Fields to extract:
 
 - billing_zip: zip from Billing Address
 
-- orders_contact_name: look for 'Name of Primary Contact for Orders', 'Order Contact Name', 'Primary Contact for Orders'
+- orders_contact_name: The first or primary contact name found. Look for 'Contact Name', 'Name', 'Primary Contact', 'Name of Primary Contact for Orders', 'Order Contact Name'. If only one contact is listed, use it here.
 
-- orders_phone: look for the Phone field directly beneath the Orders contact name
+- orders_phone: The phone for the primary contact
 
-- orders_email: look for the Email field directly beneath the Orders contact name
+- orders_email: The email for the primary contact
 
-- ap_contact_name: look for 'Name of Primary Contact for Accounts Payable', 'AP Contact', 'Accounts Payable Contact'
+- ap_contact_name: ONLY if a separate person is explicitly labeled as 'AP Contact', 'Accounts Payable Contact', 'Billing Contact', or 'Name of Primary Contact for Accounts Payable'
 
-- ap_phone: look for the Phone field directly beneath the AP contact name
+- ap_phone: Phone for the AP contact (only if different person)
 
-- ap_email: look for the Email field directly beneath the AP contact name
+- ap_email: Email for the AP contact (only if different person)
 
 Return ONLY the JSON object. No explanation, no markdown, no extra text.`;
 
