@@ -397,6 +397,7 @@ export type Database = {
           tier: string | null
           to_email_all: string | null
           to_recipients: string | null
+          win_back_sent_at: string | null
         }
         Insert: {
           acknowledged?: boolean | null
@@ -439,6 +440,7 @@ export type Database = {
           tier?: string | null
           to_email_all?: string | null
           to_recipients?: string | null
+          win_back_sent_at?: string | null
         }
         Update: {
           acknowledged?: boolean | null
@@ -481,6 +483,7 @@ export type Database = {
           tier?: string | null
           to_email_all?: string | null
           to_recipients?: string | null
+          win_back_sent_at?: string | null
         }
         Relationships: [
           {
