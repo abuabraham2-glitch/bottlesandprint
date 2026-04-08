@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useClient, useOrders, useCatalog, useDeleteClient } from "@/lib/data";
+import { useClient, useOrders, useCatalog, useDeleteClient, useClientDocuments, useUploadClientDocument, useDeleteClientDocument } from "@/lib/data";
 import { getStageBadgeClass, getStageLabel, formatAddress, formatDateShort } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw, Upload, FileText, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClientForm } from "./Clients";
@@ -18,10 +18,15 @@ export default function ClientDetail() {
   const { data: client, isLoading } = useClient(id!);
   const { data: orders = [] } = useOrders(true);
   const { data: catalog = [] } = useCatalog(id);
+  const { data: clientDocs = [] } = useClientDocuments(id!);
   const deleteClient = useDeleteClient();
+  const uploadClientDoc = useUploadClientDocument();
+  const deleteClientDoc = useDeleteClientDocument();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteDocTarget, setDeleteDocTarget] = useState<{ id: string; fileUrl: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clientOrders = orders.filter(o => o.client_id === id);
 
@@ -45,6 +50,27 @@ export default function ClientDetail() {
     await deleteClient.mutateAsync(id!);
     toast.success("Client deleted");
     navigate("/clients");
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !id) return;
+    for (const file of Array.from(files)) {
+      await uploadClientDoc.mutateAsync({ clientId: id, file });
+    }
+    toast.success("Document uploaded");
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  const confirmDeleteDoc = async () => {
+    if (deleteDocTarget && id) {
+      await deleteClientDoc.mutateAsync({ id: deleteDocTarget.id, clientId: id, fileUrl: deleteDocTarget.fileUrl });
+      toast.success("Document deleted");
+    }
+    setDeleteDocTarget(null);
   };
 
   return (
@@ -83,6 +109,41 @@ export default function ClientDetail() {
               <><XCircle size={16} className="text-destructive" /> Client form not signed</>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Documents */}
+      <div className="bg-card rounded-lg border p-5">
+        <h3 className="font-semibold mb-4">Documents</h3>
+        {clientDocs.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {clientDocs.map(doc => (
+              <div key={doc.id} className="flex items-center gap-3 p-2 rounded bg-muted/30">
+                <FileText size={16} className="text-muted-foreground shrink-0" />
+                <span className="text-sm flex-1 truncate">{doc.file_name}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{doc.uploaded_at ? formatDateShort(doc.uploaded_at) : "—"}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground p-1" title="Open">
+                    <ExternalLink size={15} />
+                  </a>
+                  <button onClick={() => setDeleteDocTarget({ id: doc.id, fileUrl: doc.file_url })} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div
+          onDragOver={e => e.preventDefault()}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-muted/20 transition-colors"
+        >
+          <Upload size={24} className="mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Drop files here or click to upload</p>
+          <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG, Word docs, and more</p>
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={e => { handleFileUpload(e.target.files); if (fileInputRef.current) fileInputRef.current.value = ""; }} />
         </div>
       </div>
 
@@ -169,6 +230,20 @@ export default function ClientDetail() {
             {!deleteError && (
               <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
             )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Document Dialog */}
+      <AlertDialog open={!!deleteDocTarget} onOpenChange={(open) => { if (!open) setDeleteDocTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this document? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteDoc} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
