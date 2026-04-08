@@ -396,7 +396,7 @@ export default function Inbox() {
 
   const handleNotSpam = async (e: React.MouseEvent, emailId: string) => {
     e.stopPropagation();
-    await supabase.from("emails").update({ category: "SALES", status: "needs_response", resolved_at: null } as any).eq("id", emailId);
+    await supabase.from("emails").update({ category: "SALES", status: "needs_response", tier: null, resolved_at: null } as any).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success("Moved to Needs My Reply");
   };
