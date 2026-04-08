@@ -95,7 +95,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 mr-6">
               {isResolved && (
                 <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs px-3 py-1">
                   <CheckCircle size={12} className="mr-1" />
