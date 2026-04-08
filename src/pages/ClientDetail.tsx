@@ -85,11 +85,8 @@ export default function ClientDetail() {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-lg border p-5">
-          <h3 className="font-semibold mb-3">Contact Info</h3>
+          <h3 className="font-semibold mb-3">Company Info</h3>
           <div className="space-y-2 text-sm">
-            <Row label="Contact" value={client.contact_name} />
-            <Row label="Email" value={client.email} />
-            <Row label="Phone" value={client.phone} />
             <div className="flex justify-between items-start">
               <span className="text-muted-foreground">Address</span>
               <span className="text-right whitespace-pre-line">{addr || "—"}</span>
@@ -101,7 +98,7 @@ export default function ClientDetail() {
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
-          <h3 className="font-semibold mb-3">Orders Contact</h3>
+          <h3 className="font-semibold mb-3">Primary Contact</h3>
           <div className="space-y-2 text-sm">
             <Row label="Name" value={(client as any).orders_contact_name} />
             <Row label="Email" value={(client as any).orders_email} />
@@ -109,7 +106,8 @@ export default function ClientDetail() {
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
-          <h3 className="font-semibold mb-3">Accounts Payable</h3>
+          <h3 className="font-semibold mb-3">Accounts Payable Contact</h3>
+          <p className="text-xs text-muted-foreground mb-2">Leave blank if same as Primary Contact</p>
           <div className="space-y-2 text-sm">
             <Row label="Name" value={(client as any).ap_contact_name} />
             <Row label="Email" value={(client as any).ap_email} />
