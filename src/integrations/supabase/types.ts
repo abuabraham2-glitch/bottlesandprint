@@ -260,6 +260,9 @@ export type Database = {
       }
       clients: {
         Row: {
+          ap_contact_name: string | null
+          ap_email: string | null
+          ap_phone: string | null
           archived: boolean
           billing_city: string | null
           billing_state: string | null
@@ -272,6 +275,9 @@ export type Database = {
           email: string | null
           form_signed: boolean
           id: string
+          orders_contact_name: string | null
+          orders_email: string | null
+          orders_phone: string | null
           phone: string | null
           state: string | null
           street_address: string | null
@@ -279,6 +285,9 @@ export type Database = {
           zip: string | null
         }
         Insert: {
+          ap_contact_name?: string | null
+          ap_email?: string | null
+          ap_phone?: string | null
           archived?: boolean
           billing_city?: string | null
           billing_state?: string | null
@@ -291,6 +300,9 @@ export type Database = {
           email?: string | null
           form_signed?: boolean
           id?: string
+          orders_contact_name?: string | null
+          orders_email?: string | null
+          orders_phone?: string | null
           phone?: string | null
           state?: string | null
           street_address?: string | null
@@ -298,6 +310,9 @@ export type Database = {
           zip?: string | null
         }
         Update: {
+          ap_contact_name?: string | null
+          ap_email?: string | null
+          ap_phone?: string | null
           archived?: boolean
           billing_city?: string | null
           billing_state?: string | null
@@ -310,6 +325,9 @@ export type Database = {
           email?: string | null
           form_signed?: boolean
           id?: string
+          orders_contact_name?: string | null
+          orders_email?: string | null
+          orders_phone?: string | null
           phone?: string | null
           state?: string | null
           street_address?: string | null
