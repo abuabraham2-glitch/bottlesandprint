@@ -309,9 +309,6 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
       setForm(prev => ({
         ...prev,
         company: extracted.company || prev.company,
-        contact_name: extracted.contact_name || prev.contact_name,
-        email: extracted.email || prev.email,
-        phone: extracted.phone || prev.phone,
         street_address: extracted.street_address || prev.street_address,
         city: extracted.city || prev.city,
         state: extracted.state || prev.state,
