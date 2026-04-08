@@ -234,7 +234,7 @@ export default function OrderDetail() {
 
 
   const handleArchive = async () => {
-    if (!confirm("Archive this order? It will be moved to completed data.")) return;
+    if (!confirm("Archive this order? It will be moved to Completed Orders.")) return;
     await archiveOrder.mutateAsync(order);
     toast.success("Order archived");
     navigate("/orders");

@@ -26,7 +26,7 @@ const navGroup1 = [
 const navGroup2 = [
   { to: "/clients", icon: Users, label: "Clients" },
   { to: "/catalog", icon: BookOpen, label: "Product Catalog" },
-  { to: "/completed", icon: Archive, label: "Completed Data" },
+  { to: "/completed", icon: Archive, label: "Completed Orders" },
   { to: "/stats", icon: BarChart3, label: "Stats" },
   { to: "https://drive.google.com/drive/folders/1jqGJ9lB01He28ReEAB9JQGqQ2m9ajLsY", icon: HardDrive, label: "Google Drive", external: true },
 ] as const;
