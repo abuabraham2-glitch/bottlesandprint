@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useOrders } from "@/lib/data";
 import { formatAddress } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw } from "lucide-react";
+import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
 import { syncClientToQB } from "@/lib/quickbooks";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Clients() {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
