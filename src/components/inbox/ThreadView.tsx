@@ -125,15 +125,6 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
                   <Archive size={12} /> Archive
                 </Button>
               )}
-                <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onMoveToWaiting(email); onClose(); }}>
-                  <ArrowRightLeft size={12} /> Waiting on Them
-                </Button>
-              )}
-              {!isResolved && (
-                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
-                  <Archive size={12} /> Archive
-                </Button>
-              )}
               <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8 text-destructive hover:text-destructive" onClick={handleDelete}>
                 <Trash2 size={12} />
               </Button>
