@@ -26,7 +26,47 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    const systemPrompt = `You are a data extraction assistant. The user will provide a client intake or new client form. Extract the following fields if present: company name, contact name, email address, phone number, mailing street address, mailing city, mailing state, mailing zip, billing street address, billing city, billing state, billing zip, orders/purchasing contact name, orders/purchasing contact email, orders/purchasing contact phone, accounts payable contact name, accounts payable contact email, accounts payable contact phone. Look for labels like "Order Contact", "Purchasing Contact", "AP Contact", "Accounts Payable", "Billing Contact". Return ONLY a valid JSON object with these exact keys: company, contact_name, email, phone, street_address, city, state, zip, billing_street, billing_city, billing_state, billing_zip, orders_contact_name, orders_email, orders_phone, ap_contact_name, ap_email, ap_phone. If a field is not found, return an empty string for that key.`;
+    const systemPrompt = `You are a data extraction assistant. The user will provide a client intake or new client form. Extract the following fields using the label names listed. Return ONLY a valid JSON object with these exact keys — use an empty string for any field not found.
+
+Fields to extract:
+
+- company: look for 'Company Name', 'Company', 'Business Name', or 'DBA'
+
+- contact_name: look for the first or general 'Contact Name' or 'Name' field that is not under an Orders or AP section
+
+- email: look for a general 'Email' not under a specific section
+
+- phone: look for a general 'Phone' not under a specific section
+
+- street_address: first line of Mailing Address
+
+- city: city from Mailing Address
+
+- state: state from Mailing Address
+
+- zip: zip code from Mailing Address
+
+- billing_street: first line of Billing Address
+
+- billing_city: city from Billing Address
+
+- billing_state: state from Billing Address
+
+- billing_zip: zip from Billing Address
+
+- orders_contact_name: look for 'Name of Primary Contact for Orders', 'Order Contact Name', 'Primary Contact for Orders'
+
+- orders_phone: look for the Phone field directly beneath the Orders contact name
+
+- orders_email: look for the Email field directly beneath the Orders contact name
+
+- ap_contact_name: look for 'Name of Primary Contact for Accounts Payable', 'AP Contact', 'Accounts Payable Contact'
+
+- ap_phone: look for the Phone field directly beneath the AP contact name
+
+- ap_email: look for the Email field directly beneath the AP contact name
+
+Return ONLY the JSON object. No explanation, no markdown, no extra text.`;
 
     // Determine content type for the AI message
     const isImage = mediaType.startsWith("image/");
