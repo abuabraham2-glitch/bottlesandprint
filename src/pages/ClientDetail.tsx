@@ -103,17 +103,17 @@ export default function ClientDetail() {
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-3">Orders Contact</h3>
           <div className="space-y-2 text-sm">
-            <Row label="Name" value={client.orders_contact_name} />
-            <Row label="Email" value={client.orders_email} />
-            <Row label="Phone" value={client.orders_phone} />
+            <Row label="Name" value={(client as any).orders_contact_name} />
+            <Row label="Email" value={(client as any).orders_email} />
+            <Row label="Phone" value={(client as any).orders_phone} />
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-3">Accounts Payable</h3>
           <div className="space-y-2 text-sm">
-            <Row label="Name" value={client.ap_contact_name} />
-            <Row label="Email" value={client.ap_email} />
-            <Row label="Phone" value={client.ap_phone} />
+            <Row label="Name" value={(client as any).ap_contact_name} />
+            <Row label="Email" value={(client as any).ap_email} />
+            <Row label="Phone" value={(client as any).ap_phone} />
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
