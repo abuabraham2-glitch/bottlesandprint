@@ -7,7 +7,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw, FileText, Loader2, CheckCircle2, AlertCircle, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
@@ -244,6 +245,12 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
     billing_city: initialData?.billing_city || "",
     billing_state: initialData?.billing_state || "",
     billing_zip: initialData?.billing_zip || "",
+    orders_contact_name: initialData?.orders_contact_name || "",
+    orders_email: initialData?.orders_email || "",
+    orders_phone: initialData?.orders_phone || "",
+    ap_contact_name: initialData?.ap_contact_name || "",
+    ap_email: initialData?.ap_email || "",
+    ap_phone: initialData?.ap_phone || "",
     form_signed: initialData?.form_signed || false,
   });
 
@@ -313,6 +320,12 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
         billing_city: extracted.billing_city || prev.billing_city,
         billing_state: extracted.billing_state || prev.billing_state,
         billing_zip: extracted.billing_zip || prev.billing_zip,
+        orders_contact_name: extracted.orders_contact_name || prev.orders_contact_name,
+        orders_email: extracted.orders_email || prev.orders_email,
+        orders_phone: extracted.orders_phone || prev.orders_phone,
+        ap_contact_name: extracted.ap_contact_name || prev.ap_contact_name,
+        ap_email: extracted.ap_email || prev.ap_email,
+        ap_phone: extracted.ap_phone || prev.ap_phone,
         form_signed: true,
       }));
 
@@ -471,6 +484,31 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
           stateField="billing_state"
           zipField="billing_zip"
         />
+
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="flex items-center gap-2 w-full text-sm font-medium py-2 hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-180">
+            Primary Contact for Orders
+            <ChevronDown size={14} className="transition-transform duration-200" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 pt-1">
+            <div><Label>Name</Label><Input value={form.orders_contact_name} onChange={e => updateField("orders_contact_name", e.target.value)} /></div>
+            <div><Label>Email</Label><Input type="text" value={form.orders_email} onChange={e => updateField("orders_email", e.target.value)} /></div>
+            <div><Label>Phone</Label><Input value={form.orders_phone} onChange={e => updateField("orders_phone", e.target.value)} /></div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="flex items-center gap-2 w-full text-sm font-medium py-2 hover:text-foreground transition-colors [&[data-state=open]>svg]:rotate-180">
+            Accounts Payable Contact
+            <ChevronDown size={14} className="transition-transform duration-200" />
+          </CollapsibleTrigger>
+          <p className="text-xs text-muted-foreground -mt-1 mb-1">Leave blank if same as primary contact</p>
+          <CollapsibleContent className="space-y-3 pt-1">
+            <div><Label>Name</Label><Input value={form.ap_contact_name} onChange={e => updateField("ap_contact_name", e.target.value)} /></div>
+            <div><Label>Email</Label><Input type="text" value={form.ap_email} onChange={e => updateField("ap_email", e.target.value)} /></div>
+            <div><Label>Phone</Label><Input value={form.ap_phone} onChange={e => updateField("ap_phone", e.target.value)} /></div>
+          </CollapsibleContent>
+        </Collapsible>
 
         <label className="flex items-center gap-2">
           <Checkbox checked={form.form_signed} onCheckedChange={v => updateField("form_signed", !!v)} />
