@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useOrders } from "@/lib/data";
 import { formatAddress } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw } from "lucide-react";
+import { Plus, Archive, CheckCircle, XCircle, Trash2, RotateCcw, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
 import { syncClientToQB } from "@/lib/quickbooks";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Clients() {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
@@ -246,14 +247,132 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
     form_signed: initialData?.form_signed || false,
   });
 
+  // Document upload state
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docStatus, setDocStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [docError, setDocError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
+
+  const processFile = useCallback(async (file: File) => {
+    // Check for .docx
+    if (file.name.toLowerCase().endsWith(".docx") || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      setDocFile(file);
+      setDocStatus("error");
+      setDocError("Please use a PDF or image of the form for best results");
+      return;
+    }
+
+    const mediaType = file.type || "application/pdf";
+    if (!ACCEPTED_TYPES.includes(mediaType)) {
+      setDocStatus("error");
+      setDocError("Unsupported file type. Use PDF, JPG, or PNG.");
+      return;
+    }
+
+    setDocFile(file);
+    setDocStatus("loading");
+    setDocError("");
+
+    try {
+      // Convert to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]); // strip data:...;base64,
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { data, error } = await supabase.functions.invoke("extract-client-form", {
+        body: { base64Data: base64, mediaType },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const extracted = data.extracted;
+      if (!extracted || typeof extracted !== "object") throw new Error("Invalid response");
+
+      // Auto-fill form fields (only non-empty extracted values)
+      setForm(prev => ({
+        ...prev,
+        company: extracted.company || prev.company,
+        contact_name: extracted.contact_name || prev.contact_name,
+        email: extracted.email || prev.email,
+        phone: extracted.phone || prev.phone,
+        street_address: extracted.street_address || prev.street_address,
+        city: extracted.city || prev.city,
+        state: extracted.state || prev.state,
+        zip: extracted.zip || prev.zip,
+        billing_street: extracted.billing_street || prev.billing_street,
+        billing_city: extracted.billing_city || prev.billing_city,
+        billing_state: extracted.billing_state || prev.billing_state,
+        billing_zip: extracted.billing_zip || prev.billing_zip,
+        form_signed: true,
+      }));
+
+      setDocStatus("success");
+    } catch (err: any) {
+      console.error("Document extraction failed:", err);
+      setDocStatus("error");
+      setDocError("Couldn't read document — please fill in manually");
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  }, [processFile]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  }, [processFile]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.company) return;
+
+    let clientId: string | undefined;
+
     if (isEdit) {
       await updateClient.mutateAsync({ id: initialData.id, ...form });
+      clientId = initialData.id;
     } else {
-      await createClient.mutateAsync(form);
+      const created = await createClient.mutateAsync(form);
+      clientId = created?.id;
     }
+
+    // Upload the document to storage if we have one
+    if (docFile && clientId) {
+      try {
+        const filePath = `${clientId}/${Date.now()}_${docFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("client-documents")
+          .upload(filePath, docFile);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage
+            .from("client-documents")
+            .getPublicUrl(filePath);
+          await supabase.from("client_documents").insert({
+            client_id: clientId,
+            file_name: docFile.name,
+            file_type: docFile.type || "application/octet-stream",
+            file_url: publicUrl,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to upload document to storage:", err);
+      }
+    }
+
     setSavedClient(form);
     setSyncPromptOpen(true);
   };
@@ -271,6 +390,57 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Document Drop Zone */}
+        {!isEdit && (
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => docStatus !== "loading" && fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+              isDragging
+                ? "border-primary bg-primary/5"
+                : docStatus === "success"
+                ? "border-green-500/50 bg-green-50 dark:bg-green-950/20"
+                : docStatus === "error"
+                ? "border-destructive/50 bg-destructive/5"
+                : "border-border hover:border-muted-foreground/50"
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.docx"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            {docStatus === "idle" && (
+              <div className="flex flex-col items-center gap-1.5 py-1">
+                <FileText size={20} className="text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Drop new client form here to auto-fill</span>
+              </div>
+            )}
+            {docStatus === "loading" && (
+              <div className="flex items-center justify-center gap-2 py-1">
+                <Loader2 size={18} className="animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Reading document…</span>
+              </div>
+            )}
+            {docStatus === "success" && (
+              <div className="flex items-center justify-center gap-2 py-1">
+                <CheckCircle2 size={18} className="text-green-600" />
+                <span className="text-sm text-green-700 dark:text-green-400">{docFile?.name}</span>
+              </div>
+            )}
+            {docStatus === "error" && (
+              <div className="flex items-center justify-center gap-2 py-1">
+                <AlertCircle size={18} className="text-destructive" />
+                <span className="text-sm text-destructive">{docError}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div><Label>Company *</Label><Input value={form.company} onChange={e => updateField("company", e.target.value)} required /></div>
         <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => updateField("contact_name", e.target.value)} /></div>
         <div><Label>Email</Label><Input type="text" value={form.email} onChange={e => updateField("email", e.target.value)} placeholder="e.g. john@co.com, jane@co.com" className="w-full" /></div>
