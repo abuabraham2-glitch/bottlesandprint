@@ -83,7 +83,7 @@ export default function ClientDetail() {
         <Button variant="outline" size="sm" onClick={() => syncClientToQB(client)}><RefreshCw size={14} className="mr-1" /> Sync to QuickBooks</Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-3">Contact Info</h3>
           <div className="space-y-2 text-sm">
@@ -98,6 +98,22 @@ export default function ClientDetail() {
               <span className="text-muted-foreground">Billing</span>
               <span className="text-right whitespace-pre-line">{billingAddr || "—"}</span>
             </div>
+          </div>
+        </div>
+        <div className="bg-card rounded-lg border p-5">
+          <h3 className="font-semibold mb-3">Orders Contact</h3>
+          <div className="space-y-2 text-sm">
+            <Row label="Name" value={client.orders_contact_name} />
+            <Row label="Email" value={client.orders_email} />
+            <Row label="Phone" value={client.orders_phone} />
+          </div>
+        </div>
+        <div className="bg-card rounded-lg border p-5">
+          <h3 className="font-semibold mb-3">Accounts Payable</h3>
+          <div className="space-y-2 text-sm">
+            <Row label="Name" value={client.ap_contact_name} />
+            <Row label="Email" value={client.ap_email} />
+            <Row label="Phone" value={client.ap_phone} />
           </div>
         </div>
         <div className="bg-card rounded-lg border p-5">
