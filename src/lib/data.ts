@@ -559,6 +559,57 @@ export async function autoCreateCatalogEntry(order: Partial<Order>, clientId: st
   });
 }
 
+// Client Documents
+export function useClientDocuments(clientId: string) {
+  return useQuery({
+    queryKey: ["client_documents", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("client_documents").select("*").eq("client_id", clientId).order("uploaded_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!clientId,
+  });
+}
+
+export function useUploadClientDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ clientId, file }: { clientId: string; file: File }) => {
+      const filePath = `${clientId}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage.from("client-documents").upload(filePath, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("client-documents").getPublicUrl(filePath);
+      const { error: dbError } = await supabase.from("client_documents").insert({
+        client_id: clientId,
+        file_name: file.name,
+        file_type: file.type || "application/octet-stream",
+        file_url: publicUrl,
+      });
+      if (dbError) throw dbError;
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["client_documents", vars.clientId] }),
+  });
+}
+
+export function useDeleteClientDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, clientId, fileUrl }: { id: string; clientId: string; fileUrl: string }) => {
+      // Extract storage path from public URL
+      const parts = fileUrl.split("/client-documents/");
+      if (parts.length > 1) {
+        const storagePath = decodeURIComponent(parts[1]);
+        await supabase.storage.from("client-documents").remove([storagePath]);
+      }
+      const { error } = await supabase.from("client_documents").delete().eq("id", id);
+      if (error) throw error;
+      return clientId;
+    },
+    onSuccess: (clientId) => qc.invalidateQueries({ queryKey: ["client_documents", clientId] }),
+  });
+}
+
 export async function updateCatalogLastRun(clientId: string, itemName: string) {
   const now = new Date();
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
