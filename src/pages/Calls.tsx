@@ -240,46 +240,78 @@ export default function Calls() {
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-serif font-normal">Calls</h1>
         <div className="flex items-center gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl gap-1.5 text-xs"
-                disabled={clearingResolved || resolvedCalls.length === 0}
-              >
-                <Trash2 size={14} /> Clear Resolved
-              </Button>
-            </AlertDialogTrigger>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl gap-1.5 text-xs"
+            disabled={clearingResolved || resolvedCalls.length === 0}
+            onClick={() => { setClearDialogOpen(true); setClearConfirmStep(null); }}
+          >
+            <Trash2 size={14} /> Clear Resolved
+          </Button>
+
+          {/* Clear Resolved – choice dialog */}
+          <Dialog open={clearDialogOpen && !clearConfirmStep} onOpenChange={open => { if (!open) setClearDialogOpen(false); }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>What would you like to do with all resolved calls?</DialogTitle>
+              </DialogHeader>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+                <Button onClick={() => setClearConfirmStep("archive")} className="gap-1.5">
+                  Archive All
+                </Button>
+                <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10 gap-1.5" onClick={() => setClearConfirmStep("delete")}>
+                  Delete All
+                </Button>
+                <Button variant="ghost" onClick={() => setClearDialogOpen(false)}>Cancel</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Archive confirmation */}
+          <AlertDialog open={clearDialogOpen && clearConfirmStep === "archive"} onOpenChange={open => { if (!open) { setClearConfirmStep(null); setClearDialogOpen(false); } }}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Clear resolved calls?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Mark all resolved calls as archived? This cannot be undone.
-                </AlertDialogDescription>
+                <AlertDialogTitle>Archive {resolvedCalls.length} resolved calls?</AlertDialogTitle>
+                <AlertDialogDescription>All resolved calls will be archived.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={async () => {
-                    setClearingResolved(true);
-                    try {
-                      const { error } = await supabase
-                        .from("calls")
-                        .update({ status: "archived" } as any)
-                        .eq("status", "resolved");
-                      if (error) throw error;
-                      queryClient.invalidateQueries({ queryKey: ["calls"] });
-                      toast.success("Resolved calls archived");
-                    } catch {
-                      toast.error("Failed to archive calls");
-                    } finally {
-                      setClearingResolved(false);
-                    }
-                  }}
-                >
-                  Archive All
-                </AlertDialogAction>
+                <AlertDialogCancel onClick={() => setClearConfirmStep(null)}>Back</AlertDialogCancel>
+                <AlertDialogAction onClick={async () => {
+                  setClearingResolved(true);
+                  try {
+                    const { error } = await supabase.from("calls").update({ status: "archived" } as any).eq("status", "resolved");
+                    if (error) throw error;
+                    queryClient.invalidateQueries({ queryKey: ["calls"] });
+                    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                    toast.success("Resolved calls archived");
+                  } catch { toast.error("Failed to archive calls"); }
+                  finally { setClearingResolved(false); setClearDialogOpen(false); setClearConfirmStep(null); }
+                }}>Confirm</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Delete confirmation */}
+          <AlertDialog open={clearDialogOpen && clearConfirmStep === "delete"} onOpenChange={open => { if (!open) { setClearConfirmStep(null); setClearDialogOpen(false); } }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Permanently delete {resolvedCalls.length} resolved calls?</AlertDialogTitle>
+                <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setClearConfirmStep(null)}>Back</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                  setClearingResolved(true);
+                  try {
+                    const { error } = await supabase.from("calls").delete().eq("status", "resolved");
+                    if (error) throw error;
+                    queryClient.invalidateQueries({ queryKey: ["calls"] });
+                    queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+                    toast.success("Resolved calls deleted");
+                  } catch { toast.error("Failed to delete calls"); }
+                  finally { setClearingResolved(false); setClearDialogOpen(false); setClearConfirmStep(null); }
+                }}>Confirm</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
