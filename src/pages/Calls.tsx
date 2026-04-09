@@ -13,7 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { CallCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { OutboundCallModal } from "@/components/OutboundCallModal";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RelatedEmails } from "@/components/calls/RelatedEmails";
 import { OutboundCallDrawer } from "@/components/calls/OutboundCallDrawer";
 
