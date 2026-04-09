@@ -152,7 +152,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
   const [pipelineOpen, setPipelineOpen] = useState(false);
   const [pipelineOpenMobile, setPipelineOpenMobile] = useState(false);
-  const [notes, setNotes] = useState<{ id: string; text: string; color: string }[]>(() => {
+  const [notes, setNotes] = useState<{ id: string; text: string; color: string; createdAt?: string }[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
   });
   const [newNote, setNewNote] = useState("");
@@ -213,7 +213,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
 
   const addNote = () => {
     if (!newNote.trim()) return;
-    setNotes(prev => [...prev, { id: Date.now().toString(), text: newNote.trim(), color: noteColors[prev.length % 3] }]);
+    setNotes(prev => [...prev, { id: Date.now().toString(), text: newNote.trim(), color: noteColors[prev.length % 3], createdAt: new Date().toISOString() }]);
     setNewNote("");
   };
 
@@ -415,7 +415,12 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
             {notes.map((n, i) => (
               <div key={n.id} className="group flex items-start gap-2 text-sm">
                 <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.color === 'text-warning' ? 'bg-warning' : n.color === 'text-destructive' ? 'bg-destructive' : 'bg-primary'}`} />
-                <span className="flex-1 text-xs">{n.text}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs">{n.text}</span>
+                  {n.createdAt && (
+                    <span className="block text-[10px] text-muted-foreground mt-0.5">{format(new Date(n.createdAt), "MMM d, yyyy")}</span>
+                  )}
+                </div>
                 <button onClick={() => setNotes(prev => prev.filter((_, j) => j !== i))}
                   className={`transition-opacity rounded-full bg-muted flex items-center justify-center shrink-0 ${mobile ? 'opacity-100 w-7 h-7' : 'opacity-0 group-hover:opacity-100 w-5 h-5'}`}>
                   <X size={mobile ? 12 : 10} />
@@ -533,13 +538,19 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               {uncheckedTodos.map(t => (
                 <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px]">
                   <Checkbox checked={false} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: true })} />
-                  <span className="text-sm font-semibold flex-1">{t.text}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-semibold">{t.text}</span>
+                    {t.created_at && <span className="block text-[10px] text-muted-foreground mt-0.5">{format(new Date(t.created_at), "MMM d, yyyy")}</span>}
+                  </div>
                 </div>
               ))}
               {checkedTodos.map(t => (
                 <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px] opacity-50">
                   <Checkbox checked={true} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: false })} />
-                  <span className="text-sm font-semibold flex-1 line-through">{t.text}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-semibold line-through">{t.text}</span>
+                    {t.created_at && <span className="block text-[10px] text-muted-foreground mt-0.5">{format(new Date(t.created_at), "MMM d, yyyy")}</span>}
+                  </div>
                 </div>
               ))}
               {todos.length === 0 && (
