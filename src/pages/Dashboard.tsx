@@ -1,8 +1,7 @@
 import { useOrders } from "@/lib/data";
-import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, ChevronDown, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
+import { StickyNote, Link2, ChevronRight, ChevronDown, X, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,24 +25,6 @@ const stageColors: Record<string, { border: string; text: string; bg: string; st
   close: { border: "border-stage-close", text: "text-stage-close", bg: "bg-stage-close", stripe: "bg-stage-close" },
 };
 
-
-
-function useLatestInsightsNotification() {
-  return useQuery({
-    queryKey: ["stats", "latest_insight_notification"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("monthly_stats")
-        .select("insights, month_start")
-        .order("month_start", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
 interface TodoItem {
   id: string;
   text: string;
@@ -66,60 +47,18 @@ function useTodos() {
   });
 }
 
-function useSalesPipeline() {
-  return useQuery({
-    queryKey: ["sales_pipeline"],
-    queryFn: async () => {
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-      const [leadsRes, quotedRes, followUpRes, wonRes] = await Promise.all([
-        supabase.from("emails").select("*", { count: "exact", head: true })
-          .eq("category", "SALES").in("status", ["pending", "needs_response"]),
-        supabase.from("emails").select("*", { count: "exact", head: true })
-          .not("quoted_at", "is", null),
-        supabase.from("emails").select("*", { count: "exact", head: true })
-          .eq("status", "waiting").eq("direction", "outbound"),
-        supabase.from("orders").select("*", { count: "exact", head: true })
-          .gte("created_at", monthStart),
-      ]);
-
-      const leads = leadsRes.count || 0;
-      const quoted = quotedRes.count || 0;
-      const followUp = followUpRes.count || 0;
-      const won = wonRes.count || 0;
-      const conversion = leads > 0 ? Math.round((won / leads) * 100) : 0;
-
-      return { leads, quoted, followUp, won, conversion };
-    },
-  });
-}
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
-  const { data: inboxCounts } = useInboxCounts();
-  
-  const { data: latestInsight } = useLatestInsightsNotification();
   const { data: todos = [] } = useTodos();
-  const { data: pipeline } = useSalesPipeline();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [calDate, setCalDate] = useState<Date | undefined>(new Date());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
-  // Mobile: only one stage expanded at a time
   const [mobileExpandedStage, setMobileExpandedStage] = useState<string | null>(null);
-
-  // Notifications panel
-  const [notifsOpen, setNotifsOpen] = useState(true);
-  const [notifsOpenMobile, setNotifsOpenMobile] = useState(false); // collapsed on mobile by default
-  const [dismissedNotifItems, setDismissedNotifItems] = useState<Set<string>>(new Set());
-  const [dismissingNotifItems, setDismissingNotifItems] = useState<Set<string>>(new Set());
-  const [clearNotifsDialog, setClearNotifsDialog] = useState(false);
 
   // Quick notes
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
-  const [pipelineOpen, setPipelineOpen] = useState(false);
-  const [pipelineOpenMobile, setPipelineOpenMobile] = useState(false);
   const [notes, setNotes] = useState<{ id: string; text: string; color: string; createdAt?: string }[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
   });
@@ -185,25 +124,6 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     setNewNote("");
   };
 
-  const dismissNotification = (id: string, delayMs = 0) => {
-    setTimeout(() => {
-      setDismissingNotifItems(prev => new Set([...prev, id]));
-      setTimeout(() => {
-        setDismissedNotifItems(prev => new Set([...prev, id]));
-        setDismissingNotifItems(prev => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }, 300);
-    }, delayMs);
-  };
-
-  const clearAllNotifications = () => {
-    visibleNotifs.forEach((n, idx) => dismissNotification(n.id, idx * 80));
-    setClearNotifsDialog(false);
-  };
-
   const filtered = searchQuery
     ? orders.filter(o =>
         o.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -247,119 +167,10 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     setMobileExpandedStage(prev => prev === key ? null : key);
   };
 
-  // QB review data
-  const invoicesToReview = filtered.filter(o => o.invoice_num && !o.invoice_reviewed).length;
-  const vendorPosToReview = filtered.filter(o => o.vendor_po && !o.vendor_po_reviewed).length;
-  const qbAllClear = invoicesToReview === 0 && vendorPosToReview === 0;
-
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
   const now = new Date();
   const dateStr = format(now, "EEEE · MMMM dd · yyyy").toUpperCase();
-
-  // Notification items
-  const hasInsightUpdate = Boolean(latestInsight?.insights?.trim());
-  const insightMonthLabel = latestInsight?.month_start
-    ? format(new Date(latestInsight.month_start), "MMMM")
-    : "this month";
-
-  const notifItems = [
-    inboxCounts && inboxCounts.actionNeeded > 0 && {
-      id: "action",
-      icon: <Mail size={14} className="text-primary shrink-0" />,
-      text: `${inboxCounts.actionNeeded} email${inboxCounts.actionNeeded !== 1 ? "s" : ""} need attention`,
-      onClick: () => navigate("/inbox"),
-    },
-    inboxCounts && inboxCounts.draftsToReview > 0 && {
-      id: "drafts",
-      icon: <FilePenLine size={14} className="text-warning shrink-0" />,
-      text: `${inboxCounts.draftsToReview} draft${inboxCounts.draftsToReview !== 1 ? "s" : ""} ready to review`,
-      onClick: () => navigate("/inbox?tab=drafts"),
-    },
-    hasInsightUpdate && {
-      id: "insights",
-      icon: <BarChart3 size={14} className="text-primary shrink-0" />,
-      text: `AI insights updated for ${insightMonthLabel}`,
-      onClick: () => navigate("/stats"),
-    },
-    inboxCounts && inboxCounts.autoHandledToday > 0 && {
-      id: "auto",
-      icon: <Zap size={14} className="text-success shrink-0" />,
-      text: `${inboxCounts.autoHandledToday} auto-handled today`,
-      onClick: () => navigate("/inbox"),
-    },
-    inboxCounts && inboxCounts.newCalls > 0 && {
-      id: "calls",
-      icon: <PhoneCall size={14} className="text-warning shrink-0" />,
-      text: `${inboxCounts.newCalls} call${inboxCounts.newCalls !== 1 ? "s" : ""} to return`,
-      onClick: () => navigate("/calls"),
-    },
-  ].filter(Boolean) as { id: string; icon: React.ReactNode; text: string; onClick: () => void }[];
-
-  const visibleNotifs = notifItems.filter(n => !dismissedNotifItems.has(n.id));
-
-  // Determine responsive open state helpers
-  const isNotifsOpen = (isMobile: boolean) => isMobile ? notifsOpenMobile : notifsOpen;
-  const toggleNotifs = (isMobile: boolean) => isMobile ? setNotifsOpenMobile(o => !o) : setNotifsOpen(o => !o);
-  const isNotesOpen = (isMobile: boolean) => isMobile ? notesOpenMobile : notesOpen;
-  const toggleNotes = (isMobile: boolean) => isMobile ? setNotesOpenMobile(o => !o) : setNotesOpen(o => !o);
-
-  // Render notification panel content (shared)
-  const renderNotifPanel = (mobile: boolean) => {
-    const open = mobile ? notifsOpenMobile : notifsOpen;
-    const toggle = () => mobile ? setNotifsOpenMobile(o => !o) : setNotifsOpen(o => !o);
-    return (
-      <div className="floating-card !p-0 overflow-hidden">
-        <button onClick={toggle}
-          className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
-          style={{ borderBottomWidth: '1.5px' }}>
-          <span className="text-sm font-bold">
-            Notifications & QB
-            {!open && visibleNotifs.length > 0 && (
-              <span className="ml-2 text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded-full">{visibleNotifs.length}</span>
-            )}
-          </span>
-          {visibleNotifs.length > 0 && open && (
-            <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); setClearNotifsDialog(true); }}>Clear all</span>
-          )}
-        </button>
-        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
-          <div className="p-3 md:p-4 space-y-2">
-            {visibleNotifs.map(n => (
-              <div key={n.id}
-                className={`group relative flex items-start gap-2 text-sm rounded-[9px] pr-7 transition-all duration-300 ${dismissingNotifItems.has(n.id) ? "opacity-0 translate-x-5" : "opacity-100 translate-x-0"}`}>
-                <button onClick={n.onClick} className="flex items-center gap-2 flex-1 text-left transition-colors min-h-[44px] py-1">
-                  {n.icon}
-                  <span className="font-medium text-xs leading-snug">{n.text}</span>
-                </button>
-                <button onClick={() => dismissNotification(n.id)}
-                  className={`absolute top-1 right-1 transition-opacity w-7 h-7 md:w-5 md:h-5 rounded-full bg-muted flex items-center justify-center ${mobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                  aria-label="Dismiss notification">
-                  <X size={mobile ? 12 : 10} />
-                </button>
-              </div>
-            ))}
-            {visibleNotifs.length === 0 && (
-              <p className="text-xs text-muted-foreground">No new notifications</p>
-            )}
-            <div className="border-t pt-2 mt-2">
-              <div className="flex items-center gap-2 text-sm">
-                <ClipboardList size={14} className="text-primary shrink-0" />
-                {qbAllClear ? (
-                  <span className="font-bold text-success text-xs">QB: All caught up ✓</span>
-                ) : (
-                  <button onClick={() => navigate("/orders")} className="font-medium text-xs transition-colors">
-                    {invoicesToReview + vendorPosToReview} QB items to review
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   // Render notes panel (shared)
   const renderNotesPanel = (mobile: boolean) => {
@@ -418,59 +229,6 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     );
   };
 
-  // Render sales pipeline panel
-  const renderPipelinePanel = (mobile: boolean) => {
-    const open = mobile ? pipelineOpenMobile : pipelineOpen;
-    const toggle = () => mobile ? setPipelineOpenMobile(o => !o) : setPipelineOpen(o => !o);
-    const p = pipeline || { leads: 0, quoted: 0, followUp: 0, won: 0, conversion: 0 };
-    const maxCount = Math.max(p.leads, p.quoted, p.followUp, p.won, 1);
-
-    const bars = [
-      { label: "Leads", count: p.leads, color: "bg-primary" },
-      { label: "Quoted", count: p.quoted, color: "bg-warning" },
-      { label: "Follow-up", count: p.followUp, color: "bg-[hsl(263,70%,55%)]" },
-      { label: "Won", count: p.won, color: "bg-success" },
-    ];
-
-    return (
-      <div className="rounded-[13px] overflow-hidden bg-card" style={{ border: '1.5px solid hsl(var(--warning))' }}>
-        <button onClick={toggle}
-          className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px]">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
-            <span className="text-sm font-bold">Sales Pipeline</span>
-            {!open && (
-              <span className="text-[10px] text-muted-foreground ml-1">
-                {p.leads} leads · {p.won} won
-              </span>
-            )}
-          </div>
-          <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        </button>
-        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
-          <div className="px-4 pb-3 space-y-2.5">
-            {bars.map(b => (
-              <div key={b.label} className="flex items-center gap-2">
-                <span className="text-xs font-medium w-16 shrink-0">{b.label}</span>
-                <div className="flex-1 h-5 bg-muted/40 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${b.color} transition-all duration-500`}
-                    style={{ width: `${Math.max((b.count / maxCount) * 100, b.count > 0 ? 8 : 0)}%` }} />
-                </div>
-                <span className="text-xs font-bold w-6 text-right">{b.count}</span>
-              </div>
-            ))}
-            <div className="border-t pt-2 mt-1 flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">Conversion Rate</span>
-              <span className={`text-sm font-bold ${p.conversion >= 20 ? 'text-success' : p.conversion >= 10 ? 'text-warning' : 'text-destructive'}`}>
-                {p.conversion}%
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Render to-do panel
   const renderTodoPanel = (mobile: boolean) => {
     const open = mobile ? todoOpenMobile : todoOpen;
@@ -507,7 +265,12 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px]">
                   <Checkbox checked={false} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: true })} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold">{t.text}</span>
+                    <span className="text-sm font-semibold flex items-center gap-1.5">
+                      {t.text.startsWith("QB:") && (
+                        <span className="inline-block text-[9px] font-bold px-1.5 py-px rounded" style={{ backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: 4 }}>QB</span>
+                      )}
+                      {t.text.startsWith("QB:") ? t.text.slice(3).trim() : t.text}
+                    </span>
                     {t.created_at && <span className="block text-[10px] text-muted-foreground mt-0.5">{format(new Date(t.created_at), "MMM d, yyyy")}</span>}
                   </div>
                 </div>
@@ -516,7 +279,12 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 <div key={t.id} className="flex items-center gap-2 py-1.5 min-h-[36px] opacity-50">
                   <Checkbox checked={true} onCheckedChange={() => toggleTodoMutation.mutate({ id: t.id, is_checked: false })} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold line-through">{t.text}</span>
+                    <span className="text-sm font-semibold line-through flex items-center gap-1.5">
+                      {t.text.startsWith("QB:") && (
+                        <span className="inline-block text-[9px] font-bold px-1.5 py-px rounded" style={{ backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: 4 }}>QB</span>
+                      )}
+                      {t.text.startsWith("QB:") ? t.text.slice(3).trim() : t.text}
+                    </span>
                     {t.created_at && <span className="block text-[10px] text-muted-foreground mt-0.5">{format(new Date(t.created_at), "MMM d, yyyy")}</span>}
                   </div>
                 </div>
@@ -540,7 +308,6 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
 
   const renderStageOrders = (stageKey: string) => {
     const stageOrders = filtered.filter(o => o.stage === stageKey);
-    const s = stageCounts.find(sc => sc.key === stageKey)!;
     return (
       <div className="space-y-2 p-3">
         {stageOrders.length === 0 ? (
@@ -596,8 +363,6 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
       </div>
     );
   };
-
-  
 
   return (
     <div className="p-3 md:p-6 space-y-3 md:space-y-5 max-w-[1600px]">
@@ -728,76 +493,40 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         })}
       </div>
 
-      {/* ===== LOWER SECTION ===== */}
-      {/* Desktop: 2-column grid. Mobile: stacked */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-[14px] items-start">
-        {/* Left column: Notifications & QB + Notes + Pipeline */}
-        <div className="space-y-3 md:space-y-[14px]">
-          {/* Desktop: Notifications on top, then Notes+Pipeline side by side */}
-          <div className="hidden md:block space-y-[14px]">
-            {renderNotifPanel(false)}
-            <div className="grid grid-cols-2 gap-[14px]">
-              <div className="space-y-2">
-                {renderNotesPanel(false)}
-                {renderPipelinePanel(false)}
-              </div>
-              <div />
-            </div>
-          </div>
-          {/* Mobile: stacked */}
-          <div className="md:hidden space-y-3">
-            {renderNotifPanel(true)}
-            {renderNotesPanel(true)}
-            {renderPipelinePanel(true)}
-          </div>
+      {/* ===== LOWER SECTION: 3-column layout ===== */}
+      {/* Desktop: To-Do (55%) | Quick Notes (45% of remaining) | Calendar (same width as Close card) */}
+      <div className="hidden md:grid gap-[14px] items-start" style={{ gridTemplateColumns: '11fr 9fr 1fr' }}>
+        {/* Left: To-Do */}
+        {renderTodoPanel(false)}
+        {/* Middle: Quick Notes */}
+        {renderNotesPanel(false)}
+        {/* Right: Calendar */}
+        <div className="floating-card" style={{ gridColumn: '3' }}>
+          <h3 className="text-sm font-bold mb-3">Calendar</h3>
+          <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
+          <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto" />
         </div>
+      </div>
 
-        {/* Right column: To-Do + Calendar */}
-        <div className="space-y-3 md:space-y-[14px]">
-          {/* Desktop */}
-          <div className="hidden md:block space-y-[14px]">
-            {renderTodoPanel(false)}
-            <div className="floating-card">
-              <h3 className="text-sm font-bold mb-3">Calendar</h3>
+      {/* Mobile: stacked */}
+      <div className="md:hidden space-y-3">
+        {renderTodoPanel(true)}
+        {renderNotesPanel(true)}
+        {/* Calendar - collapsible on mobile */}
+        <div className="floating-card !p-0 overflow-hidden">
+          <button onClick={() => setCalOpenMobile(o => !o)}
+            className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
+            style={{ borderBottomWidth: '1.5px' }}>
+            <span className="text-sm font-bold">Calendar</span>
+          </button>
+          <div className={`overflow-hidden transition-all duration-300 ${calOpenMobile ? 'max-h-[400px]' : 'max-h-0'}`}>
+            <div className="p-3">
               <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
-              <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto" />
-            </div>
-          </div>
-
-          {/* Mobile: collapsible panels */}
-          <div className="md:hidden space-y-3">
-            {renderTodoPanel(true)}
-            {/* Calendar - collapsible on mobile */}
-            <div className="floating-card !p-0 overflow-hidden">
-              <button onClick={() => setCalOpenMobile(o => !o)}
-                className="flex items-center justify-between w-full px-4 py-3 bg-surface-header border-b text-left min-h-[44px]"
-                style={{ borderBottomWidth: '1.5px' }}>
-                <span className="text-sm font-bold">Calendar</span>
-              </button>
-              <div className={`overflow-hidden transition-all duration-300 ${calOpenMobile ? 'max-h-[400px]' : 'max-h-0'}`}>
-                <div className="p-3">
-                  <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
-                  <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto [&_.rdp-day]:min-w-[36px] [&_.rdp-day]:min-h-[36px]" />
-                </div>
-              </div>
+              <Calendar mode="single" selected={calDate} onSelect={setCalDate} className="p-0 pointer-events-auto [&_.rdp-day]:min-w-[36px] [&_.rdp-day]:min-h-[36px]" />
             </div>
           </div>
         </div>
       </div>
-
-      {/* Clear notifications dialog */}
-      <AlertDialog open={clearNotifsDialog} onOpenChange={setClearNotifsDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear all notifications?</AlertDialogTitle>
-            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={clearAllNotifications}>Clear All</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Clear notes dialog */}
       <AlertDialog open={clearNotesDialog} onOpenChange={setClearNotesDialog}>
