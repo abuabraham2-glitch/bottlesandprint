@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Search, X, Trash2, FilePenLine } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, Search, X, Trash2, FilePenLine, ChevronDown } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -100,6 +100,41 @@ function SidebarDivider() {
   return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
+function MoreSection({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  if (collapsed) {
+    return (
+      <>
+        {navGroup2.map((item) => (
+          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[48px] md:min-h-[44px]"
+        style={{ color: 'rgba(255,255,255,0.46)' }}
+      >
+        <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`} />
+        <span className="flex-1 text-left">More</span>
+      </button>
+      <div className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px]' : 'max-h-0'}`}>
+        <div className="space-y-0.5" style={{ opacity: 0.7 }}>
+          {navGroup2.map((item) => (
+            <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, trashCount, showCloseButton, onClose }: {
   onNavigate?: () => void;
   collapsed: boolean;
@@ -149,15 +184,12 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
 
         <SidebarDivider />
 
-        {/* Nav Group 2: Business */}
-        {navGroup2.map((item) => (
-          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
-        ))}
+        {/* Collapsible "More" section */}
+        <MoreSection collapsed={collapsed} onNavigate={onNavigate} />
 
         <SidebarDivider />
 
-        {/* Group 3: Preferences */}
-        <TogglePill active={collapsed} onClick={onToggleCollapse} icon={collapsed ? PanelLeft : PanelLeftClose} label="Focus Mode" collapsed={collapsed} />
+        {/* Preferences */}
         <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
         <InstallAppButton collapsed={collapsed} />
       </nav>
