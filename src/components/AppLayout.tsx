@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, PanelLeftClose, PanelLeft, Search, X, Trash2, FilePenLine } from "lucide-react";
+import { LayoutDashboard, Package, Users, BookOpen, Archive, LogOut, KeyRound, Plus, Mail, PhoneCall, HardDrive, Menu, BarChart3, Moon, Sun, Search, X, Trash2, FilePenLine, ChevronDown } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -149,15 +149,12 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
 
         <SidebarDivider />
 
-        {/* Nav Group 2: Business */}
-        {navGroup2.map((item) => (
-          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
-        ))}
+        {/* Collapsible "More" section */}
+        <MoreSection collapsed={collapsed} onNavigate={onNavigate} />
 
         <SidebarDivider />
 
-        {/* Group 3: Preferences */}
-        <TogglePill active={collapsed} onClick={onToggleCollapse} icon={collapsed ? PanelLeft : PanelLeftClose} label="Focus Mode" collapsed={collapsed} />
+        {/* Preferences */}
         <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
         <InstallAppButton collapsed={collapsed} />
       </nav>
