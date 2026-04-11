@@ -114,7 +114,7 @@ function useSalesPipeline() {
 export default function Dashboard({ searchQuery }: DashboardProps) {
   const { data: orders = [], isLoading } = useOrders();
   const { data: inboxCounts } = useInboxCounts();
-  const { data: recentEmails = [] } = useRecentEmails();
+  
   const { data: latestInsight } = useLatestInsightsNotification();
   const { data: todos = [] } = useTodos();
   const { data: pipeline } = useSalesPipeline();
