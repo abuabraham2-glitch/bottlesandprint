@@ -100,6 +100,41 @@ function SidebarDivider() {
   return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
+function MoreSection({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  if (collapsed) {
+    return (
+      <>
+        {navGroup2.map((item) => (
+          <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors w-full min-h-[48px] md:min-h-[44px]"
+        style={{ color: 'rgba(255,255,255,0.46)' }}
+      >
+        <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`} />
+        <span className="flex-1 text-left">More</span>
+      </button>
+      <div className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px]' : 'max-h-0'}`}>
+        <div className="space-y-0.5" style={{ opacity: 0.7 }}>
+          {navGroup2.map((item) => (
+            <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, trashCount, showCloseButton, onClose }: {
   onNavigate?: () => void;
   collapsed: boolean;
