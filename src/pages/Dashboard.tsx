@@ -763,112 +763,32 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
       {/* ===== LOWER SECTION ===== */}
       {/* Desktop: 2-column grid. Mobile: stacked */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-[14px] items-start">
-        {/* Left column: Recent Inbox + Notes & To-Do */}
+        {/* Left column: Notifications & QB + Notes + Pipeline */}
         <div className="space-y-3 md:space-y-[14px]">
-          {/* Recent Inbox */}
-          <div className="floating-card !p-0 overflow-hidden">
-            <div className="flex items-center justify-between px-3 md:px-5 py-3 bg-surface-header border-b" style={{ borderBottomWidth: '1.5px' }}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold">Recent Inbox</span>
-                {inboxCounts && inboxCounts.actionNeeded > 0 && (
-                  <span className="text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">{inboxCounts.actionNeeded} unread</span>
-                )}
+          {/* Desktop: Notifications on top, then Notes+Pipeline side by side */}
+          <div className="hidden md:block space-y-[14px]">
+            {renderNotifPanel(false)}
+            <div className="grid grid-cols-2 gap-[14px]">
+              <div className="space-y-2">
+                {renderNotesPanel(false)}
+                {renderPipelinePanel(false)}
               </div>
-              <button onClick={() => navigate("/inbox")} className="text-xs font-semibold text-primary">View all →</button>
+              <div />
             </div>
-
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm min-w-[500px]">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-left p-3 font-semibold text-muted-foreground text-xs">From</th>
-                    <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Subject</th>
-                    <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Type</th>
-                    <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Status</th>
-                    <th className="text-left p-3 font-semibold text-muted-foreground text-xs">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentEmails.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-4 text-center text-xs text-muted-foreground">
-                        <button onClick={() => navigate("/inbox")} className="text-primary font-medium">Open Inbox to view emails →</button>
-                      </td>
-                    </tr>
-                  ) : (
-                    recentEmails.map((e: any) => {
-                      const senderName = e.from_name?.includes("@") ? e.from_name.split("@")[0] : (e.from_name || e.from_email || "Unknown");
-                      const timeAgo = e.created_at ? formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true }) : "";
-                      return (
-                        <tr key={e.id} onClick={() => navigate("/inbox")} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
-                          <td className="p-3 font-medium text-sm">{senderName}</td>
-                          <td className="p-3 text-sm truncate max-w-[200px]">{e.subject || "—"}</td>
-                          <td className="p-3">
-                            <span className="flex items-center gap-1.5 text-xs">
-                              <span className={`w-2 h-2 rounded-full ${getCategoryDot(e.category)}`} />
-                              <span className={getCategoryColor(e.category)}>{e.category || "OTHER"}</span>
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <span className="text-xs text-muted-foreground">{e.status}</span>
-                          </td>
-                          <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{timeAgo}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile email list: compact rows */}
-            <div className="md:hidden">
-              {mobileEmails.length === 0 ? (
-                <div className="p-4 text-center">
-                  <button onClick={() => navigate("/inbox")} className="text-primary font-medium text-xs">Open Inbox →</button>
-                </div>
-              ) : (
-                mobileEmails.map((e: any) => {
-                  const senderName = e.from_name?.includes("@") ? e.from_name.split("@")[0] : (e.from_name || e.from_email || "Unknown");
-                  const timeAgo = e.created_at ? formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true }) : "";
-                  return (
-                    <div key={e.id} onClick={() => navigate("/inbox")}
-                      className="px-3 py-3 border-b last:border-b-0 cursor-pointer active:bg-muted/30 min-h-[52px] flex items-center justify-between gap-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-[13px] truncate">{senderName}</div>
-                        <div className="text-[11px] text-muted-foreground truncate mt-0.5">{e.subject || "—"}</div>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">{timeAgo}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Notes + Pipeline & To-Do side by side on desktop */}
-          <div className="hidden md:grid grid-cols-2 gap-[14px]">
-            <div className="space-y-2">
-              {renderNotesPanel(false)}
-              {renderPipelinePanel(false)}
-            </div>
-            {renderTodoPanel(false)}
           </div>
           {/* Mobile: stacked */}
           <div className="md:hidden space-y-3">
+            {renderNotifPanel(true)}
             {renderNotesPanel(true)}
             {renderPipelinePanel(true)}
-            {renderTodoPanel(true)}
           </div>
         </div>
 
-        {/* Right column: Notifications + Calendar */}
+        {/* Right column: To-Do + Calendar */}
         <div className="space-y-3 md:space-y-[14px]">
           {/* Desktop */}
           <div className="hidden md:block space-y-[14px]">
-            {renderNotifPanel(false)}
+            {renderTodoPanel(false)}
             <div className="floating-card">
               <h3 className="text-sm font-bold mb-3">Calendar</h3>
               <p className="text-xs text-muted-foreground mb-2">{format(calDate || new Date(), "MMMM yyyy")}</p>
@@ -878,7 +798,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
 
           {/* Mobile: collapsible panels */}
           <div className="md:hidden space-y-3">
-            {renderNotifPanel(true)}
+            {renderTodoPanel(true)}
             {/* Calendar - collapsible on mobile */}
             <div className="floating-card !p-0 overflow-hidden">
               <button onClick={() => setCalOpenMobile(o => !o)}
