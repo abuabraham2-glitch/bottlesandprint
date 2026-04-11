@@ -26,23 +26,6 @@ const stageColors: Record<string, { border: string; text: string; bg: string; st
   close: { border: "border-stage-close", text: "text-stage-close", bg: "bg-stage-close", stripe: "bg-stage-close" },
 };
 
-function getCategoryColor(cat: string | null) {
-  switch (cat?.toUpperCase()) {
-    case "SALES": return "text-primary";
-    case "SUPPORT": return "text-success";
-    case "SPAM": return "text-muted-foreground";
-    default: return "text-foreground";
-  }
-}
-
-function getCategoryDot(cat: string | null) {
-  switch (cat?.toUpperCase()) {
-    case "SALES": return "bg-primary";
-    case "SUPPORT": return "bg-success";
-    case "SPAM": return "bg-muted-foreground";
-    default: return "bg-foreground/40";
-  }
-}
 
 
 function useLatestInsightsNotification() {
