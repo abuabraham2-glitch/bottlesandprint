@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,9 +6,38 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { ChevronDown } from "lucide-react";
 
 const SALES_STATUSES = ["approved_sent", "converted"];
-const SALES_CATEGORIES = ["SALES"];
+
+function useSalesPipeline() {
+  return useQuery({
+    queryKey: ["sales_pipeline"],
+    queryFn: async () => {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const [leadsRes, quotedRes, followUpRes, wonRes] = await Promise.all([
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .eq("category", "SALES").in("status", ["pending", "needs_response"]),
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .not("quoted_at", "is", null),
+        supabase.from("emails").select("*", { count: "exact", head: true })
+          .eq("status", "waiting").eq("direction", "outbound"),
+        supabase.from("orders").select("*", { count: "exact", head: true })
+          .gte("created_at", monthStart),
+      ]);
+
+      const leads = leadsRes.count || 0;
+      const quoted = quotedRes.count || 0;
+      const followUp = followUpRes.count || 0;
+      const won = wonRes.count || 0;
+      const conversion = leads > 0 ? Math.round((won / leads) * 100) : 0;
+
+      return { leads, quoted, followUp, won, conversion };
+    },
+  });
+}
 
 function useStatsData() {
   return useQuery({
@@ -16,7 +46,6 @@ function useStatsData() {
       const now = new Date();
       const twelveMonthsAgo = subMonths(now, 12).toISOString();
 
-      // All SALES quotes
       const { data: allQuotes } = await supabase
         .from("emails")
         .select("id, created_at, po_received_at, converted, status")
@@ -25,14 +54,11 @@ function useStatsData() {
 
       const quotes = allQuotes || [];
 
-      // Trailing 12
       const t12Quotes = quotes.filter(q => q.created_at && q.created_at >= twelveMonthsAgo);
       const t12POs = quotes.filter(q => q.converted && q.po_received_at && q.po_received_at >= twelveMonthsAgo);
 
-      // All time
       const allPOs = quotes.filter(q => q.converted);
 
-      // Avg days to close
       const withBoth = quotes.filter(q => q.created_at && q.po_received_at);
       const t12WithBoth = withBoth.filter(q => q.po_received_at! >= twelveMonthsAgo);
 
@@ -42,7 +68,6 @@ function useStatsData() {
         return Math.round((total / arr.length) * 10) / 10;
       };
 
-      // Monthly data for chart + table (last 12 months)
       const months: { label: string; monthStart: Date; monthEnd: Date }[] = [];
       for (let i = 11; i >= 0; i--) {
         const ms = startOfMonth(subMonths(now, i));
@@ -73,10 +98,10 @@ function useInsights() {
     queryFn: async () => {
       const { data } = await supabase
         .from("monthly_stats")
-        .select("insights")
+        .select("insights, month_start")
         .order("month_start", { ascending: false })
         .limit(1);
-      return data?.[0]?.insights?.trim() || null;
+      return data?.[0] || null;
     },
   });
 }
@@ -98,14 +123,71 @@ const chartConfig = {
 
 export default function Stats() {
   const { data } = useStatsData();
-  const { data: insights } = useInsights();
+  const { data: insightData } = useInsights();
+  const { data: pipeline } = useSalesPipeline();
+  const [pipelineOpen, setPipelineOpen] = useState(true);
+
+  const insights = insightData?.insights?.trim() || null;
+
+  // Mark stats as viewed to clear the sidebar dot
+  useEffect(() => {
+    if (insightData?.month_start) {
+      localStorage.setItem("stats_last_viewed", insightData.month_start);
+    }
+  }, [insightData?.month_start]);
 
   const t12Rate = data ? pct(data.t12.pos, data.t12.quotes) : 0;
   const allRate = data ? pct(data.allTime.pos, data.allTime.quotes) : 0;
 
+  const p = pipeline || { leads: 0, quoted: 0, followUp: 0, won: 0, conversion: 0 };
+  const maxCount = Math.max(p.leads, p.quoted, p.followUp, p.won, 1);
+  const bars = [
+    { label: "Leads", count: p.leads, color: "bg-primary" },
+    { label: "Quoted", count: p.quoted, color: "bg-warning" },
+    { label: "Follow-up", count: p.followUp, color: "bg-[hsl(263,70%,55%)]" },
+    { label: "Won", count: p.won, color: "bg-success" },
+  ];
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl">
       <h1 className="text-xl font-serif font-semibold">📊 Sales Stats</h1>
+
+      {/* Sales Pipeline Card */}
+      <div className="rounded-[13px] overflow-hidden bg-card" style={{ border: '1.5px solid hsl(var(--warning))' }}>
+        <button onClick={() => setPipelineOpen(o => !o)}
+          className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px]">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
+            <span className="text-sm font-bold">Sales Pipeline</span>
+            {!pipelineOpen && (
+              <span className="text-[10px] text-muted-foreground ml-1">
+                {p.leads} leads · {p.won} won
+              </span>
+            )}
+          </div>
+          <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${pipelineOpen ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`overflow-hidden transition-all duration-300 ${pipelineOpen ? 'max-h-[400px]' : 'max-h-0'}`}>
+          <div className="px-4 pb-3 space-y-2.5">
+            {bars.map(b => (
+              <div key={b.label} className="flex items-center gap-2">
+                <span className="text-xs font-medium w-16 shrink-0">{b.label}</span>
+                <div className="flex-1 h-5 bg-muted/40 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${b.color} transition-all duration-500`}
+                    style={{ width: `${Math.max((b.count / maxCount) * 100, b.count > 0 ? 8 : 0)}%` }} />
+                </div>
+                <span className="text-xs font-bold w-6 text-right">{b.count}</span>
+              </div>
+            ))}
+            <div className="border-t pt-2 mt-1 flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">Conversion Rate</span>
+              <span className={`text-sm font-bold ${p.conversion >= 20 ? 'text-success' : p.conversion >= 10 ? 'text-warning' : 'text-destructive'}`}>
+                {p.conversion}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Top Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

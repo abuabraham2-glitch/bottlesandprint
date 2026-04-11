@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useInboxCounts } from "@/lib/emailData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const navGroup1 = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -100,9 +102,33 @@ function SidebarDivider() {
   return <div className="my-3 mx-2 h-[1.5px] rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.14)' }} />;
 }
 
-function MoreSection({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+function useHasNewInsights() {
+  const { data } = useQuery({
+    queryKey: ["stats", "latest_insight_for_dot"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("monthly_stats")
+        .select("insights, month_start")
+        .order("month_start", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60000,
+  });
+
+  if (!data?.insights?.trim()) return false;
+
+  const lastViewed = localStorage.getItem("stats_last_viewed");
+  if (!lastViewed) return true;
+  return data.month_start > lastViewed;
+}
+
+function MoreSection({ collapsed, onNavigate, darkMode, onToggleDark }: { collapsed: boolean; onNavigate?: () => void; darkMode: boolean; onToggleDark: () => void }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const hasNewInsights = useHasNewInsights();
 
   if (collapsed) {
     return (
@@ -110,6 +136,7 @@ function MoreSection({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
         {navGroup2.map((item) => (
           <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
         ))}
+        <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
       </>
     );
   }
@@ -122,13 +149,19 @@ function MoreSection({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
         style={{ color: 'rgba(255,255,255,0.46)' }}
       >
         <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`} />
-        <span className="flex-1 text-left">More</span>
+        <span className="flex-1 text-left flex items-center gap-1.5">
+          More
+          {hasNewInsights && (
+            <span className="inline-block rounded-full shrink-0" style={{ width: 7, height: 7, backgroundColor: '#f59e0b' }} />
+          )}
+        </span>
       </button>
       <div className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px]' : 'max-h-0'}`}>
         <div className="space-y-0.5" style={{ opacity: 0.7 }}>
           {navGroup2.map((item) => (
             <NavItem key={item.to} item={item} active={location.pathname === item.to} collapsed={collapsed} onNavigate={onNavigate} />
           ))}
+          <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
         </div>
       </div>
     </div>
@@ -185,12 +218,10 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
         <SidebarDivider />
 
         {/* Collapsible "More" section */}
-        <MoreSection collapsed={collapsed} onNavigate={onNavigate} />
+        <MoreSection collapsed={collapsed} onNavigate={onNavigate} darkMode={darkMode} onToggleDark={onToggleDark} />
 
         <SidebarDivider />
 
-        {/* Preferences */}
-        <TogglePill active={darkMode} onClick={onToggleDark} icon={darkMode ? Sun : Moon} label="Dark Mode" collapsed={collapsed} />
         <InstallAppButton collapsed={collapsed} />
       </nav>
 

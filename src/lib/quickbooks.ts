@@ -25,6 +25,14 @@ async function postToWebhook(payload: Record<string, any>): Promise<boolean> {
   }
 }
 
+async function addQbTodo(text: string) {
+  try {
+    await supabase.from("dashboard_todos").insert({ text: `QB: ${text}` } as any);
+  } catch (err) {
+    console.error("Failed to add QB todo:", err);
+  }
+}
+
 async function getNextSequenceNumber(counterName: string): Promise<number | null> {
   try {
     const { data, error } = await supabase.rpc('get_next_sequence_number', { p_counter_name: counterName });
@@ -58,8 +66,10 @@ export async function syncClientToQB(client: {
       state: client.state || "",
       zip: client.zip || "",
     });
-    if (ok) toast.success("Client synced to QuickBooks.");
-    else {
+    if (ok) {
+      toast.success("Client synced to QuickBooks.");
+      await addQbTodo(`Sync new customer — ${client.company}`);
+    } else {
       console.error("QB syncClient failed: webhook returned non-ok response", { company: client.company });
       toast.error("Failed to sync client. Please try again.");
     }
@@ -104,6 +114,7 @@ export async function pushInvoiceToQB(params: {
       docNumber = json?.DocNumber || json?.Invoice?.DocNumber;
     } catch { /* ignore parse errors */ }
     toast.success("Invoice draft created in QuickBooks.");
+    await addQbTodo(`Invoice created — ${params.company}`);
     return { ok: true, docNumber };
   } catch {
     toast.error("Failed to push invoice to QuickBooks.");
@@ -142,6 +153,7 @@ export async function pushVendorPoToQB(params: {
       docNumber = json?.PurchaseOrder?.DocNumber || json?.DocNumber;
     } catch { /* ignore parse errors */ }
     toast.success("Vendor PO draft created in QuickBooks.");
+    await addQbTodo(`Vendor PO created`);
     return { ok: true, docNumber };
   } catch {
     toast.error("Failed to create Vendor PO in QuickBooks.");
@@ -182,7 +194,6 @@ export async function checkPaymentStatusInQB(params: {
         balance = invoice.Balance;
         totalAmt = invoice.TotalAmt;
       } else {
-        // Fallback to flat structure
         balance = json?.Balance ?? json?.Invoice?.Balance;
         totalAmt = json?.TotalAmt ?? json?.Invoice?.TotalAmt;
       }
