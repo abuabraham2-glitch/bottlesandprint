@@ -2,7 +2,7 @@ import { useOrders } from "@/lib/data";
 import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { StickyNote, Link2, PhoneCall, Zap, ClipboardList, ChevronRight, ChevronDown, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
+import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, ChevronDown, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -614,7 +614,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     );
   };
 
-  const mobileEmails = recentEmails.slice(0, 4);
+  
 
   return (
     <div className="p-3 md:p-6 space-y-3 md:space-y-5 max-w-[1600px]">
