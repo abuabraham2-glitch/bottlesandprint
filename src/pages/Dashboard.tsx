@@ -2,7 +2,7 @@ import { useOrders } from "@/lib/data";
 import { useInboxCounts } from "@/lib/emailData";
 import { STAGES, daysUntilDue, daysSinceCreated } from "@/lib/constants";
 import { useNavigate } from "react-router-dom";
-import { StickyNote, Link2, Mail, PhoneCall, Zap, ClipboardList, ChevronRight, ChevronDown, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
+import { StickyNote, Link2, PhoneCall, Zap, ClipboardList, ChevronRight, ChevronDown, X, FilePenLine, BarChart3, CheckSquare } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,21 +44,6 @@ function getCategoryDot(cat: string | null) {
   }
 }
 
-function useRecentEmails() {
-  return useQuery({
-    queryKey: ["emails", "recent_inbox"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("emails")
-        .select("id, from_name, from_email, subject, category, status, created_at")
-        .in("status", ["pending", "needs_response"])
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      return data;
-    },
-  });
-}
 
 function useLatestInsightsNotification() {
   return useQuery({
