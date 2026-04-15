@@ -75,7 +75,6 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     setSending(true);
     try {
       const payload = {
-      const payload = {
         to_email: toValue,
         subject: subjectValue,
         draft: stripN8nFooter(draftContent),
