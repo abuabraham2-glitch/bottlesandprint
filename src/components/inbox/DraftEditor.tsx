@@ -161,6 +161,19 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         }),
       });
       if (!res.ok) throw new Error("not ok");
+      // Wait for n8n workflow to write the new draft to Supabase
+      await new Promise(r => setTimeout(r, 2000));
+      // Fetch updated email record directly
+      const { data: updated, error } = await supabase
+        .from("emails")
+        .select("draft_response")
+        .eq("id", email.id)
+        .single();
+      if (error) throw error;
+      // Update the editor content with the new draft
+      if (editRef.current && updated?.draft_response) {
+        editRef.current.innerHTML = stripN8nFooter(updated.draft_response);
+      }
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success("Draft regenerated");
     } catch {
