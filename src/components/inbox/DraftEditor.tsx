@@ -63,11 +63,18 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     } catch { return false; }
   })();
 
+  const getEditorContent = () => {
+    const html = editRef.current ? editRef.current.innerHTML : "";
+    const text = editRef.current ? editRef.current.innerText.trim() : "";
+    return { html, text };
+  };
+
   const executeSend = async (markAsQuoted: boolean) => {
-    if (!toValue || !email.draft_response) return;
+    const { html: draftContent, text: draftText } = getEditorContent();
+    if (!toValue || !draftText) return;
     setSending(true);
     try {
-      const draftContent = editRef.current ? editRef.current.innerHTML : email.draft_response;
+      const payload = {
       const payload = {
         to_email: toValue,
         subject: subjectValue,
@@ -123,7 +130,8 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   };
 
   const handleSend = () => {
-    if (!toValue || !email.draft_response) return;
+    const { text: draftText } = getEditorContent();
+    if (!toValue || !draftText) return;
     if (isQuoteDraft) {
       setQuotePromptOpen(true);
     } else {
@@ -133,9 +141,9 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   const handleDiscardDraft = async () => {
     await supabase.from("emails").update({ draft_response: null } as any).eq("id", email.id);
+    if (editRef.current) editRef.current.innerHTML = "";
     await queryClient.invalidateQueries({ queryKey: ["emails"] });
-    toast.success("Draft discarded — email stays in inbox");
-    onClose();
+    toast.success("Draft discarded — editor cleared");
   };
 
   const handleRegenerate = async () => {
