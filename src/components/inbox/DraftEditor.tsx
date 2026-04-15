@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Archive, Trash2, Paperclip, ExternalLink } from "lucide-react";
+import { Send, Archive, Trash2, Paperclip, ExternalLink, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
@@ -32,6 +32,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const editRef = useRef<HTMLDivElement>(null);
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [sending, setSending] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [toValue, setToValue] = useState("");
   const [ccValue, setCcValue] = useState("");
   const [bccValue, setBccValue] = useState("");
@@ -137,6 +138,30 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     onClose();
   };
 
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch("https://bottlesandprint.app.n8n.cloud/webhook/regenerate-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_id: email.id,
+          category: email.category || "",
+          from_email: email.from_email || "",
+          from_name: email.from_name || "",
+          subject: email.subject || "",
+          body: email.body || "",
+        }),
+      });
+      if (!res.ok) throw new Error("not ok");
+      await queryClient.invalidateQueries({ queryKey: ["emails"] });
+      toast.success("Draft regenerated");
+    } catch {
+      toast.error("Regeneration failed — try again");
+    }
+    setRegenerating(false);
+  };
+
   const handleArchive = async () => {
     const now = new Date().toISOString();
     const { error } = await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
@@ -226,6 +251,11 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 min-h-[44px]"
               onClick={handleDiscardDraft}>
               <Trash2 size={12} /> Discard Draft
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[44px]"
+              onClick={handleRegenerate} disabled={regenerating}>
+              <RotateCw size={12} className={regenerating ? "animate-spin" : ""} />
+              {regenerating ? "Regenerating…" : "Regenerate Draft"}
             </Button>
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[44px]"
               onClick={handleArchive}>
