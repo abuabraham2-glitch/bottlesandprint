@@ -436,6 +436,7 @@ export type Database = {
           is_urgent: boolean | null
           label: string | null
           multi_topic_alert: string | null
+          original_sent_at: string | null
           po_received_at: string | null
           quote_data: Json | null
           quoted_at: string | null
@@ -479,6 +480,7 @@ export type Database = {
           is_urgent?: boolean | null
           label?: string | null
           multi_topic_alert?: string | null
+          original_sent_at?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
           quoted_at?: string | null
@@ -522,6 +524,7 @@ export type Database = {
           is_urgent?: boolean | null
           label?: string | null
           multi_topic_alert?: string | null
+          original_sent_at?: string | null
           po_received_at?: string | null
           quote_data?: Json | null
           quoted_at?: string | null

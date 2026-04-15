@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Archive, Trash2, Paperclip, ExternalLink } from "lucide-react";
+import { Send, Archive, Trash2, Paperclip, ExternalLink, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
