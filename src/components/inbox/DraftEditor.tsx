@@ -147,6 +147,8 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   const handleRegenerate = async () => {
     setRegenerating(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     try {
       const res = await fetch("https://bottlesandprint.app.n8n.cloud/webhook/regenerate-draft", {
         method: "POST",
@@ -159,27 +161,29 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
           subject: email.subject || "",
           body: email.body || "",
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (!res.ok) throw new Error("not ok");
-      // Wait for n8n workflow to write the new draft to Supabase
-      await new Promise(r => setTimeout(r, 2000));
-      // Fetch updated email record directly
+      // Wait 3s for n8n workflow to write the new draft to Supabase
+      await new Promise(r => setTimeout(r, 3000));
       const { data: updated, error } = await supabase
         .from("emails")
         .select("draft_response")
         .eq("id", email.id)
         .single();
-      if (error) throw error;
-      // Update the editor content with the new draft
-      if (editRef.current && updated?.draft_response) {
+      if (error || !updated?.draft_response) throw new Error("empty draft");
+      if (editRef.current) {
         editRef.current.innerHTML = stripN8nFooter(updated.draft_response);
       }
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
-      toast.success("Draft regenerated");
+      toast.success("Draft regenerated.");
     } catch {
       toast.error("Regeneration failed — try again");
+    } finally {
+      clearTimeout(timeoutId);
+      setRegenerating(false);
     }
-    setRegenerating(false);
   };
 
   const handleArchive = async () => {
