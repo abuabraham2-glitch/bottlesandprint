@@ -15,6 +15,7 @@ import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { ThreadView } from "@/components/inbox/ThreadView";
 import { DraftEditor } from "@/components/inbox/DraftEditor";
+import { TemplateShortcuts } from "@/components/TemplateShortcuts";
 import {
   displaySenderName, formatTime, formatAge, parseAttachments,
   stripN8nFooter, SIGNATURE,
@@ -786,29 +787,12 @@ export default function Inbox() {
               </div>
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden py-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-sans text-muted-foreground">Templates:</span>
-                <button
-                  type="button"
-                  className="px-2.5 py-1 text-[11px] font-sans font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors border border-blue-200"
-                  onClick={() => {
-                    const proofText = `See attached proof. Let me know if approved for film. Remember to print it out as "actual size" and not "to scale" or "fit to page". After putting it up against the bottle/jar, please make sure to check all the text, spacing, and colors to make sure everything is correct. Once proof is approved and film is made, it cannot be altered.`;
-                    if (composeBodyRef.current) composeBodyRef.current.innerHTML = proofText;
-                    else setComposeBody(proofText);
-                    if (!composeSubject.trim()) setComposeSubject("Artwork Proof");
-                  }}
-                >Proof Approval</button>
-                <button
-                  type="button"
-                  className="px-2.5 py-1 text-[11px] font-sans font-medium rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors border border-emerald-200"
-                  onClick={() => {
-                    const orderText = `I just sent the invoice over via QuickBooks. Please see ACH information below.\n\nACH Information:\nThread Bank\nContainer and Deco Solutions\nAccount# 200000014846\nRouting# 064209588\n\nPlease let us know when you initiate the ACH transfer so we can keep an eye out for it.`;
-                    const htmlText = orderText.replace(/\n/g, "<br>");
-                    if (composeBodyRef.current) composeBodyRef.current.innerHTML = htmlText;
-                    else setComposeBody(htmlText);
-                    if (!composeSubject.trim()) setComposeSubject("Order Complete");
-                  }}
-                >Order Complete</button>
+              <div className="mb-1">
+                <TemplateShortcuts
+                  editorRef={composeBodyRef}
+                  setSubject={setComposeSubject}
+                  currentSubject={composeSubject}
+                />
               </div>
               <label className="text-xs font-sans text-muted-foreground">Body</label>
               <FormattingToolbar />

@@ -9,6 +9,7 @@ import { Send, Archive, Trash2, Paperclip, ExternalLink, RotateCw } from "lucide
 import { toast } from "sonner";
 import { AttachmentPicker, AttachedFile } from "@/components/AttachmentPicker";
 import { FormattingToolbar } from "@/components/FormattingToolbar";
+import { TemplateShortcuts } from "@/components/TemplateShortcuts";
 import { AlertBanners } from "./AlertBanners";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import {
@@ -259,6 +260,11 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
                 <label className="text-xs font-sans text-muted-foreground">BCC</label>
                 <Input name="draft-bcc" autoComplete="off" value={bccValue} onChange={e => setBccValue(e.target.value)} placeholder="bcc@example.com" className="rounded-xl h-8 text-sm" />
               </div>
+              <TemplateShortcuts
+                editorRef={editRef}
+                setSubject={setSubjectValue}
+                currentSubject={subjectValue}
+              />
               <FormattingToolbar />
               <div ref={editRef} contentEditable suppressContentEditableWarning
                 className="flex-1 text-sm font-sans rounded-xl border bg-background p-4 min-h-[300px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none overflow-y-auto"

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { RelatedEmails } from "@/components/calls/RelatedEmails";
 import { OutboundCallDrawer } from "@/components/calls/OutboundCallDrawer";
+import { TemplateShortcuts } from "@/components/TemplateShortcuts";
 
 type MainTab = "inbound" | "outbound" | "resolved";
 
@@ -578,6 +579,9 @@ export default function Calls() {
                 {selectedCall.draft_response && (
                   <div>
                     <h3 className="text-xs font-medium text-muted-foreground mb-1 font-sans">Draft Quote Email</h3>
+                    <div className="mb-2">
+                      <TemplateShortcuts editorRef={draftRef} />
+                    </div>
                     <div
                       ref={draftRef}
                       contentEditable
