@@ -18,7 +18,11 @@ Routing# 064209588
 
 Please let us know when you initiate the ACH transfer so we can keep an eye out for it.`;
 
-const DELIVERY_ADDRESS_TEXT = `Your Company Name c/o Bottles and Print, 12970 Branford St, Unit D, Pacoima, CA 91331. Shipping/Receiving Hours are 8am-2pm.`;
+const DELIVERY_ADDRESS_TEXT = `Your Company Name c/o Bottles and Print
+12970 Branford St, Unit D
+Pacoima, CA 91331
+
+Shipping/Receiving Hours are 8am-2pm.`;
 
 function toHtml(plain: string) {
   return plain.replace(/\n/g, "<br>");
