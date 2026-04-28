@@ -230,7 +230,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const now = new Date();
   const dateStr = format(now, "EEEE · MMMM dd · yyyy").toUpperCase();
 
-  // Render notes panel (shared)
+  // Render notes panel (shared) — System Log (read-only) + My Notes (editable, persistent)
   const renderNotesPanel = (mobile: boolean) => {
     const open = mobile ? notesOpenMobile : notesOpen;
     const toggle = () => mobile ? setNotesOpenMobile(o => !o) : setNotesOpen(o => !o);
@@ -241,46 +241,77 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           <span className="text-sm font-bold flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
             Quick Notes
-            {!open && notes.length > 0 && (
-              <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{notes.length}</span>
-            )}
           </span>
           <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
-        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[400px]' : 'max-h-0'}`}>
-          <div className="px-4 pb-3 space-y-2">
-            {notes.map((n, i) => (
-              <div key={n.id} className="group flex items-start gap-2 text-sm">
-                <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.color === 'text-warning' ? 'bg-warning' : n.color === 'text-destructive' ? 'bg-destructive' : 'bg-primary'}`} />
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs">{n.text}</span>
-                  {n.createdAt && (
-                    <span className="block text-[10px] text-muted-foreground mt-0.5">{format(new Date(n.createdAt), "MMM d, yyyy")}</span>
-                  )}
-                </div>
-                <button onClick={() => setNotes(prev => prev.filter((_, j) => j !== i))}
-                  className={`transition-opacity rounded-full bg-muted flex items-center justify-center shrink-0 ${mobile ? 'opacity-100 w-7 h-7' : 'opacity-0 group-hover:opacity-100 w-5 h-5'}`}>
-                  <X size={mobile ? 12 : 10} />
-                </button>
-              </div>
-            ))}
-            {notes.length === 0 && (
-              <p className="text-xs text-muted-foreground italic">No notes yet</p>
-            )}
-            <div className="flex gap-2 mt-2">
-              <input
-                value={newNote}
-                onChange={e => setNewNote(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addNote()}
-                placeholder="Add a note..."
-                className="flex-1 text-xs bg-background border rounded-[9px] px-2.5 py-2 min-h-[40px] md:min-h-[36px]"
-              />
-              <button onClick={addNote} className="text-primary font-bold text-xs px-2 min-h-[40px] md:min-h-[36px]">+</button>
+        <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[700px]' : 'max-h-0'}`}>
+          {/* System log section */}
+          <div className="px-4 py-3 bg-muted/40 border-t" style={{ borderTopWidth: '1px' }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <ClipboardList size={12} className="text-muted-foreground" />
+              <span className="text-xs font-bold text-muted-foreground">System log</span>
             </div>
-            {notes.length > 0 && (
-              <button onClick={() => setClearNotesDialog(true)}
-                className="text-[10px] text-muted-foreground hover:text-foreground">Clear all</button>
-            )}
+            <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1">
+              {sortedLog.length === 0 && (
+                <p className="text-xs italic text-muted-foreground">No reconciliation activity yet.</p>
+              )}
+              {sortedLog.map((entry, i) => {
+                const isOpen = expandedLogIdx.has(i);
+                const summary = countSummary(entry.counts);
+                const cats: ("resolved" | "sent" | "deleted" | "spam")[] = ["resolved", "sent", "deleted", "spam"];
+                return (
+                  <div key={`${entry.timestamp}-${i}`} className="text-xs">
+                    <button
+                      onClick={() => toggleLogIdx(i)}
+                      className="flex items-start gap-1 w-full text-left italic text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {isOpen
+                        ? <ChevronDown size={12} className="mt-0.5 shrink-0" />
+                        : <ChevronRight size={12} className="mt-0.5 shrink-0" />}
+                      <span className="flex-1">
+                        {formatLogTime(entry.timestamp)} · {summary || "no activity"}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="pl-4 mt-1 space-y-1.5">
+                        {cats.map(cat => {
+                          const items = entry.details?.[cat] || [];
+                          if (items.length === 0) return null;
+                          return (
+                            <div key={cat}>
+                              <div className="text-[10px] font-semibold capitalize text-muted-foreground">{cat}:</div>
+                              <ul className="pl-3">
+                                {items.map((it, j) => (
+                                  <li key={j} className="text-[11px] italic text-muted-foreground">
+                                    • {it.name || "Unknown"}{it.subject ? ` — ${it.subject}` : ""}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Divider */}
+          <div className="border-t" />
+          {/* My notes section */}
+          <div className="px-4 py-3 bg-card">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Pencil size={12} className="text-muted-foreground" />
+              <span className="text-xs font-bold text-muted-foreground">My notes</span>
+            </div>
+            <textarea
+              value={userNotes}
+              onChange={(e) => setUserNotes(e.target.value)}
+              onBlur={() => saveUserNotes(userNotes)}
+              placeholder="Type anything you want to remember..."
+              className="w-full text-xs bg-transparent border rounded-[9px] px-2.5 py-2 min-h-[120px] resize-y focus:outline-none focus:ring-1 focus:ring-primary"
+            />
           </div>
         </div>
       </div>
