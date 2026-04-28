@@ -617,19 +617,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         </div>
       </div>
 
-      {/* Clear notes dialog */}
-      <AlertDialog open={clearNotesDialog} onOpenChange={setClearNotesDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear all notes?</AlertDialogTitle>
-            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setNotes([]); setClearNotesDialog(false); }}>Clear All</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
 
       {/* Clear todos dialog */}
       <AlertDialog open={clearTodosDialog} onOpenChange={setClearTodosDialog}>
