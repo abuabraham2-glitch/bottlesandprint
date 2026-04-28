@@ -65,15 +65,12 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(["wip"]));
   const [mobileExpandedStage, setMobileExpandedStage] = useState<string | null>(null);
 
-  // Quick notes
-  const [notesOpen, setNotesOpen] = useState(false);
+  // Quick notes (persistent: system_log + user_notes from quick_notes row id=1)
+  const [notesOpen, setNotesOpen] = useState(true);
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
-  const [notes, setNotes] = useState<{ id: string; text: string; color: string; createdAt?: string }[]>(() => {
-    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY_NOTES) || '[]'); } catch { return []; }
-  });
-  const [newNote, setNewNote] = useState("");
-  const [clearNotesDialog, setClearNotesDialog] = useState(false);
-  const noteColors = ["text-warning", "text-destructive", "text-primary"];
+  const [systemLog, setSystemLog] = useState<SystemLogEntry[]>([]);
+  const [userNotes, setUserNotes] = useState<string>("");
+  const [expandedLogIdx, setExpandedLogIdx] = useState<Set<number>>(new Set());
 
   // To-Do
   const [todoOpen, setTodoOpen] = useState(true);
