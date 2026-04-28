@@ -345,13 +345,32 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               <Pencil size={12} className="text-muted-foreground" />
               <span className="text-xs font-bold text-muted-foreground">My notes</span>
             </div>
-            <textarea
-              value={userNotes}
-              onChange={(e) => setUserNotes(e.target.value)}
-              onBlur={() => saveUserNotes(userNotes)}
-              placeholder="Type anything you want to remember..."
-              className="w-full text-xs bg-transparent border rounded-[9px] px-2.5 py-2 min-h-[120px] resize-y focus:outline-none focus:ring-1 focus:ring-primary"
+            <input
+              type="text"
+              value={newNoteInput}
+              onChange={(e) => setNewNoteInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUserNote(); } }}
+              placeholder="Type a note and press Enter..."
+              className="w-full text-xs bg-transparent border rounded-[9px] px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
             />
+            <div className="mt-2 max-h-[220px] overflow-y-auto space-y-1 pr-1">
+              {userNotes.length === 0 && (
+                <p className="text-xs italic text-muted-foreground">No notes yet.</p>
+              )}
+              {userNotes.map((n) => (
+                <div key={n.id} className="flex items-start gap-2 text-xs py-1 group">
+                  <span className="flex-1 break-words">{n.text}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground/70 mt-0.5">{formatNoteTime(n.created_at)}</span>
+                  <button
+                    onClick={() => deleteUserNote(n.id)}
+                    className="shrink-0 p-0.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-0.5"
+                    aria-label="Delete note"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
