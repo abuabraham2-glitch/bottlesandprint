@@ -26,6 +26,12 @@ interface SystemLogEntry {
   };
 }
 
+interface UserNote {
+  id: string;
+  text: string;
+  created_at: string;
+}
+
 const stageColors: Record<string, { border: string; text: string; bg: string; stripe: string }> = {
   preflight: { border: "border-stage-new", text: "text-stage-new", bg: "bg-stage-new", stripe: "bg-stage-new" },
   wip: { border: "border-stage-wip", text: "text-stage-wip", bg: "bg-stage-wip", stripe: "bg-stage-wip" },
