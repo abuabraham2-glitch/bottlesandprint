@@ -292,17 +292,26 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 const cats: ("resolved" | "sent" | "deleted" | "spam")[] = ["resolved", "sent", "deleted", "spam"];
                 return (
                   <div key={`${entry.timestamp}-${i}`} className="text-xs">
-                    <button
-                      onClick={() => toggleLogIdx(i)}
-                      className="flex items-start gap-1 w-full text-left italic text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {isOpen
-                        ? <ChevronDown size={12} className="mt-0.5 shrink-0" />
-                        : <ChevronRight size={12} className="mt-0.5 shrink-0" />}
-                      <span className="flex-1">
-                        {formatLogTime(entry.timestamp)} · {summary || "no activity"}
-                      </span>
-                    </button>
+                    <div className="flex items-start gap-1">
+                      <button
+                        onClick={() => toggleLogIdx(i)}
+                        className="flex items-start gap-1 flex-1 text-left italic text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {isOpen
+                          ? <ChevronDown size={12} className="mt-0.5 shrink-0" />
+                          : <ChevronRight size={12} className="mt-0.5 shrink-0" />}
+                        <span className="flex-1">
+                          {formatLogTime(entry.timestamp)} · {summary || "no activity"}
+                        </span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteSystemLogEntry(entry.timestamp); }}
+                        className="shrink-0 p-0.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                        aria-label="Delete log entry"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
                     {isOpen && (
                       <div className="pl-4 mt-1 space-y-1.5">
                         {cats.map(cat => {
