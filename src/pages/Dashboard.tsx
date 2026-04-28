@@ -9,6 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 
 interface DashboardProps {
@@ -154,34 +155,44 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     };
   }, []);
 
-  const saveUserNotes = async (notes: UserNote[]) => {
-    await supabase.from("quick_notes").update({ user_notes: notes as any } as any).eq("id", 1);
-  };
-
-  const addUserNote = () => {
+  const addUserNote = async () => {
     const trimmed = newNoteInput.trim();
     if (!trimmed) return;
     const note: UserNote = { id: Date.now().toString(), text: trimmed, created_at: new Date().toISOString() };
+    const prev = userNotes;
     const next = [note, ...userNotes];
     setUserNotes(next);
     setNewNoteInput("");
-    saveUserNotes(next);
+    const { error } = await supabase.from("quick_notes").update({ user_notes: next as any } as any).eq("id", 1);
+    if (error) {
+      console.error("Failed to save note:", error);
+      toast.error("Failed to save note");
+      setUserNotes(prev);
+    }
   };
 
-  const deleteUserNote = (id: string) => {
+  const deleteUserNote = async (id: string) => {
+    const prev = userNotes;
     const next = userNotes.filter(n => n.id !== id);
     setUserNotes(next);
-    saveUserNotes(next);
+    const { error } = await supabase.from("quick_notes").update({ user_notes: next as any } as any).eq("id", 1);
+    if (error) {
+      console.error("Failed to delete note:", error);
+      toast.error("Failed to delete note");
+      setUserNotes(prev);
+    }
   };
 
-  const saveSystemLog = async (log: SystemLogEntry[]) => {
-    await supabase.from("quick_notes").update({ system_log: log as any } as any).eq("id", 1);
-  };
-
-  const deleteSystemLogEntry = (timestamp: string) => {
+  const deleteSystemLogEntry = async (timestamp: string) => {
+    const prev = systemLog;
     const next = systemLog.filter(e => e.timestamp !== timestamp);
     setSystemLog(next);
-    saveSystemLog(next);
+    const { error } = await supabase.from("quick_notes").update({ system_log: next as any } as any).eq("id", 1);
+    if (error) {
+      console.error("Failed to delete log entry:", error);
+      toast.error("Failed to delete log entry");
+      setSystemLog(prev);
+    }
   };
 
   const formatNoteTime = (iso: string) => {
