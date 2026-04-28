@@ -15,7 +15,16 @@ interface DashboardProps {
   searchQuery: string;
 }
 
-const SESSION_KEY_NOTES = "dashboard_quick_notes";
+interface SystemLogEntry {
+  timestamp: string;
+  counts?: { resolved?: number; sent?: number; deleted?: number; spam?: number };
+  details?: {
+    resolved?: { name?: string; subject?: string }[];
+    sent?: { name?: string; subject?: string }[];
+    deleted?: { name?: string; subject?: string }[];
+    spam?: { name?: string; subject?: string }[];
+  };
+}
 
 const stageColors: Record<string, { border: string; text: string; bg: string; stripe: string }> = {
   preflight: { border: "border-stage-new", text: "text-stage-new", bg: "bg-stage-new", stripe: "bg-stage-new" },
