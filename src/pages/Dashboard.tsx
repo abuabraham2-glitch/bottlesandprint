@@ -130,12 +130,13 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   // Initial fetch + realtime subscription for quick_notes row id=1
   useEffect(() => {
     let mounted = true;
+    const parseNotes = (v: any): UserNote[] => Array.isArray(v) ? v as UserNote[] : [];
     (async () => {
       const { data } = await supabase.from("quick_notes").select("id, system_log, user_notes").eq("id", 1).maybeSingle();
       if (!mounted || !data) return;
       const log = Array.isArray(data.system_log) ? (data.system_log as unknown as SystemLogEntry[]) : [];
       setSystemLog(log);
-      setUserNotes((data.user_notes as string) || "");
+      setUserNotes(parseNotes(data.user_notes));
     })();
     const channel = supabase
       .channel("quick_notes_row")
@@ -144,10 +145,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         if (!row) return;
         const log = Array.isArray(row.system_log) ? (row.system_log as SystemLogEntry[]) : [];
         setSystemLog(log);
-        // Don't clobber in-flight typing — only update if textarea isn't focused
-        if (document.activeElement?.tagName !== "TEXTAREA") {
-          setUserNotes(row.user_notes || "");
-        }
+        setUserNotes(parseNotes(row.user_notes));
       })
       .subscribe();
     return () => {
@@ -156,14 +154,40 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     };
   }, []);
 
-  // Auto-save user_notes (debounced 1.5s + on blur)
-  const saveUserNotes = async (value: string) => {
-    await supabase.from("quick_notes").update({ user_notes: value } as any).eq("id", 1);
+  const saveUserNotes = async (notes: UserNote[]) => {
+    await supabase.from("quick_notes").update({ user_notes: notes as any } as any).eq("id", 1);
   };
-  useEffect(() => {
-    const t = setTimeout(() => { saveUserNotes(userNotes); }, 1500);
-    return () => clearTimeout(t);
-  }, [userNotes]);
+
+  const addUserNote = () => {
+    const trimmed = newNoteInput.trim();
+    if (!trimmed) return;
+    const note: UserNote = { id: Date.now().toString(), text: trimmed, created_at: new Date().toISOString() };
+    const next = [note, ...userNotes];
+    setUserNotes(next);
+    setNewNoteInput("");
+    saveUserNotes(next);
+  };
+
+  const deleteUserNote = (id: string) => {
+    const next = userNotes.filter(n => n.id !== id);
+    setUserNotes(next);
+    saveUserNotes(next);
+  };
+
+  const saveSystemLog = async (log: SystemLogEntry[]) => {
+    await supabase.from("quick_notes").update({ system_log: log as any } as any).eq("id", 1);
+  };
+
+  const deleteSystemLogEntry = (timestamp: string) => {
+    const next = systemLog.filter(e => e.timestamp !== timestamp);
+    setSystemLog(next);
+    saveSystemLog(next);
+  };
+
+  const formatNoteTime = (iso: string) => {
+    try { return format(new Date(iso), "MMM d, h:mma").replace("AM", "am").replace("PM", "pm"); }
+    catch { return iso; }
+  };
 
   // Sort newest first
   const sortedLog = useMemo(() => {
