@@ -850,6 +850,27 @@ export type Database = {
           },
         ]
       }
+      quick_notes: {
+        Row: {
+          id: number
+          system_log: Json
+          updated_at: string
+          user_notes: string
+        }
+        Insert: {
+          id?: number
+          system_log?: Json
+          updated_at?: string
+          user_notes?: string
+        }
+        Update: {
+          id?: number
+          system_log?: Json
+          updated_at?: string
+          user_notes?: string
+        }
+        Relationships: []
+      }
       sequence_counters: {
         Row: {
           counter_name: string
