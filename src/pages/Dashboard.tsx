@@ -120,14 +120,66 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   // Calendar
   const [calOpenMobile, setCalOpenMobile] = useState(false);
 
+  // Initial fetch + realtime subscription for quick_notes row id=1
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY_NOTES, JSON.stringify(notes));
-  }, [notes]);
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.from("quick_notes").select("id, system_log, user_notes").eq("id", 1).maybeSingle();
+      if (!mounted || !data) return;
+      const log = Array.isArray(data.system_log) ? (data.system_log as unknown as SystemLogEntry[]) : [];
+      setSystemLog(log);
+      setUserNotes((data.user_notes as string) || "");
+    })();
+    const channel = supabase
+      .channel("quick_notes_row")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quick_notes", filter: "id=eq.1" }, (payload) => {
+        const row: any = payload.new;
+        if (!row) return;
+        const log = Array.isArray(row.system_log) ? (row.system_log as SystemLogEntry[]) : [];
+        setSystemLog(log);
+        // Don't clobber in-flight typing — only update if textarea isn't focused
+        if (document.activeElement?.tagName !== "TEXTAREA") {
+          setUserNotes(row.user_notes || "");
+        }
+      })
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
-  const addNote = () => {
-    if (!newNote.trim()) return;
-    setNotes(prev => [...prev, { id: Date.now().toString(), text: newNote.trim(), color: noteColors[prev.length % 3], createdAt: new Date().toISOString() }]);
-    setNewNote("");
+  // Auto-save user_notes (debounced 1.5s + on blur)
+  const saveUserNotes = async (value: string) => {
+    await supabase.from("quick_notes").update({ user_notes: value } as any).eq("id", 1);
+  };
+  useEffect(() => {
+    const t = setTimeout(() => { saveUserNotes(userNotes); }, 1500);
+    return () => clearTimeout(t);
+  }, [userNotes]);
+
+  // Sort newest first
+  const sortedLog = useMemo(() => {
+    return [...systemLog].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [systemLog]);
+
+  const toggleLogIdx = (i: number) => {
+    setExpandedLogIdx(prev => {
+      const n = new Set(prev);
+      if (n.has(i)) n.delete(i); else n.add(i);
+      return n;
+    });
+  };
+
+  const formatLogTime = (iso: string) => {
+    try { return format(new Date(iso), "MMM d, h:mma").replace("AM", "am").replace("PM", "pm"); }
+    catch { return iso; }
+  };
+
+  const countSummary = (counts?: SystemLogEntry["counts"]) => {
+    if (!counts) return "";
+    const order: (keyof NonNullable<SystemLogEntry["counts"]>)[] = ["resolved", "sent", "deleted", "spam"];
+    return order.filter(k => (counts[k] || 0) > 0).map(k => `${counts[k]} ${k}`).join(", ");
   };
 
   const filtered = searchQuery
