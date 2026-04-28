@@ -855,19 +855,19 @@ export type Database = {
           id: number
           system_log: Json
           updated_at: string
-          user_notes: string
+          user_notes: Json
         }
         Insert: {
           id?: number
           system_log?: Json
           updated_at?: string
-          user_notes?: string
+          user_notes?: Json
         }
         Update: {
           id?: number
           system_log?: Json
           updated_at?: string
-          user_notes?: string
+          user_notes?: Json
         }
         Relationships: []
       }
