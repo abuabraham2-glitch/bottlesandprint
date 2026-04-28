@@ -75,7 +75,8 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [notesOpen, setNotesOpen] = useState(true);
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
   const [systemLog, setSystemLog] = useState<SystemLogEntry[]>([]);
-  const [userNotes, setUserNotes] = useState<string>("");
+  const [userNotes, setUserNotes] = useState<UserNote[]>([]);
+  const [newNoteInput, setNewNoteInput] = useState("");
   const [expandedLogIdx, setExpandedLogIdx] = useState<Set<number>>(new Set());
 
   // To-Do
