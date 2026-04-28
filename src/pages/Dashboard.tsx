@@ -26,6 +26,12 @@ interface SystemLogEntry {
   };
 }
 
+interface UserNote {
+  id: string;
+  text: string;
+  created_at: string;
+}
+
 const stageColors: Record<string, { border: string; text: string; bg: string; stripe: string }> = {
   preflight: { border: "border-stage-new", text: "text-stage-new", bg: "bg-stage-new", stripe: "bg-stage-new" },
   wip: { border: "border-stage-wip", text: "text-stage-wip", bg: "bg-stage-wip", stripe: "bg-stage-wip" },
@@ -69,7 +75,8 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   const [notesOpen, setNotesOpen] = useState(true);
   const [notesOpenMobile, setNotesOpenMobile] = useState(false);
   const [systemLog, setSystemLog] = useState<SystemLogEntry[]>([]);
-  const [userNotes, setUserNotes] = useState<string>("");
+  const [userNotes, setUserNotes] = useState<UserNote[]>([]);
+  const [newNoteInput, setNewNoteInput] = useState("");
   const [expandedLogIdx, setExpandedLogIdx] = useState<Set<number>>(new Set());
 
   // To-Do
@@ -123,12 +130,13 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
   // Initial fetch + realtime subscription for quick_notes row id=1
   useEffect(() => {
     let mounted = true;
+    const parseNotes = (v: any): UserNote[] => Array.isArray(v) ? v as UserNote[] : [];
     (async () => {
       const { data } = await supabase.from("quick_notes").select("id, system_log, user_notes").eq("id", 1).maybeSingle();
       if (!mounted || !data) return;
       const log = Array.isArray(data.system_log) ? (data.system_log as unknown as SystemLogEntry[]) : [];
       setSystemLog(log);
-      setUserNotes((data.user_notes as string) || "");
+      setUserNotes(parseNotes(data.user_notes));
     })();
     const channel = supabase
       .channel("quick_notes_row")
@@ -137,10 +145,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
         if (!row) return;
         const log = Array.isArray(row.system_log) ? (row.system_log as SystemLogEntry[]) : [];
         setSystemLog(log);
-        // Don't clobber in-flight typing — only update if textarea isn't focused
-        if (document.activeElement?.tagName !== "TEXTAREA") {
-          setUserNotes(row.user_notes || "");
-        }
+        setUserNotes(parseNotes(row.user_notes));
       })
       .subscribe();
     return () => {
@@ -149,14 +154,40 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
     };
   }, []);
 
-  // Auto-save user_notes (debounced 1.5s + on blur)
-  const saveUserNotes = async (value: string) => {
-    await supabase.from("quick_notes").update({ user_notes: value } as any).eq("id", 1);
+  const saveUserNotes = async (notes: UserNote[]) => {
+    await supabase.from("quick_notes").update({ user_notes: notes as any } as any).eq("id", 1);
   };
-  useEffect(() => {
-    const t = setTimeout(() => { saveUserNotes(userNotes); }, 1500);
-    return () => clearTimeout(t);
-  }, [userNotes]);
+
+  const addUserNote = () => {
+    const trimmed = newNoteInput.trim();
+    if (!trimmed) return;
+    const note: UserNote = { id: Date.now().toString(), text: trimmed, created_at: new Date().toISOString() };
+    const next = [note, ...userNotes];
+    setUserNotes(next);
+    setNewNoteInput("");
+    saveUserNotes(next);
+  };
+
+  const deleteUserNote = (id: string) => {
+    const next = userNotes.filter(n => n.id !== id);
+    setUserNotes(next);
+    saveUserNotes(next);
+  };
+
+  const saveSystemLog = async (log: SystemLogEntry[]) => {
+    await supabase.from("quick_notes").update({ system_log: log as any } as any).eq("id", 1);
+  };
+
+  const deleteSystemLogEntry = (timestamp: string) => {
+    const next = systemLog.filter(e => e.timestamp !== timestamp);
+    setSystemLog(next);
+    saveSystemLog(next);
+  };
+
+  const formatNoteTime = (iso: string) => {
+    try { return format(new Date(iso), "MMM d, h:mma").replace("AM", "am").replace("PM", "pm"); }
+    catch { return iso; }
+  };
 
   // Sort newest first
   const sortedLog = useMemo(() => {
@@ -261,17 +292,26 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                 const cats: ("resolved" | "sent" | "deleted" | "spam")[] = ["resolved", "sent", "deleted", "spam"];
                 return (
                   <div key={`${entry.timestamp}-${i}`} className="text-xs">
-                    <button
-                      onClick={() => toggleLogIdx(i)}
-                      className="flex items-start gap-1 w-full text-left italic text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {isOpen
-                        ? <ChevronDown size={12} className="mt-0.5 shrink-0" />
-                        : <ChevronRight size={12} className="mt-0.5 shrink-0" />}
-                      <span className="flex-1">
-                        {formatLogTime(entry.timestamp)} · {summary || "no activity"}
-                      </span>
-                    </button>
+                    <div className="flex items-start gap-1">
+                      <button
+                        onClick={() => toggleLogIdx(i)}
+                        className="flex items-start gap-1 flex-1 text-left italic text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {isOpen
+                          ? <ChevronDown size={12} className="mt-0.5 shrink-0" />
+                          : <ChevronRight size={12} className="mt-0.5 shrink-0" />}
+                        <span className="flex-1">
+                          {formatLogTime(entry.timestamp)} · {summary || "no activity"}
+                        </span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteSystemLogEntry(entry.timestamp); }}
+                        className="shrink-0 p-0.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                        aria-label="Delete log entry"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
                     {isOpen && (
                       <div className="pl-4 mt-1 space-y-1.5">
                         {cats.map(cat => {
@@ -305,13 +345,32 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               <Pencil size={12} className="text-muted-foreground" />
               <span className="text-xs font-bold text-muted-foreground">My notes</span>
             </div>
-            <textarea
-              value={userNotes}
-              onChange={(e) => setUserNotes(e.target.value)}
-              onBlur={() => saveUserNotes(userNotes)}
-              placeholder="Type anything you want to remember..."
-              className="w-full text-xs bg-transparent border rounded-[9px] px-2.5 py-2 min-h-[120px] resize-y focus:outline-none focus:ring-1 focus:ring-primary"
+            <input
+              type="text"
+              value={newNoteInput}
+              onChange={(e) => setNewNoteInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUserNote(); } }}
+              placeholder="Type a note and press Enter..."
+              className="w-full text-xs bg-transparent border rounded-[9px] px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
             />
+            <div className="mt-2 max-h-[220px] overflow-y-auto space-y-1 pr-1">
+              {userNotes.length === 0 && (
+                <p className="text-xs italic text-muted-foreground">No notes yet.</p>
+              )}
+              {userNotes.map((n) => (
+                <div key={n.id} className="flex items-start gap-2 text-xs py-1 group">
+                  <span className="flex-1 break-words">{n.text}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground/70 mt-0.5">{formatNoteTime(n.created_at)}</span>
+                  <button
+                    onClick={() => deleteUserNote(n.id)}
+                    className="shrink-0 p-0.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-0.5"
+                    aria-label="Delete note"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
