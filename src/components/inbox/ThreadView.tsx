@@ -201,6 +201,9 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
             </div>
           )}
 
+          {/* Thread summary (only for multi-message threads) */}
+          <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
+
           {/* Email body */}
           <div>
             <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">
