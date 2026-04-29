@@ -63,6 +63,7 @@ export type Database = {
           gmail_id: string | null
           id: string
           sent_at: string | null
+          template_id: number | null
         }
         Insert: {
           ack_type: string
@@ -70,12 +71,38 @@ export type Database = {
           gmail_id?: string | null
           id?: string
           sent_at?: string | null
+          template_id?: number | null
         }
         Update: {
           ack_type?: string
           email_address?: string
           gmail_id?: string | null
           id?: string
+          sent_at?: string | null
+          template_id?: number | null
+        }
+        Relationships: []
+      }
+      auto_ack_log_backup_2026_04_28: {
+        Row: {
+          ack_type: string | null
+          email_address: string | null
+          gmail_id: string | null
+          id: string | null
+          sent_at: string | null
+        }
+        Insert: {
+          ack_type?: string | null
+          email_address?: string | null
+          gmail_id?: string | null
+          id?: string | null
+          sent_at?: string | null
+        }
+        Update: {
+          ack_type?: string | null
+          email_address?: string | null
+          gmail_id?: string | null
+          id?: string | null
           sent_at?: string | null
         }
         Relationships: []
@@ -871,6 +898,30 @@ export type Database = {
         }
         Relationships: []
       }
+      reconciliation_backup_2026_04_28: {
+        Row: {
+          created_at: string | null
+          direction: string | null
+          id: string | null
+          snapshot_taken_at: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          direction?: string | null
+          id?: string | null
+          snapshot_taken_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string | null
+          id?: string | null
+          snapshot_taken_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       sequence_counters: {
         Row: {
           counter_name: string
@@ -964,6 +1015,7 @@ export type Database = {
         Args: { p_counter_name: string }
         Returns: number
       }
+      get_open_emails_for_reconciliation: { Args: never; Returns: Json[] }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
