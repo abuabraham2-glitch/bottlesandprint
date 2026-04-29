@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw, Plus, X } from "lucide-react";
-import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, checkPaymentStatusInQB, buildOrderDescription } from "@/lib/quickbooks";
+import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, buildOrderDescription } from "@/lib/quickbooks";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
 import { format, addWeeks } from "date-fns";
@@ -518,16 +518,6 @@ export default function OrderDetail() {
         )}
         {order.stage === "completed" && (
           <>
-            {order.invoice_num && !order.paid && (
-              <Button variant="outline" onClick={async () => {
-                const result = await checkPaymentStatusInQB({ invoice_num: order.invoice_num || "" });
-                if (result.ok && result.balance === 0) {
-                  await update({ paid: true });
-                }
-              }}>
-                Check Payment Status
-              </Button>
-            )}
             {order.paid ? (
               <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>
             ) : (
@@ -801,16 +791,6 @@ export default function OrderDetail() {
                 <span className={order.paid ? "text-green-600 font-medium" : "text-destructive font-medium"}>
                   {order.paid ? "Yes" : "No"}
                 </span>
-                {order.invoice_num && (
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
-                    const result = await checkPaymentStatusInQB({ invoice_num: order.invoice_num || "" });
-                    if (result.ok && result.balance === 0) {
-                      await update({ paid: true });
-                    }
-                  }}>
-                    Check Payment Status
-                  </Button>
-                )}
               </div>
             </div>
             {/* QB Review Checkboxes */}
