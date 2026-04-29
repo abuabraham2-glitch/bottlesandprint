@@ -393,6 +393,17 @@ export default function Inbox() {
     const successfulIds = results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
     if (successfulIds.length > 0) {
       await supabase.from("emails").update({ status: "deleted", deleted_at: now } as any).in("id", successfulIds);
+      // Cascade: mark sibling thread emails (still in pending/needs_response) as deleted in DB only
+      for (const id of successfulIds) {
+        const email = allEmails.find(e => e.id === id);
+        if (email?.thread_id) {
+          await supabase.from("emails")
+            .update({ status: "deleted", deleted_at: now } as any)
+            .eq("thread_id", email.thread_id)
+            .in("status", ["pending", "needs_response"])
+            .neq("id", id);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["emails"] });
     }
     if (successfulIds.length > 0) toast.success(`Deleted ${successfulIds.length} email(s)`);
