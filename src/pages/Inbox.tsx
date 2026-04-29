@@ -693,7 +693,7 @@ export default function Inbox() {
                 <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(email.created_at)}</span>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
 
