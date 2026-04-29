@@ -20,6 +20,7 @@ import {
   displaySenderName, formatTime, formatAge, parseAttachments,
   stripN8nFooter, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
+import { computeWaitingThreadIds } from "@/lib/emailHelpers";
 
 type MainTab = "needs_reply" | "waiting" | "spam" | "archive";
 
