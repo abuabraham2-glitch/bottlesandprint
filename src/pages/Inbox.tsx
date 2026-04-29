@@ -80,14 +80,40 @@ export default function Inbox() {
       .map(e => e.thread_id!)
   ), [allEmails]);
 
+  // Count of emails per thread across all statuses except deleted/spam
+  const threadCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    allEmails.forEach(e => {
+      if (!e.thread_id) return;
+      if (e.status === "deleted" || e.status === "spam") return;
+      if (e.category === "SPAM" || (e as any).tier === "SPAM") return;
+      map.set(e.thread_id, (map.get(e.thread_id) || 0) + 1);
+    });
+    return map;
+  }, [allEmails]);
+
   const needsReplyEmails = useMemo(() => {
-    return allEmails
-      .filter(e =>
-        (e.status === "pending" || e.status === "needs_response") &&
-        ((e as any).direction === "inbound" || !(e as any).direction) &&
-        (!e.thread_id || !waitingThreadIds.has(e.thread_id))
-      )
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
+    const matches = allEmails.filter(e =>
+      (e.status === "pending" || e.status === "needs_response") &&
+      ((e as any).direction === "inbound" || !(e as any).direction) &&
+      (!e.thread_id || !waitingThreadIds.has(e.thread_id))
+    );
+
+    const latestByThread = new Map<string, Email>();
+    const result: Email[] = [];
+    matches
+      .slice()
+      .sort((a, b) => getTime(b) - getTime(a))
+      .forEach(e => {
+        if (!e.thread_id) {
+          result.push(e);
+        } else if (!latestByThread.has(e.thread_id)) {
+          latestByThread.set(e.thread_id, e);
+        }
+      });
+    latestByThread.forEach(e => result.push(e));
+    return result.sort((a, b) => getTime(b) - getTime(a));
   }, [allEmails, waitingThreadIds]);
 
   const waitingEmails = useMemo(() => {
