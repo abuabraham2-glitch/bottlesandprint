@@ -75,11 +75,10 @@ export default function Inbox() {
 
   // Derived lists for each tab
   // Threads with any email in 'waiting' status
-  const waitingThreadIds = useMemo(() => new Set(
-    allEmails
-      .filter(e => e.status === "waiting" && e.thread_id)
-      .map(e => e.thread_id!)
-  ), [allEmails]);
+  const waitingThreadIds = useMemo(
+    () => computeWaitingThreadIds(allEmails),
+    [allEmails]
+  );
 
   // Count of emails per thread across all statuses except deleted/spam
   const threadCountMap = useMemo(() => {
