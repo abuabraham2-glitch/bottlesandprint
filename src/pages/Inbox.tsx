@@ -624,7 +624,13 @@ export default function Inbox() {
               <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
             </Button>
           </div>
-          {displayedEmails.map(email => (
+          {displayedEmails.map(email => {
+            const threadCount = email.thread_id ? (threadCountMap.get(email.thread_id) || 1) : 1;
+            const threadSiblings = email.thread_id ? allEmails.filter(e => e.thread_id === email.thread_id) : [email];
+            const anyUnread = threadSiblings.some(e => e.is_read === false);
+            const anyUrgent = threadSiblings.some(e => e.is_urgent === true);
+            const showThreadBadge = mainTab !== "spam" && threadCount > 1;
+            return (
             <div key={email.id}
               className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
               onClick={() => handleOpenEmail(email)}>
@@ -632,7 +638,7 @@ export default function Inbox() {
                 {/* Unread dot + checkbox */}
                 <div className="flex items-center gap-2">
                   <div className="w-2 flex-shrink-0">
-                    {!email.is_read && mainTab === "needs_reply" && (
+                    {anyUnread && mainTab === "needs_reply" && (
                       <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
                     )}
                   </div>
@@ -642,7 +648,7 @@ export default function Inbox() {
                 </div>
                 {/* Flame */}
                 <div className="w-5 flex-shrink-0 flex items-center justify-center">
-                  {email.is_urgent ? (
+                  {anyUrgent ? (
                     <button onClick={(e) => toggleUrgent(e, email.id)} className="hover:scale-110 transition-transform" title="Remove flag">🔥</button>
                   ) : (
                     <button onClick={(e) => toggleUrgent(e, email.id)} className="opacity-0 hover:opacity-50 transition-opacity text-muted-foreground" title="Flag as urgent">
@@ -652,12 +658,17 @@ export default function Inbox() {
                 </div>
                 {/* Content */}
                 <div className="flex-1 min-w-0 flex items-center gap-3">
-                  <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
+                  <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${anyUnread && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
                     {displaySenderName(email.from_name, email.from_email)}
                   </span>
-                  <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`text-sm font-sans truncate flex-1 ${anyUnread && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {email.subject}
                   </span>
+                  {showThreadBadge && (
+                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                      {threadCount} msgs
+                    </span>
+                  )}
                   {/* Archive tab: label pill */}
                   {mainTab === "archive" && email.label && (
                     <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
