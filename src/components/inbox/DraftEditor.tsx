@@ -151,6 +151,41 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     try {
+      // Build thread context if part of a thread
+      let bodyForWebhook = email.body || "";
+      let mostRecentCreatedAt: string | null = email.created_at || null;
+      if (email.thread_id) {
+        const { data: threadRows } = await supabase
+          .from("emails")
+          .select("from_name, from_email, body, draft_response, direction, created_at, status")
+          .eq("thread_id", email.thread_id)
+          .order("created_at", { ascending: true });
+        const rows = (threadRows || []).filter((r: any) => r.status !== "deleted" && r.status !== "spam");
+        if (rows.length > 0) {
+          mostRecentCreatedAt = rows[rows.length - 1].created_at || mostRecentCreatedAt;
+          const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          const lines: string[] = [`[Thread context — ${rows.length} messages, oldest first]`, ""];
+          rows.forEach((r: any, idx: number) => {
+            const isOutbound = r.direction === "outbound";
+            const rawBody = (isOutbound && r.draft_response) ? r.draft_response : (r.body || "");
+            const cleaned = stripHtml(stripN8nFooter(rawBody));
+            const dateStr = r.created_at
+              ? new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "";
+            const sender = isOutbound ? "Abu (You)" : (r.from_name || r.from_email || "Unknown");
+            const isLast = idx === rows.length - 1;
+            const suffix = isLast ? " (most recent — respond to this)" : "";
+            lines.push(`=== ${dateStr} — From ${sender}${suffix} ===`);
+            lines.push(cleaned);
+            lines.push("");
+          });
+          bodyForWebhook = lines.join("\n");
+        }
+      }
+      const emailDate = mostRecentCreatedAt
+        ? new Date(mostRecentCreatedAt).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+
       const res = await fetch("https://bottlesandprint.app.n8n.cloud/webhook/regenerate-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,7 +195,8 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
           from_email: email.from_email || "",
           from_name: email.from_name || "",
           subject: email.subject || "",
-          body: email.body || "",
+          body: bodyForWebhook,
+          email_date: emailDate,
         }),
         signal: controller.signal,
       });
