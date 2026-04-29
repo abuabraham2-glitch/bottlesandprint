@@ -438,6 +438,7 @@ export type Database = {
       emails: {
         Row: {
           acknowledged: boolean | null
+          approved_sent_at: string | null
           attachments: Json | null
           auto_sent_at: string | null
           body: string | null
@@ -482,6 +483,7 @@ export type Database = {
         }
         Insert: {
           acknowledged?: boolean | null
+          approved_sent_at?: string | null
           attachments?: Json | null
           auto_sent_at?: string | null
           body?: string | null
@@ -526,6 +528,7 @@ export type Database = {
         }
         Update: {
           acknowledged?: boolean | null
+          approved_sent_at?: string | null
           attachments?: Json | null
           auto_sent_at?: string | null
           body?: string | null

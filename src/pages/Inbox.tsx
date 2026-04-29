@@ -256,6 +256,7 @@ export default function Inbox() {
             subject: composeSubject,
             draft_response: htmlContent,
             status: "approved_sent",
+            approved_sent_at: new Date().toISOString(),
             direction: "outbound",
             category: "outbound",
             created_at: new Date().toISOString(),
