@@ -80,14 +80,40 @@ export default function Inbox() {
       .map(e => e.thread_id!)
   ), [allEmails]);
 
+  // Count of emails per thread across all statuses except deleted/spam
+  const threadCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    allEmails.forEach(e => {
+      if (!e.thread_id) return;
+      if (e.status === "deleted" || e.status === "spam") return;
+      if (e.category === "SPAM" || (e as any).tier === "SPAM") return;
+      map.set(e.thread_id, (map.get(e.thread_id) || 0) + 1);
+    });
+    return map;
+  }, [allEmails]);
+
   const needsReplyEmails = useMemo(() => {
-    return allEmails
-      .filter(e =>
-        (e.status === "pending" || e.status === "needs_response") &&
-        ((e as any).direction === "inbound" || !(e as any).direction) &&
-        (!e.thread_id || !waitingThreadIds.has(e.thread_id))
-      )
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
+    const matches = allEmails.filter(e =>
+      (e.status === "pending" || e.status === "needs_response") &&
+      ((e as any).direction === "inbound" || !(e as any).direction) &&
+      (!e.thread_id || !waitingThreadIds.has(e.thread_id))
+    );
+
+    const latestByThread = new Map<string, Email>();
+    const result: Email[] = [];
+    matches
+      .slice()
+      .sort((a, b) => getTime(b) - getTime(a))
+      .forEach(e => {
+        if (!e.thread_id) {
+          result.push(e);
+        } else if (!latestByThread.has(e.thread_id)) {
+          latestByThread.set(e.thread_id, e);
+        }
+      });
+    latestByThread.forEach(e => result.push(e));
+    return result.sort((a, b) => getTime(b) - getTime(a));
   }, [allEmails, waitingThreadIds]);
 
   const waitingEmails = useMemo(() => {
@@ -148,7 +174,21 @@ export default function Inbox() {
       );
     }
 
-    return list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
+    const latestByThread = new Map<string, Email>();
+    const result: Email[] = [];
+    list
+      .slice()
+      .sort((a, b) => getTime(b) - getTime(a))
+      .forEach(e => {
+        if (!e.thread_id) {
+          result.push(e);
+        } else if (!latestByThread.has(e.thread_id)) {
+          latestByThread.set(e.thread_id, e);
+        }
+      });
+    latestByThread.forEach(e => result.push(e));
+    return result.sort((a, b) => getTime(b) - getTime(a));
   }, [allEmails, archiveFilterQuoted, archiveFilterAttachments, archiveFilterReceipt, archiveFilterOther, archiveSearchDebounced]);
 
   // Clear selection when switching tabs
@@ -353,6 +393,17 @@ export default function Inbox() {
     const successfulIds = results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
     if (successfulIds.length > 0) {
       await supabase.from("emails").update({ status: "deleted", deleted_at: now } as any).in("id", successfulIds);
+      // Cascade: mark sibling thread emails (still in pending/needs_response) as deleted in DB only
+      for (const id of successfulIds) {
+        const email = allEmails.find(e => e.id === id);
+        if (email?.thread_id) {
+          await supabase.from("emails")
+            .update({ status: "deleted", deleted_at: now } as any)
+            .eq("thread_id", email.thread_id)
+            .in("status", ["pending", "needs_response"])
+            .neq("id", id);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["emails"] });
     }
     if (successfulIds.length > 0) toast.success(`Deleted ${successfulIds.length} email(s)`);
@@ -573,7 +624,13 @@ export default function Inbox() {
               <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
             </Button>
           </div>
-          {displayedEmails.map(email => (
+          {displayedEmails.map(email => {
+            const threadCount = email.thread_id ? (threadCountMap.get(email.thread_id) || 1) : 1;
+            const threadSiblings = email.thread_id ? allEmails.filter(e => e.thread_id === email.thread_id) : [email];
+            const anyUnread = threadSiblings.some(e => e.is_read === false);
+            const anyUrgent = threadSiblings.some(e => e.is_urgent === true);
+            const showThreadBadge = mainTab !== "spam" && threadCount > 1;
+            return (
             <div key={email.id}
               className={`floating-card mb-0 cursor-pointer hover:bg-muted/30 transition-colors ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
               onClick={() => handleOpenEmail(email)}>
@@ -581,7 +638,7 @@ export default function Inbox() {
                 {/* Unread dot + checkbox */}
                 <div className="flex items-center gap-2">
                   <div className="w-2 flex-shrink-0">
-                    {!email.is_read && mainTab === "needs_reply" && (
+                    {anyUnread && mainTab === "needs_reply" && (
                       <div className="w-2 h-2 rounded-full bg-[hsl(var(--primary))]" />
                     )}
                   </div>
@@ -591,7 +648,7 @@ export default function Inbox() {
                 </div>
                 {/* Flame */}
                 <div className="w-5 flex-shrink-0 flex items-center justify-center">
-                  {email.is_urgent ? (
+                  {anyUrgent ? (
                     <button onClick={(e) => toggleUrgent(e, email.id)} className="hover:scale-110 transition-transform" title="Remove flag">🔥</button>
                   ) : (
                     <button onClick={(e) => toggleUrgent(e, email.id)} className="opacity-0 hover:opacity-50 transition-opacity text-muted-foreground" title="Flag as urgent">
@@ -601,12 +658,17 @@ export default function Inbox() {
                 </div>
                 {/* Content */}
                 <div className="flex-1 min-w-0 flex items-center gap-3">
-                  <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${!email.is_read && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
+                  <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${anyUnread && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
                     {displaySenderName(email.from_name, email.from_email)}
                   </span>
-                  <span className={`text-sm font-sans truncate flex-1 ${!email.is_read && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`text-sm font-sans truncate flex-1 ${anyUnread && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                     {email.subject}
                   </span>
+                  {showThreadBadge && (
+                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                      {threadCount} msgs
+                    </span>
+                  )}
                   {/* Archive tab: label pill */}
                   {mainTab === "archive" && email.label && (
                     <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
@@ -631,7 +693,7 @@ export default function Inbox() {
                 <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(email.created_at)}</span>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
 
