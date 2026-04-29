@@ -31,6 +31,20 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
 
+  const threadId = email?.thread_id ?? null;
+  const { data: threadCount = 0 } = useQuery({
+    queryKey: ["thread-message-count", threadId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("emails")
+        .select("id", { count: "exact", head: true })
+        .eq("thread_id", threadId as string);
+      return count || 0;
+    },
+    enabled: !!threadId,
+    staleTime: 60 * 1000,
+  });
+
   if (!email) return null;
 
   const atts = parseAttachments(email.attachments);
