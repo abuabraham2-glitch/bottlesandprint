@@ -152,6 +152,7 @@ export default function Calls() {
       // Archive a copy in the emails table so it appears in Inbox → Sent
       await supabase.from("emails").insert({
         status: "approved_sent",
+        approved_sent_at: new Date().toISOString(),
         subject: "Quote from Bottles & Print",
         draft_response: call.draft_response,
         to_email_all: call.email,

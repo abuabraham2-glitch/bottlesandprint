@@ -87,7 +87,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         original_draft: email.draft_response || undefined,
       };
       await sendEmailViaWebhook(payload);
-      await supabase.from("emails").update({ status: "approved_sent", direction: "outbound" } as any).eq("id", email.id);
+      await supabase.from("emails").update({ status: "approved_sent", approved_sent_at: new Date().toISOString(), direction: "outbound" } as any).eq("id", email.id);
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       if (markAsQuoted) {
         await supabase.from("emails").update({ quoted_at: new Date().toISOString() } as any).eq("id", email.id);
