@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Email } from "@/lib/emailData";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ThreadSummaryCard } from "@/components/inbox/ThreadSummaryCard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft } from "lucide-react";
@@ -29,6 +30,20 @@ interface ThreadViewProps {
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
+
+  const threadId = email?.thread_id ?? null;
+  const { data: threadCount = 0 } = useQuery({
+    queryKey: ["thread-message-count", threadId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("emails")
+        .select("id", { count: "exact", head: true })
+        .eq("thread_id", threadId as string);
+      return count || 0;
+    },
+    enabled: !!threadId,
+    staleTime: 60 * 1000,
+  });
 
   if (!email) return null;
 
@@ -185,6 +200,9 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
               </div>
             </div>
           )}
+
+          {/* Thread summary (only for multi-message threads) */}
+          <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
 
           {/* Email body */}
           <div>
