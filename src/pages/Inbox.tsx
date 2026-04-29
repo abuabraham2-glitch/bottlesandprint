@@ -174,7 +174,21 @@ export default function Inbox() {
       );
     }
 
-    return list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
+    const latestByThread = new Map<string, Email>();
+    const result: Email[] = [];
+    list
+      .slice()
+      .sort((a, b) => getTime(b) - getTime(a))
+      .forEach(e => {
+        if (!e.thread_id) {
+          result.push(e);
+        } else if (!latestByThread.has(e.thread_id)) {
+          latestByThread.set(e.thread_id, e);
+        }
+      });
+    latestByThread.forEach(e => result.push(e));
+    return result.sort((a, b) => getTime(b) - getTime(a));
   }, [allEmails, archiveFilterQuoted, archiveFilterAttachments, archiveFilterReceipt, archiveFilterOther, archiveSearchDebounced]);
 
   // Clear selection when switching tabs
