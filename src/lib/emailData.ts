@@ -292,10 +292,16 @@ export function useInboxCounts() {
         .select("*", { count: "exact", head: true })
         .in("status", ["pending", "needs_response"]);
 
-      const { count: activeInbox } = await supabase
+      // activeInbox = thread-collapsed count for the "Needs My Reply" tab.
+      // Must stay in sync with the needsReplyEmails memo in src/pages/Inbox.tsx.
+      // We need to fetch 'waiting' rows too, so a thread with any sibling in
+      // 'waiting' is excluded from the count.
+      const { data: inboxRows } = await supabase
         .from("emails")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["pending", "needs_response"]);
+        .select("status, thread_id, direction")
+        .in("status", ["pending", "needs_response", "waiting"]);
+      const { countNeedsReplyThreads } = await import("@/lib/emailHelpers");
+      const activeInbox = countNeedsReplyThreads((inboxRows || []) as any);
 
       const { count: draftsToReview } = await supabase
         .from("emails")
