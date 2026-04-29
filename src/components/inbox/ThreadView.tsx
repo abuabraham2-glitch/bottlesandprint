@@ -35,11 +35,12 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
   const { data: threadCount = 0 } = useQuery({
     queryKey: ["thread-message-count", threadId],
     queryFn: async () => {
-      const { count } = await supabase
+      const { data, error } = await supabase
         .from("emails")
-        .select("id", { count: "exact", head: true })
+        .select("id,status")
         .eq("thread_id", threadId as string);
-      return count || 0;
+      if (error) return 0;
+      return (data || []).filter((r: any) => r.status !== "deleted" && r.status !== "spam").length;
     },
     enabled: !!threadId,
     staleTime: 60 * 1000,
