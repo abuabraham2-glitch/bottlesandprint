@@ -161,59 +161,6 @@ export async function pushVendorPoToQB(params: {
   }
 }
 
-export async function checkPaymentStatusInQB(params: {
-  invoice_num: string;
-}): Promise<{ ok: boolean; balance?: number }> {
-  if (!params.invoice_num) {
-    toast.error("No invoice number — cannot check payment status.");
-    return { ok: false };
-  }
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "record_payment",
-        invoice_num: params.invoice_num,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!res.ok) {
-      toast.error("Failed to check payment status.");
-      return { ok: false };
-    }
-    let balance: number | undefined;
-    let totalAmt: number | undefined;
-    try {
-      const json = await res.json();
-      const invoice = json?.QueryResponse?.Invoice?.[0];
-      if (invoice) {
-        balance = invoice.Balance;
-        totalAmt = invoice.TotalAmt;
-      } else {
-        balance = json?.Balance ?? json?.Invoice?.Balance;
-        totalAmt = json?.TotalAmt ?? json?.Invoice?.TotalAmt;
-      }
-    } catch { /* ignore parse errors */ }
-    if (balance !== undefined && balance === 0) {
-      toast.success(`Paid in full — $${totalAmt !== undefined ? totalAmt.toFixed(2) : "N/A"}`);
-      return { ok: true, balance: 0 };
-    } else if (balance !== undefined && balance > 0) {
-      toast.error(`Unpaid — balance: $${balance.toFixed(2)} of $${totalAmt !== undefined ? totalAmt.toFixed(2) : "N/A"}`);
-      return { ok: true, balance };
-    } else {
-      toast.error("Could not read payment status from response.");
-      return { ok: false };
-    }
-  } catch {
-    toast.error("Failed to check payment status.");
-    return { ok: false };
-  }
-}
-
 export function buildOrderDescription(order: {
   item_name: string;
   bottle_size?: string | null;
