@@ -273,10 +273,14 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
             <div className="md:w-[40%] border-r overflow-y-auto p-4 space-y-3">
               <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">Original Email</h3>
-              {email.incoming_summary && (
-                <div className="text-sm font-sans rounded-lg px-3 py-2 bg-blue-50 text-blue-800 border border-blue-200">
-                  🤖 {email.incoming_summary}
-                </div>
+              {threadCount >= 2 ? (
+                <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
+              ) : (
+                email.incoming_summary && (
+                  <div className="text-sm font-sans rounded-lg px-3 py-2 bg-blue-50 text-blue-800 border border-blue-200">
+                    🤖 {email.incoming_summary}
+                  </div>
+                )
               )}
               <AlertBanners email={email} onNavigateToEmail={onNavigateToEmail} />
               <EmailCrossMatchBanner email={email} onClose={onClose} />
