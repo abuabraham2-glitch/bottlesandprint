@@ -182,6 +182,21 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Back to latest message (only when viewing an older message in the thread) */}
+          {isViewingOlderMessage && (
+            <button
+              type="button"
+              onClick={() => {
+                const latestId = originalEmailIdRef.current;
+                if (latestId) onNavigateToEmail(latestId);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-sans text-muted-foreground hover:text-foreground transition-colors px-2 py-1 -ml-2 rounded-md hover:bg-muted/50"
+            >
+              <ArrowLeft size={13} />
+              Back to latest message
+            </button>
+          )}
+
           {/* Label editor for archived emails */}
           {email.status === "resolved" && onUpdateLabel && (
             <div className="flex items-center gap-2">
