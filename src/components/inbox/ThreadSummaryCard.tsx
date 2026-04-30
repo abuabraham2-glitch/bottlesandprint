@@ -14,7 +14,7 @@ export function ThreadSummaryCard({ threadId, messageCount }: ThreadSummaryCardP
   if (isError) return null;
 
   return (
-    <div className="rounded-xl border border-muted bg-muted/30 p-4">
+    <div className="rounded-xl border border-border bg-muted/30 p-4">
       <div className="text-[10px] font-sans font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
         Thread summary
       </div>
