@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Email } from "@/lib/emailData";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ThreadSummaryCard } from "@/components/inbox/ThreadSummaryCard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft } from "lucide-react";
+import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
@@ -46,7 +46,29 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     staleTime: 60 * 1000,
   });
 
+  // Track the originally-opened (latest) email id per drawer session.
+  // Resets when the drawer closes, or when the user navigates to a different thread.
+  const originalEmailIdRef = useRef<string | null>(null);
+  const lastThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!email) {
+      originalEmailIdRef.current = null;
+      lastThreadIdRef.current = null;
+      return;
+    }
+    const tid = email.thread_id ?? email.id;
+    if (lastThreadIdRef.current !== tid) {
+      lastThreadIdRef.current = tid;
+      originalEmailIdRef.current = email.id;
+    }
+  }, [email?.id, email?.thread_id]);
+
   if (!email) return null;
+
+  const isViewingOlderMessage =
+    !!originalEmailIdRef.current &&
+    originalEmailIdRef.current !== email.id &&
+    threadCount > 1;
 
   const atts = parseAttachments(email.attachments);
   const hasDraft = !!email.draft_response;
@@ -149,6 +171,21 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Back to latest message (only when viewing an older message in the thread) */}
+          {isViewingOlderMessage && (
+            <button
+              type="button"
+              onClick={() => {
+                const latestId = originalEmailIdRef.current;
+                if (latestId) onNavigateToEmail(latestId);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-sans text-muted-foreground hover:text-foreground transition-colors px-2 py-1 -ml-2 rounded-md hover:bg-muted/50"
+            >
+              <ArrowLeft size={13} />
+              Back to latest message
+            </button>
+          )}
+
           {/* Label editor for archived emails */}
           {email.status === "resolved" && onUpdateLabel && (
             <div className="flex items-center gap-2">
