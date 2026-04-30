@@ -1,7 +1,8 @@
 import React, { useRef, useState } from "react";
 import { Email, useUpdateEmail, sendEmailViaWebhook } from "@/lib/emailData";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ThreadSummaryCard } from "@/components/inbox/ThreadSummaryCard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
