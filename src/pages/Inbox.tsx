@@ -760,12 +760,15 @@ export default function Inbox() {
       {/* Thread View */}
       <ThreadView
         email={threadEmail}
-        onClose={() => setThreadEmail(null)}
+        onClose={() => { setThreadEmail(null); setCrossThreadBack(null); }}
         onOpenDraft={(e) => { setThreadEmail(null); setTimeout(() => setDraftEmail(e), 150); }}
         onNavigateToEmail={navigateToEmailById}
         onArchive={(email) => initiateArchive([email.id])}
         onDelete={handleDeleteFromDetail}
         onUpdateLabel={handleUpdateLabel}
+        crossThreadBack={crossThreadBack}
+        onCaptureCrossThreadBack={(current) => setCrossThreadBack({ id: current.id, subject: current.subject || "(no subject)" })}
+        onClearCrossThreadBack={() => setCrossThreadBack(null)}
         onMoveToWaiting={async (email) => {
           // Archive older same-thread emails that are also in Waiting
           if (email.thread_id) {
