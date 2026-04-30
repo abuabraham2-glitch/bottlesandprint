@@ -46,7 +46,40 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     staleTime: 60 * 1000,
   });
 
+  // Track the originally-opened (latest) email id per drawer session.
+  // Resets when the drawer closes or when navigating to a different thread.
+  const originalEmailIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!email) {
+      originalEmailIdRef.current = null;
+      return;
+    }
+    if (originalEmailIdRef.current === null) {
+      originalEmailIdRef.current = email.id;
+      return;
+    }
+    // If user jumps to an email in a different thread, treat it as a new session.
+    const currentThread = email.thread_id ?? email.id;
+    // We can't easily compare against previous thread without another ref; use a second ref.
+  }, [email?.id]);
+
+  // Reset original id when thread_id changes (new drawer session for different thread)
+  const lastThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!email) return;
+    const tid = email.thread_id ?? email.id;
+    if (lastThreadIdRef.current !== tid) {
+      lastThreadIdRef.current = tid;
+      originalEmailIdRef.current = email.id;
+    }
+  }, [email?.id, email?.thread_id]);
+
   if (!email) return null;
+
+  const isViewingOlderMessage =
+    !!originalEmailIdRef.current &&
+    originalEmailIdRef.current !== email.id &&
+    threadCount > 1;
 
   const atts = parseAttachments(email.attachments);
   const hasDraft = !!email.draft_response;
