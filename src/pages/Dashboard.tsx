@@ -368,8 +368,11 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
               {userNotes.length === 0 && (
                 <p className="text-xs italic text-muted-foreground">No notes yet.</p>
               )}
-              {userNotes.map((n) => (
-                <div key={n.id} className="flex items-start gap-2 text-xs py-1 group">
+              {userNotes.map((n, i) => (
+                <div
+                  key={n.id}
+                  className={`flex items-start gap-2 text-xs py-1.5 min-h-[36px] group ${i !== userNotes.length - 1 ? 'border-b border-border/60' : ''}`}
+                >
                   <span className="flex-1 break-words">{n.text}</span>
                   <span className="shrink-0 text-[10px] text-muted-foreground/70 mt-0.5">{formatNoteTime(n.created_at)}</span>
                   <button
