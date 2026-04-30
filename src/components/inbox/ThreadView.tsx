@@ -200,7 +200,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {/* Amber: viewing older message strip */}
+          {/* Amber: viewing older message strip (in-thread) */}
           {isViewingOlderMessage && (
             <div
               className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-sans"
@@ -220,6 +220,32 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
               >
                 <ArrowLeft size={11} />
                 Back to latest
+              </button>
+            </div>
+          )}
+
+          {/* Amber: cross-thread back strip (only when NOT also viewing older message) */}
+          {!isViewingOlderMessage && crossThreadBack && crossThreadBack.id !== email.id && (
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-sans"
+              style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}
+            >
+              <span className="flex-1" style={{ color: '#92400E' }}>
+                Viewing related email
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const backId = crossThreadBack.id;
+                  onClearCrossThreadBack?.();
+                  onNavigateToEmail(backId);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap"
+                style={{ color: '#92400E' }}
+                title={crossThreadBack.subject}
+              >
+                <ArrowLeft size={11} />
+                Back to {crossThreadBack.subject.length > 40 ? crossThreadBack.subject.slice(0, 40) + "…" : crossThreadBack.subject}
               </button>
             </div>
           )}
