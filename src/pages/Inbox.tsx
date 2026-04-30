@@ -35,6 +35,7 @@ export default function Inbox() {
   const [archiveSearchDebounced, setArchiveSearchDebounced] = useState("");
   const [threadEmail, setThreadEmail] = useState<Email | null>(null);
   const [draftEmail, setDraftEmail] = useState<Email | null>(null);
+  const [crossThreadBack, setCrossThreadBack] = useState<{ id: string; subject: string } | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeTo, setComposeTo] = useState("");
   const [composeCc, setComposeCc] = useState("");
