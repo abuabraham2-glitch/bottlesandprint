@@ -83,7 +83,7 @@ export function AlertBanners({ email, onNavigateToEmail, onBeforeNavigate }: Ale
               <li key={t.id} className="flex items-start justify-between gap-2">
                 <span style={{ color: '#92400E' }}>• {t.summary} <span className="opacity-70">({t.date})</span></span>
                 <button className="inline-flex items-center gap-0.5 text-xs font-medium whitespace-nowrap shrink-0" style={{ color: '#D97706' }}
-                  onClick={() => onNavigateToEmail(t.id)}>
+                  onClick={() => { onBeforeNavigate?.(email); onNavigateToEmail(t.id); }}>
                   View <ArrowRight size={10} />
                 </button>
               </li>
