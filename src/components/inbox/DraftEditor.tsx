@@ -149,7 +149,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   const handleRegenerate = async () => {
     setRegenerating(true);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     try {
       // Build thread context if part of a thread
       let bodyForWebhook = email.body || "";
@@ -321,7 +321,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[44px]"
               onClick={handleRegenerate} disabled={regenerating}>
               <RotateCw size={12} className={regenerating ? "animate-spin" : ""} />
-              {regenerating ? "Regenerating…" : "Regenerate Draft"}
+              {regenerating ? "Regenerating draft (this can take 10-20 seconds for long threads)…" : "Regenerate Draft"}
             </Button>
             <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[44px]"
               onClick={handleArchive}>
