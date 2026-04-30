@@ -373,7 +373,7 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
                   key={n.id}
                   className={`flex items-start gap-2.5 text-xs py-1.5 min-h-[36px] group ${i !== userNotes.length - 1 ? 'border-b border-border/60' : ''}`}
                 >
-                  <span aria-hidden="true" className="shrink-0 mt-[7px] w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
+                  <span aria-hidden="true" className="shrink-0 mt-[7px] w-1.5 h-1.5 rounded-full bg-sidebar" />
                   <span className="flex-1 break-words">{n.text}</span>
                   <span className="shrink-0 text-[10px] text-muted-foreground/70 mt-0.5">{formatNoteTime(n.created_at)}</span>
                   <button
