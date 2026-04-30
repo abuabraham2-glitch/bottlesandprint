@@ -68,6 +68,12 @@ export function TemplateShortcuts({ editorRef, setSubject, currentSubject }: Tem
     }
   };
 
+  const handleInsertHtml = (html: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    insertAtCursor(editor, html);
+  };
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <span className="text-[10px] font-sans text-muted-foreground">Templates:</span>
