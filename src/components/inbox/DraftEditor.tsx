@@ -52,6 +52,21 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     setSubjectValue(`Re: ${email.subject || ""}`);
   }, [email?.id]);
 
+  const threadId = email?.thread_id ?? null;
+  const { data: threadCount = 0 } = useQuery({
+    queryKey: ["thread-message-count", threadId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("emails")
+        .select("id,status")
+        .eq("thread_id", threadId as string);
+      if (error) return 0;
+      return (data || []).filter((r: any) => r.status !== "deleted" && r.status !== "spam").length;
+    },
+    enabled: !!threadId,
+    staleTime: 60 * 1000,
+  });
+
   if (!email) return null;
 
   const cleaned = stripN8nFooter(email.draft_response || "");
