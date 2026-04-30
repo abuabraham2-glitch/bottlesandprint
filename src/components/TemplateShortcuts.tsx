@@ -24,6 +24,12 @@ Pacoima, CA 91331
 
 Shipping/Receiving Hours are 8am-2pm.`;
 
+const APOLOGY_V1 = `My apologies. I'm sure you have figured out everything for your project by now, but I wanted to apologize for overlooking this and not getting back to you in a timely manner. If you still need help with your deco needs, even if it's a consultation or a re-quote, we are available to assist. If you are all settled, as we expect you are, then we hope you are happy with your vendor(s) and business is going well.`;
+
+const APOLOGY_V2 = `My apologies. I wanted to apologize for overlooking this and not getting back to you in a timely manner. I'm sure you have figured everything out by now, but I still owe you the respect to give you the quote you requested.`;
+
+const APOLOGY_HTML = `${APOLOGY_V1}<br><br><div style="text-align:center; color:#94a3b8; font-weight:600; letter-spacing:0.1em; margin:12px 0;">— OR —</div><br>${APOLOGY_V2}`;
+
 function toHtml(plain: string) {
   return plain.replace(/\n/g, "<br>");
 }
@@ -62,6 +68,12 @@ export function TemplateShortcuts({ editorRef, setSubject, currentSubject }: Tem
     }
   };
 
+  const handleInsertHtml = (html: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    insertAtCursor(editor, html);
+  };
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <span className="text-[10px] font-sans text-muted-foreground">Templates:</span>
@@ -88,6 +100,14 @@ export function TemplateShortcuts({ editorRef, setSubject, currentSubject }: Tem
         onClick={() => handleInsert(DELIVERY_ADDRESS_TEXT)}
       >
         Delivery Address
+      </button>
+      <button
+        type="button"
+        className="px-2.5 py-1 text-[11px] font-sans font-medium rounded-full bg-rose-100 text-rose-700 hover:bg-rose-200 transition-colors border border-rose-200"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => handleInsertHtml(APOLOGY_HTML)}
+      >
+        Apology
       </button>
     </div>
   );
