@@ -30,9 +30,12 @@ interface ThreadViewProps {
   onDelete?: (email: Email) => void;
   onUpdateLabel?: (emailId: string, label: string | null) => void;
   onMoveToWaiting?: (email: Email) => void;
+  crossThreadBack?: { id: string; subject: string } | null;
+  onCaptureCrossThreadBack?: (current: Email) => void;
+  onClearCrossThreadBack?: () => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting }: ThreadViewProps) {
+export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting, crossThreadBack, onCaptureCrossThreadBack, onClearCrossThreadBack }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
   const [showAllAttachments, setShowAllAttachments] = useState(false);
