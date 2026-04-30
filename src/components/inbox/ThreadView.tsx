@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Email } from "@/lib/emailData";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ThreadSummaryCard } from "@/components/inbox/ThreadSummaryCard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft } from "lucide-react";
+import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
