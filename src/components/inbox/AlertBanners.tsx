@@ -8,9 +8,10 @@ import { toast } from "sonner";
 interface AlertBannersProps {
   email: Email;
   onNavigateToEmail: (id: string) => void;
+  onBeforeNavigate?: (currentEmail: Email) => void;
 }
 
-export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
+export function AlertBanners({ email, onNavigateToEmail, onBeforeNavigate }: AlertBannersProps) {
   const queryClient = useQueryClient();
   const e = email as any;
   const [unresolvedTopics, setUnresolvedTopics] = useState<{ id: string; summary: string; date: string; subject: string }[] | null>(null);
@@ -82,7 +83,7 @@ export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
               <li key={t.id} className="flex items-start justify-between gap-2">
                 <span style={{ color: '#92400E' }}>• {t.summary} <span className="opacity-70">({t.date})</span></span>
                 <button className="inline-flex items-center gap-0.5 text-xs font-medium whitespace-nowrap shrink-0" style={{ color: '#D97706' }}
-                  onClick={() => onNavigateToEmail(t.id)}>
+                  onClick={() => { onBeforeNavigate?.(email); onNavigateToEmail(t.id); }}>
                   View <ArrowRight size={10} />
                 </button>
               </li>
