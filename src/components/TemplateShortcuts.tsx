@@ -101,6 +101,14 @@ export function TemplateShortcuts({ editorRef, setSubject, currentSubject }: Tem
       >
         Delivery Address
       </button>
+      <button
+        type="button"
+        className="px-2.5 py-1 text-[11px] font-sans font-medium rounded-full bg-rose-100 text-rose-700 hover:bg-rose-200 transition-colors border border-rose-200"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => handleInsertHtml(APOLOGY_HTML)}
+      >
+        Apology
+      </button>
     </div>
   );
 }
