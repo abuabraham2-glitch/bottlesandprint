@@ -314,7 +314,11 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
           )}
 
           {/* Collapsed pending topics strip */}
-          <AlertBanners email={email} onNavigateToEmail={onNavigateToEmail} />
+          <AlertBanners
+            email={email}
+            onNavigateToEmail={onNavigateToEmail}
+            onBeforeNavigate={(current) => onCaptureCrossThreadBack?.(current)}
+          />
 
           {/* Email body */}
           <div>
