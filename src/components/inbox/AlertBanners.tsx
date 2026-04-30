@@ -8,9 +8,10 @@ import { toast } from "sonner";
 interface AlertBannersProps {
   email: Email;
   onNavigateToEmail: (id: string) => void;
+  onBeforeNavigate?: (currentEmail: Email) => void;
 }
 
-export function AlertBanners({ email, onNavigateToEmail }: AlertBannersProps) {
+export function AlertBanners({ email, onNavigateToEmail, onBeforeNavigate }: AlertBannersProps) {
   const queryClient = useQueryClient();
   const e = email as any;
   const [unresolvedTopics, setUnresolvedTopics] = useState<{ id: string; summary: string; date: string; subject: string }[] | null>(null);
