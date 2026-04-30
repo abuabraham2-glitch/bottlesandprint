@@ -5,10 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { ThreadSummaryCard } from "@/components/inbox/ThreadSummaryCard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2, BookCheck, ArrowRightLeft, ArrowLeft } from "lucide-react";
+import {
+  Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2,
+  BookCheck, ArrowRightLeft, ArrowLeft, MoreHorizontal,
+} from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
 import { AlertBanners } from "./AlertBanners";
 import {
   displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
@@ -30,6 +35,7 @@ interface ThreadViewProps {
 export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
+  const [showAllAttachments, setShowAllAttachments] = useState(false);
 
   const threadId = email?.thread_id ?? null;
   const { data: threadCount = 0 } = useQuery({
@@ -46,8 +52,6 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     staleTime: 60 * 1000,
   });
 
-  // Track the originally-opened (latest) email id per drawer session.
-  // Resets when the drawer closes, or when the user navigates to a different thread.
   const originalEmailIdRef = useRef<string | null>(null);
   const lastThreadIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -63,6 +67,9 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     }
   }, [email?.id, email?.thread_id]);
 
+  // Reset attachment expansion when switching emails
+  useEffect(() => { setShowAllAttachments(false); }, [email?.id]);
+
   if (!email) return null;
 
   const isViewingOlderMessage =
@@ -73,6 +80,7 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
   const atts = parseAttachments(email.attachments);
   const hasDraft = !!email.draft_response;
   const isResolved = email.status === "resolved" || email.status === "approved_sent";
+  const isMultiMessageThread = threadCount >= 2;
 
   const handleArchive = () => {
     if (onArchive) {
@@ -106,6 +114,16 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
   ];
 
   const quotedAt = (email as any).quoted_at;
+
+  // Attachments display logic
+  const visibleAtts = showAllAttachments || atts.length <= 4 ? atts : atts.slice(0, 3);
+  const hiddenCount = atts.length - visibleAtts.length;
+
+  // Overflow menu items
+  const showWaitingItem = !isResolved && !!onMoveToWaiting && email.status !== "approved_sent" && email.status !== "waiting";
+  const showArchiveItem = (!isResolved || email.status === "approved_sent") && !!onArchive;
+  const showDeleteItem = !!onDelete;
+  const hasOverflow = showWaitingItem || showArchiveItem || showDeleteItem;
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
@@ -148,42 +166,59 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
               <Button size="sm" className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
                 <Reply size={12} /> Reply
               </Button>
-              {email.status === "approved_sent" && onArchive && (
-                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
-                  <Archive size={12} /> Archive
-                </Button>
+              {hasOverflow && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="rounded-xl text-xs h-8 px-2" aria-label="More actions">
+                      <MoreHorizontal size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    {showWaitingItem && (
+                      <DropdownMenuItem onClick={() => { onMoveToWaiting!(email); onClose(); }}>
+                        <ArrowRightLeft size={12} className="mr-2" /> Waiting on Them
+                      </DropdownMenuItem>
+                    )}
+                    {showArchiveItem && (
+                      <DropdownMenuItem onClick={handleArchive}>
+                        <Archive size={12} className="mr-2" /> Archive
+                      </DropdownMenuItem>
+                    )}
+                    {showDeleteItem && (
+                      <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+                        <Trash2 size={12} className="mr-2" /> Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
-              {!isResolved && onMoveToWaiting && email.status !== "approved_sent" && email.status !== "waiting" && (
-                <Button size="sm" variant="ghost" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onMoveToWaiting(email); onClose(); }}>
-                  <ArrowRightLeft size={12} /> Waiting on Them
-                </Button>
-              )}
-              {!isResolved && (
-                <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8" onClick={handleArchive}>
-                  <Archive size={12} /> Archive
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs h-8 text-destructive hover:text-destructive" onClick={handleDelete}>
-                <Trash2 size={12} />
-              </Button>
             </div>
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Back to latest message (only when viewing an older message in the thread) */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          {/* Amber: viewing older message strip */}
           {isViewingOlderMessage && (
-            <button
-              type="button"
-              onClick={() => {
-                const latestId = originalEmailIdRef.current;
-                if (latestId) onNavigateToEmail(latestId);
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-sans text-muted-foreground hover:text-foreground transition-colors px-2 py-1 -ml-2 rounded-md hover:bg-muted/50"
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-sans"
+              style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}
             >
-              <ArrowLeft size={13} />
-              Back to latest message
-            </button>
+              <span className="flex-1" style={{ color: '#92400E' }}>
+                Viewing an older message in this thread
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const latestId = originalEmailIdRef.current;
+                  if (latestId) onNavigateToEmail(latestId);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap"
+                style={{ color: '#92400E' }}
+              >
+                <ArrowLeft size={11} />
+                Back to latest
+              </button>
+            </div>
           )}
 
           {/* Label editor for archived emails */}
@@ -206,41 +241,51 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
             </div>
           )}
 
-          {/* AI Summary */}
-          {email.incoming_summary && (
+          {/* Per-message AI summary — only when NOT a multi-message thread (Thread Summary covers it) */}
+          {!isMultiMessageThread && email.incoming_summary && (
             <div className="text-sm font-sans rounded-lg px-3 py-2 bg-accent/50 text-accent-foreground border border-border">
               🤖 {email.incoming_summary}
             </div>
           )}
 
-          {/* Alert banners */}
-          <AlertBanners email={email} onNavigateToEmail={onNavigateToEmail} />
-          
+          {/* Thread summary (only for multi-message threads) */}
+          <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
 
-          {/* Attachments */}
+          {/* Compact attachments pill row */}
           {atts.length > 0 && (
-            <div>
-              <span className="text-xs font-medium text-muted-foreground font-sans block mb-1.5">📎 Attachments</span>
-              <div className="flex flex-wrap gap-2">
-                {atts.map((att: any, i: number) => {
-                  const url = getAttachmentUrl(att);
-                  return (
-                    <div key={i} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border text-xs font-sans">
-                      <Paperclip size={12} className="text-muted-foreground shrink-0" />
-                      <span className="truncate max-w-[160px] font-medium">{att.name || "Attachment"}</span>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline whitespace-nowrap">Open</a>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
-                        <ExternalLink size={11} />
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground font-sans shrink-0">
+                <Paperclip size={11} /> Attachments
+              </span>
+              {visibleAtts.map((att: any, i: number) => {
+                const url = getAttachmentUrl(att);
+                return (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-muted border text-[11px] font-sans text-foreground max-w-[180px] truncate transition-colors"
+                    title={att.name || "Attachment"}
+                  >
+                    <span className="truncate">{att.name || "Attachment"}</span>
+                  </a>
+                );
+              })}
+              {hiddenCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllAttachments(true)}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/40 hover:bg-muted border text-[11px] font-sans text-muted-foreground transition-colors"
+                >
+                  + {hiddenCount} more
+                </button>
+              )}
             </div>
           )}
 
-          {/* Thread summary (only for multi-message threads) */}
-          <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
+          {/* Collapsed pending topics strip */}
+          <AlertBanners email={email} onNavigateToEmail={onNavigateToEmail} />
 
           {/* Email body */}
           <div>
