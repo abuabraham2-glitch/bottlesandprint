@@ -284,30 +284,6 @@ export default function Inbox() {
       const isNewEmail = !composeEmailRef?.gmail_id;
       const isBrandNew = !composeEmailRef?.id && !composeEmailRef?.gmail_id;
 
-      // For brand new composes, insert a record so it appears in WAITING ON THEM
-      if (isBrandNew) {
-        try {
-          const toMatch = composeTo.match(/^(.+?)\s*<(.+?)>$/);
-          const recipientName = toMatch ? toMatch[1].trim() : composeTo.trim();
-          const recipientEmail = toMatch ? toMatch[2].trim() : composeTo.trim();
-          await supabase.from("emails").insert({
-            gmail_id: "manual-" + Date.now(),
-            from_email: recipientEmail,
-            from_name: recipientName,
-            subject: composeSubject,
-            draft_response: htmlContent,
-            status: "approved_sent",
-            approved_sent_at: new Date().toISOString(),
-            direction: "outbound",
-            category: "outbound",
-            created_at: new Date().toISOString(),
-          } as any);
-          queryClient.invalidateQueries({ queryKey: ["emails"] });
-        } catch (insertErr) {
-          console.error("Failed to insert sent email record:", insertErr);
-        }
-      }
-
       const payload: any = { to_email: composeTo, subject: composeSubject, draft: htmlContent, cc: composeCc || undefined, bcc: composeBcc || undefined, attachments: composeAttachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })) };
       if (isNewEmail) { payload.action = "send_new"; payload.email_id = composeEmailRef?.id || ""; }
       else { payload.gmail_id = composeEmailRef?.gmail_id; payload.email_id = composeEmailRef?.id; }
