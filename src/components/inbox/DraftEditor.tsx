@@ -139,8 +139,8 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success(markAsQuoted ? "Email sent & marked as quoted" : "Email sent");
       onClose();
-    } catch {
-      toast.error("Failed to send");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send");
     }
     setSending(false);
   };
