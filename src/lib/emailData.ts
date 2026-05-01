@@ -242,13 +242,33 @@ export async function sendEmailViaWebhook(params: {
   const body: any = { action, ...rest, attachments: params.attachments ?? [] };
   // Only include original_draft for send_email actions (not send_new)
   if (original_draft) body.original_draft = original_draft;
-  const response = await fetch(WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  let response: Response;
+  try {
+    response = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Send not confirmed — check Gmail Sent before retrying");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!response.ok) throw new Error("Failed to send email");
-  return response.json();
+  const parsed = await response.json();
+  if (action === "send_email" || action === "send_new") {
+    const gmailMessageId = parsed?.gmail_message_id;
+    if (!gmailMessageId) {
+      throw new Error("Send not confirmed — check Gmail Sent before retrying");
+    }
+  }
+  return parsed;
 }
 
 export async function sendStageEmail(params: {

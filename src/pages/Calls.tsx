@@ -197,8 +197,8 @@ export default function Calls() {
       setQuoteAttachments([]);
       toast.success("Quote sent and call resolved");
       setSelectedCall(null);
-    } catch {
-      toast.error("Failed to send quote");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send quote");
     } finally {
       setSendingQuote(false);
     }

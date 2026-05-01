@@ -316,7 +316,7 @@ export default function Inbox() {
       if (!response.ok) throw new Error("Failed to send email");
       toast.success("Email sent");
       setComposeOpen(false); setComposeTo(""); setComposeCc(""); setComposeBcc(""); setShowCcField(false); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
-    } catch (err) { console.error("Compose send error:", err); toast.error("Failed to send"); }
+    } catch (err) { console.error("Compose send error:", err); toast.error(err instanceof Error ? err.message : "Failed to send"); }
     setSending(null);
   };
 
