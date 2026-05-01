@@ -312,8 +312,27 @@ export default function Inbox() {
       if (isNewEmail) { payload.action = "send_new"; payload.email_id = composeEmailRef?.id || ""; }
       else { payload.gmail_id = composeEmailRef?.gmail_id; payload.email_id = composeEmailRef?.id; }
       const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/email-actions";
-      const response = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: isNewEmail ? "send_new" : "send_email", ...payload }) });
+      const action = isNewEmail ? "send_new" : "send_email";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      let response: Response;
+      try {
+        response = await fetch(WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...payload }), signal: controller.signal });
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          throw new Error("Send not confirmed — check Gmail Sent before retrying");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (!response.ok) throw new Error("Failed to send email");
+      const parsed = await response.json().catch(() => ({}));
+      if (action === "send_new" || action === "send_email") {
+        if (!parsed?.gmail_message_id) {
+          throw new Error("Send not confirmed — check Gmail Sent before retrying");
+        }
+      }
       toast.success("Email sent");
       setComposeOpen(false); setComposeTo(""); setComposeCc(""); setComposeBcc(""); setShowCcField(false); setComposeSubject(""); setComposeBody(""); setComposeEmailRef(null); setComposeAttachments([]);
     } catch (err) { console.error("Compose send error:", err); toast.error(err instanceof Error ? err.message : "Failed to send"); }
