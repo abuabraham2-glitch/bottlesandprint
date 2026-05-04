@@ -712,8 +712,8 @@ export default function Inbox() {
                     <ShieldOff size={10} /> Not Spam
                   </Button>
                 )}
-                {/* Timestamp */}
-                <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(email.created_at)}</span>
+                {/* Timestamp — Waiting on Them uses approved_sent_at (reply sent time) with fallback to created_at */}
+                <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(mainTab === "waiting" ? ((email as any).approved_sent_at || email.created_at) : email.created_at)}</span>
               </div>
             </div>
           );})}
