@@ -119,6 +119,8 @@ export default function Inbox() {
 
   const waitingEmails = useMemo(() => {
     const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
+    // For Waiting on Them, prefer approved_sent_at (when reply was sent) and fall back to created_at
+    const getWaitingTime = (e: Email) => new Date((e as any).approved_sent_at || e.created_at || 0).getTime();
     const excludeStatuses = new Set(["deleted", "archived", "spam", "resolved"]);
 
     // For each thread, find the most recent non-excluded email
@@ -143,7 +145,7 @@ export default function Inbox() {
       .filter(e => !e.thread_id && e.status === "waiting")
       .forEach(e => result.push(e));
 
-    return result.sort((a, b) => getTime(b) - getTime(a));
+    return result.sort((a, b) => getWaitingTime(b) - getWaitingTime(a));
   }, [allEmails]);
 
   const spamEmails = useMemo(() =>
