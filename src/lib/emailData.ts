@@ -158,13 +158,12 @@ export function useCalls(filter?: { eq?: string; neq?: string }) {
   return useQuery({
     queryKey: ["calls", filter],
     queryFn: async () => {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       let query = supabase.from("calls").select("*").order("created_at", { ascending: false });
 
       if (filter?.eq) {
         query = query.eq("status", filter.eq);
       } else if (filter?.neq) {
-        query = query.neq("status", filter.neq).neq("status", "archived").gte("created_at", sevenDaysAgo);
+        query = query.neq("status", filter.neq).neq("status", "archived");
       } else {
         query = query.neq("status", "archived");
       }
