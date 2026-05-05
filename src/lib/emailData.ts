@@ -164,7 +164,7 @@ export function useCalls(filter?: { eq?: string; neq?: string }) {
       if (filter?.eq) {
         query = query.eq("status", filter.eq);
       } else if (filter?.neq) {
-        query = query.neq("status", filter.neq).neq("status", "archived").gte("created_at", sevenDaysAgo);
+        query = query.neq("status", filter.neq).neq("status", "archived");
       } else {
         query = query.neq("status", "archived");
       }
