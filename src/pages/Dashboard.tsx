@@ -287,71 +287,8 @@ export default function Dashboard({ searchQuery }: DashboardProps) {
           <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
         <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-[700px]' : 'max-h-0'}`}>
-          {/* System log section */}
-          <div className="px-4 py-3 bg-muted/40 border-t" style={{ borderTopWidth: '1px' }}>
-            <div className="flex items-center gap-1.5 mb-2">
-              <ClipboardList size={12} className="text-muted-foreground" />
-              <span className="text-xs font-bold text-muted-foreground">System log</span>
-            </div>
-            <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1">
-              {sortedLog.length === 0 && (
-                <p className="text-xs italic text-muted-foreground">No reconciliation activity yet.</p>
-              )}
-              {sortedLog.map((entry, i) => {
-                const isOpen = expandedLogIdx.has(i);
-                const summary = countSummary(entry.counts);
-                const cats: ("resolved" | "sent" | "deleted" | "spam")[] = ["resolved", "sent", "deleted", "spam"];
-                return (
-                  <div key={`${entry.timestamp}-${i}`} className="text-xs">
-                    <div className="flex items-start gap-1">
-                      <button
-                        onClick={() => toggleLogIdx(i)}
-                        className="flex items-start gap-1 flex-1 text-left italic text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {isOpen
-                          ? <ChevronDown size={12} className="mt-0.5 shrink-0" />
-                          : <ChevronRight size={12} className="mt-0.5 shrink-0" />}
-                        <span className="flex-1">
-                          {formatLogTime(entry.timestamp)} · {summary || "no activity"}
-                        </span>
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteSystemLogEntry(entry.timestamp); }}
-                        className="shrink-0 p-0.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                        aria-label="Delete log entry"
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                    {isOpen && (
-                      <div className="pl-4 mt-1 space-y-1.5">
-                        {cats.map(cat => {
-                          const items = entry.details?.[cat] || [];
-                          if (items.length === 0) return null;
-                          return (
-                            <div key={cat}>
-                              <div className="text-[10px] font-semibold capitalize text-muted-foreground">{cat}:</div>
-                              <ul className="pl-3">
-                                {items.map((it, j) => (
-                                  <li key={j} className="text-[11px] italic text-muted-foreground">
-                                    • {it.name || "Unknown"}{it.subject ? ` — ${it.subject}` : ""}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          {/* Divider */}
-          <div className="border-t" />
           {/* My notes section */}
-          <div className="px-4 py-3 bg-card">
+          <div className="px-4 py-3 bg-card border-t" style={{ borderTopWidth: '1px' }}>
             <div className="flex items-center gap-1.5 mb-2">
               <Pencil size={12} className="text-muted-foreground" />
               <span className="text-xs font-bold text-muted-foreground">My notes</span>
