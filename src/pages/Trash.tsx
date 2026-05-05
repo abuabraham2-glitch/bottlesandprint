@@ -41,10 +41,24 @@ export default function Trash() {
   };
 
   const handlePermanentDelete = async (id: string) => {
+    const { error: followUpsError } = await supabase.from("follow_ups").delete().eq("email_id", id);
+    if (followUpsError) {
+      console.error("follow_ups delete failed:", followUpsError);
+      toast.error(followUpsError.message);
+      setPermanentDeleteTarget(null);
+      return;
+    }
+    const { error: triageError } = await supabase.from("triage_feedback").delete().eq("email_id", id);
+    if (triageError) {
+      console.error("triage_feedback delete failed:", triageError);
+      toast.error(triageError.message);
+      setPermanentDeleteTarget(null);
+      return;
+    }
     const { error } = await supabase.from("emails").delete().eq("id", id);
     if (error) {
       console.error("Delete failed:", error);
-      toast.error("Failed to delete email");
+      toast.error(error.message);
       setPermanentDeleteTarget(null);
       return;
     }
@@ -57,24 +71,34 @@ export default function Trash() {
 
   const handleEmptyTrash = async () => {
     if (emails.length === 0) return;
-    const count = emails.length;
-    let failed = 0;
-    for (const email of emails) {
-      const { error } = await supabase.from("emails").delete().eq("id", email.id);
-      if (error) {
-        console.error("Delete failed for", email.id, error);
-        failed++;
-      }
+    const ids = emails.map(e => e.id);
+    const count = ids.length;
+
+    const { error: followUpsError } = await supabase.from("follow_ups").delete().in("email_id", ids);
+    if (followUpsError) {
+      console.error("follow_ups bulk delete failed:", followUpsError);
+      toast.error(followUpsError.message);
+      setEmptyConfirmOpen(false);
+      return;
     }
-    if (failed === count) {
-      toast.error("Failed to empty trash");
+    const { error: triageError } = await supabase.from("triage_feedback").delete().in("email_id", ids);
+    if (triageError) {
+      console.error("triage_feedback bulk delete failed:", triageError);
+      toast.error(triageError.message);
+      setEmptyConfirmOpen(false);
+      return;
+    }
+    const { error } = await supabase.from("emails").delete().in("id", ids);
+    if (error) {
+      console.error("emails bulk delete failed:", error);
+      toast.error(error.message);
       setEmptyConfirmOpen(false);
       return;
     }
     setEmails([]);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
-    toast.success(`Permanently deleted ${count - failed} emails`);
+    toast.success(`Permanently deleted ${count} emails`);
     setEmptyConfirmOpen(false);
   };
 
