@@ -145,7 +145,9 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
         supabase.from("clients").select("id, company, contact_name, email")
           .or(`company.ilike.${term},contact_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("emails").select("*")
-          .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term},to_recipients.ilike.${term},cc_recipients.ilike.${term}`).limit(PREVIEW_LIMIT),
+          .or(`from_email.ilike.${term},from_name.ilike.${term},subject.ilike.${term},body.ilike.${term},to_recipients.ilike.${term},cc_recipients.ilike.${term}`)
+          .order("created_at", { ascending: false })
+          .limit(PREVIEW_LIMIT),
         supabase.from("calls").select("id, caller_name, company_name, phone_number, call_reason, created_at")
           .or(`caller_name.ilike.${term},company_name.ilike.${term},phone_number.ilike.${term},call_reason.ilike.${term}`).limit(PREVIEW_LIMIT),
         supabase.from("catalog").select("id, product_name, size, material, container_color, artwork_url, clients(company)")
