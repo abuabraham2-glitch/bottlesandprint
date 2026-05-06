@@ -49,6 +49,8 @@ interface EmailResult {
   subject: string | null;
   category: string | null;
   created_at: string | null;
+  direction: string | null;
+  approved_sent_at: string | null;
   status: string | null;
   draft_response: string | null;
   body: string | null;
@@ -282,7 +284,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                 <td className="p-3 font-medium">{e.from_name || e.from_email}</td>
                 <td className="p-3">{e.subject}</td>
                 <td className="p-3 text-muted-foreground">{e.category || "—"}</td>
-                <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime(e.created_at)}</td>
+                <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime((e.direction === "outbound" && (e as any).approved_sent_at) ? (e as any).approved_sent_at : e.created_at)}</td>
               </tr>
             ))}</tbody>
           </table>
