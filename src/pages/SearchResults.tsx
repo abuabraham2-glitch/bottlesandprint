@@ -346,7 +346,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                   <span>{detailEmail.from_name}</span>
                   <span>&lt;{detailEmail.from_email}&gt;</span>
                   <span>•</span>
-                  <span>{formatTime(detailEmail.created_at)}</span>
+                  <span>{formatTime((detailEmail.direction === "outbound" && (detailEmail as any).approved_sent_at) ? (detailEmail as any).approved_sent_at : detailEmail.created_at)}</span>
                 </div>
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
