@@ -713,7 +713,7 @@ export default function Inbox() {
                   </Button>
                 )}
                 {/* Timestamp — outbound emails show approved_sent_at (reply sent time); inbound show created_at */}
-                <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(((email as any).approved_sent_at && email.direction === "outbound") ? (email as any).approved_sent_at : email.created_at)}</span>
+                <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(((email as any).approved_sent_at && (email as any).direction === "outbound") ? (email as any).approved_sent_at : email.created_at)}</span>
               </div>
             </div>
           );})}
