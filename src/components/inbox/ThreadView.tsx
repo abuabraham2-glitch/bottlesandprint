@@ -69,6 +69,7 @@ export function ThreadView({
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
   const [showAllAttachments, setShowAllAttachments] = useState(false);
+  const [fullThreadExpanded, setFullThreadExpanded] = useState(false);
   const [collapsedMessages, setCollapsedMessages] = useState<{ [key: string]: boolean }>({});
 
   const threadId = email?.thread_id ?? null;
@@ -214,6 +215,82 @@ export function ThreadView({
     }
     return <div className="text-sm font-sans text-muted-foreground italic">No content available</div>;
   };
+
+  const renderMessageSection = (msg: any, isLatest: boolean = false) => {
+    const isOutbound = msg.direction === "outbound";
+    const isCollapsed = collapsedMessages[msg.id];
+    const msgAtts = parseAttachments(msg.attachments);
+    const headerLabel = isOutbound ? "You replied" : "Email";
+
+    return (
+      <div
+        key={msg.id}
+        className={`rounded-lg overflow-hidden border ${
+          isLatest
+            ? "bg-blue-50 border-blue-400 border-l-4"
+            : isOutbound
+              ? "bg-blue-50 border-blue-300 ml-6 border-l-2"
+              : "bg-background border-border"
+        }`}
+      >
+        {/* Message Header (Collapsible) */}
+        <button
+          onClick={() => toggleMessageCollapse(msg.id)}
+          className={`w-full px-4 py-3 text-left flex items-center justify-between gap-2 border-b transition-colors ${
+            isOutbound ? "hover:bg-blue-100/50" : "hover:bg-muted/30"
+          }`}
+        >
+          <div className="flex-1 min-w-0">
+            <p className={`font-medium text-sm ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
+              {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isOutbound ? "to " : "from "}
+              {msg.from_email}
+            </p>
+            <p className="text-xs text-muted-foreground">{formatTimeFull(msg.created_at)}</p>
+          </div>
+          <div className="flex-shrink-0">{isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}</div>
+        </button>
+
+        {/* Message Content (Collapsible) */}
+        {!isCollapsed && (
+          <div className={`px-4 py-3 ${isOutbound ? "bg-blue-50" : "bg-background"}`}>
+            {/* Message body */}
+            <div className="mb-3">{renderMessageBody(msg)}</div>
+
+            {/* Attachments */}
+            {msgAtts.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t">
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground font-sans shrink-0">
+                  <Paperclip size={11} /> Attachments
+                </span>
+                {msgAtts.map((att: any, i: number) => {
+                  const url = getAttachmentUrl(att);
+                  return (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-muted border text-[11px] font-sans text-foreground max-w-[140px] truncate transition-colors"
+                      title={att.name || "Attachment"}
+                    >
+                      <span className="truncate">{att.name || "Attachment"}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Get latest message and all other messages
+  const latestMessage = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : null;
+  const otherMessages = threadMessages.slice(0, -1);
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
@@ -370,82 +447,49 @@ export function ThreadView({
           )}
         </div>
 
-        {/* MAIN CONTENT: THREAD MESSAGES (GMAIL STYLE) */}
+        {/* MAIN CONTENT: LATEST-FIRST LAYOUT */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {threadMessages.length > 0 ? (
-            <div className="space-y-0">
-              {threadMessages.map((msg: any, idx: number) => {
-                const isOutbound = msg.direction === "outbound";
-                const isCollapsed = collapsedMessages[msg.id];
-                const msgAtts = parseAttachments(msg.attachments);
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={isOutbound ? "ml-6 border-l-2 border-blue-400" : ""}
-                    style={isOutbound ? { backgroundColor: "#f0f7ff" } : {}}
-                  >
-                    {/* Message Header (Collapsible) */}
-                    <button
-                      onClick={() => toggleMessageCollapse(msg.id)}
-                      className={`w-full px-4 py-3 text-left flex items-center justify-between gap-2 ${
-                        isOutbound ? "hover:bg-blue-100/50" : "hover:bg-muted/30"
-                      } border-b transition-colors`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-medium text-sm ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
-                          {isOutbound ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {isOutbound ? "to " : "from "}
-                          {msg.from_email}
-                          {isOutbound && msg.to_recipients && ` • to ${msg.to_recipients}`}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{formatTimeFull(msg.created_at)}</p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                      </div>
-                    </button>
-
-                    {/* Message Content (Collapsible) */}
-                    {!isCollapsed && (
-                      <div className={`px-4 py-3 ${isOutbound ? "bg-blue-50" : "bg-background"}`}>
-                        {/* Message body */}
-                        <div className="mb-3">{renderMessageBody(msg)}</div>
-
-                        {/* Attachments */}
-                        {msgAtts.length > 0 && (
-                          <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground font-sans shrink-0">
-                              <Paperclip size={11} /> Attachments
-                            </span>
-                            {msgAtts.map((att: any, i: number) => {
-                              const url = getAttachmentUrl(att);
-                              return (
-                                <a
-                                  key={i}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-muted border text-[11px] font-sans text-foreground max-w-[140px] truncate transition-colors"
-                                  title={att.name || "Attachment"}
-                                >
-                                  <span className="truncate">{att.name || "Attachment"}</span>
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
+          <div className="space-y-4">
+            {/* FULL THREAD COLLAPSIBLE BOX (collapsed by default) */}
+            {isMultiMessageThread && otherMessages.length > 0 && (
+              <div className="border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setFullThreadExpanded(!fullThreadExpanded)}
+                  className="w-full px-4 py-3 bg-background hover:bg-muted/30 flex items-center justify-between gap-2 transition-colors border-b"
+                >
+                  <span className="text-sm font-medium text-foreground">
+                    📧 Full Thread ({threadMessages.length} messages)
+                  </span>
+                  <div className="flex-shrink-0">
+                    {fullThreadExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground text-sm">No messages in this thread</div>
-          )}
+                </button>
+
+                {/* FULL THREAD CONTENT (expandable) */}
+                {fullThreadExpanded && (
+                  <div className="space-y-0">
+                    {otherMessages.map((msg) => (
+                      <div key={msg.id} className="border-t">
+                        {renderMessageSection(msg, false)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LATEST EMAIL (always visible, prominent) */}
+            {latestMessage && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Latest Message</p>
+                {renderMessageSection(latestMessage, true)}
+              </div>
+            )}
+
+            {threadMessages.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground text-sm">No messages in this thread</div>
+            )}
+          </div>
         </div>
 
         {/* BOTTOM ACTION BAR: Mark as Quoted */}
