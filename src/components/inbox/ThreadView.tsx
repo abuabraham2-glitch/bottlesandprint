@@ -311,6 +311,17 @@ export function ThreadView({
         {/* ACTION BUTTONS */}
         <div className="px-5 py-3 border-b flex items-center gap-2 flex-wrap shrink-0">
           <div className="flex items-center gap-2">
+            {email.thread_id && (
+              <a
+                href={`https://mail.google.com/mail/u/0/#all/${email.thread_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-red-300 text-red-600 text-[11px] font-medium hover:bg-red-50 transition-colors"
+              >
+                <ExternalLink size={14} />
+                Gmail
+              </a>
+            )}
             {isResolved && (
               <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs px-3 py-1">
                 <CheckCircle size={12} className="mr-1" />
