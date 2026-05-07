@@ -3,21 +3,39 @@ import { Email } from "@/lib/emailData";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ThreadSummaryCard } from "@/components/inbox/ThreadSummaryCard";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
-  Archive, FileText, Paperclip, ExternalLink, CheckCircle, Reply, Trash2,
-  BookCheck, ArrowRightLeft, ArrowLeft, MoreHorizontal,
+  Archive,
+  FileText,
+  Paperclip,
+  ExternalLink,
+  CheckCircle,
+  Reply,
+  Trash2,
+  BookCheck,
+  ArrowRightLeft,
+  ArrowLeft,
+  MoreHorizontal,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AlertBanners } from "./AlertBanners";
 import {
-  displaySenderName, stripN8nFooter, formatEmailBodyAsHtml,
-  formatTimeFull, parseAttachments, getAttachmentUrl,
+  displaySenderName,
+  stripN8nFooter,
+  formatEmailBodyAsHtml,
+  formatTimeFull,
+  parseAttachments,
+  getAttachmentUrl,
 } from "./InboxHelpers";
 import { format } from "date-fns";
 
@@ -35,12 +53,26 @@ interface ThreadViewProps {
   onClearCrossThreadBack?: () => void;
 }
 
-export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onArchive, onDelete, onUpdateLabel, onMoveToWaiting, crossThreadBack, onCaptureCrossThreadBack, onClearCrossThreadBack }: ThreadViewProps) {
+export function ThreadView({
+  email,
+  onClose,
+  onOpenDraft,
+  onNavigateToEmail,
+  onArchive,
+  onDelete,
+  onUpdateLabel,
+  onMoveToWaiting,
+  crossThreadBack,
+  onCaptureCrossThreadBack,
+  onClearCrossThreadBack,
+}: ThreadViewProps) {
   const queryClient = useQueryClient();
   const [markingQuoted, setMarkingQuoted] = useState(false);
   const [showAllAttachments, setShowAllAttachments] = useState(false);
+  const [collapsedMessages, setCollapsedMessages] = useState<{ [key: string]: boolean }>({});
 
   const threadId = email?.thread_id ?? null;
+
   const { data: threadCount = 0 } = useQuery({
     queryKey: ["thread-message-count", threadId],
     queryFn: async () => {
@@ -55,8 +87,24 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     staleTime: 60 * 1000,
   });
 
+  const { data: threadMessages = [] } = useQuery({
+    queryKey: ["thread-messages", threadId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("emails")
+        .select("*")
+        .eq("thread_id", threadId as string)
+        .order("created_at", { ascending: true });
+      if (error) return [];
+      return (data || []).filter((r: any) => r.status !== "deleted" && r.status !== "spam");
+    },
+    enabled: !!threadId,
+    staleTime: 60 * 1000,
+  });
+
   const originalEmailIdRef = useRef<string | null>(null);
   const lastThreadIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!email) {
       originalEmailIdRef.current = null;
@@ -70,15 +118,14 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
     }
   }, [email?.id, email?.thread_id]);
 
-  // Reset attachment expansion when switching emails
-  useEffect(() => { setShowAllAttachments(false); }, [email?.id]);
+  useEffect(() => {
+    setShowAllAttachments(false);
+  }, [email?.id]);
 
   if (!email) return null;
 
   const isViewingOlderMessage =
-    !!originalEmailIdRef.current &&
-    originalEmailIdRef.current !== email.id &&
-    threadCount > 1;
+    !!originalEmailIdRef.current && originalEmailIdRef.current !== email.id && threadCount > 1;
 
   const atts = parseAttachments(email.attachments);
   const hasDraft = !!email.draft_response;
@@ -101,7 +148,10 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
   const handleMarkAsQuoted = async () => {
     setMarkingQuoted(true);
     try {
-      await supabase.from("emails").update({ quoted_at: new Date().toISOString() } as any).eq("id", email.id);
+      await supabase
+        .from("emails")
+        .update({ quoted_at: new Date().toISOString() } as any)
+        .eq("id", email.id);
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success("Marked as quoted");
     } catch {
@@ -117,96 +167,146 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
   ];
 
   const quotedAt = (email as any).quoted_at;
-
-  // Attachments display logic
   const visibleAtts = showAllAttachments || atts.length <= 4 ? atts : atts.slice(0, 3);
   const hiddenCount = atts.length - visibleAtts.length;
 
-  // Overflow menu items
-  const showWaitingItem = !isResolved && !!onMoveToWaiting && email.status !== "approved_sent" && email.status !== "waiting";
+  const showWaitingItem =
+    !isResolved && !!onMoveToWaiting && email.status !== "approved_sent" && email.status !== "waiting";
   const showArchiveItem = (!isResolved || email.status === "approved_sent") && !!onArchive;
   const showDeleteItem = !!onDelete;
   const hasOverflow = showWaitingItem || showArchiveItem || showDeleteItem;
 
+  const toggleMessageCollapse = (msgId: string) => {
+    setCollapsedMessages((prev) => ({
+      ...prev,
+      [msgId]: !prev[msgId],
+    }));
+  };
+
+  const renderMessageBody = (msg: any) => {
+    const isOutbound = msg.direction === "outbound";
+    const displayBody = isOutbound && msg.draft_response ? msg.draft_response : msg.body;
+
+    if (displayBody && displayBody.trim()) {
+      return (
+        <div
+          className="text-sm font-sans email-html-content max-w-none text-foreground"
+          dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(displayBody)) }}
+        />
+      );
+    }
+    if (msg.html_body) {
+      return (
+        <iframe
+          srcDoc={msg.html_body}
+          title="Email content"
+          className="w-full bg-white rounded-md border min-h-[200px]"
+          sandbox="allow-same-origin"
+          style={{ border: "none" }}
+          onLoad={(e) => {
+            const iframe = e.currentTarget;
+            if (iframe.contentDocument?.body) {
+              iframe.style.height = iframe.contentDocument.body.scrollHeight + 32 + "px";
+            }
+          }}
+        />
+      );
+    }
+    return <div className="text-sm font-sans text-muted-foreground italic">No content available</div>;
+  };
+
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full">
-        {/* Header */}
-        <SheetHeader className="p-5 pb-4 border-b shrink-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <SheetTitle className="font-serif text-lg leading-tight mb-1">{email.subject}</SheetTitle>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground font-sans flex-wrap">
-                <span className="font-medium text-foreground">{displaySenderName(email.from_name, email.from_email)}</span>
-                <span className="text-xs">&lt;{email.from_email}&gt;</span>
-                <span>•</span>
-                <span className="text-xs">{formatTimeFull(email.created_at)}</span>
-                {email.thread_id && (
-                  <a
-                    href={`https://mail.google.com/mail/u/0/#all/${email.thread_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-red-300 text-red-600 text-[11px] font-medium hover:bg-red-50 transition-colors"
-                  >
-                    <ExternalLink size={14} />
-                    Gmail
-                  </a>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 mr-6">
-              {isResolved && (
-                <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs px-3 py-1">
-                  <CheckCircle size={12} className="mr-1" />
-                  {email.status === "approved_sent" ? "Sent" : "Resolved"}
-                </Badge>
-              )}
-              {hasDraft && (
-                <Button size="sm" variant="default" className="rounded-xl gap-1 text-xs h-8" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
-                  <FileText size={12} /> View Draft →
-                </Button>
-              )}
-              <Button size="sm" className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { onClose(); setTimeout(() => onOpenDraft(email), 150); }}>
-                <Reply size={12} /> Reply
-              </Button>
-              {hasOverflow && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="rounded-xl text-xs h-8 px-2" aria-label="More actions">
-                      <MoreHorizontal size={14} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    {showWaitingItem && (
-                      <DropdownMenuItem onClick={() => { onMoveToWaiting!(email); onClose(); }}>
-                        <ArrowRightLeft size={12} className="mr-2" /> Waiting on Them
-                      </DropdownMenuItem>
-                    )}
-                    {showArchiveItem && (
-                      <DropdownMenuItem onClick={handleArchive}>
-                        <Archive size={12} className="mr-2" /> Archive
-                      </DropdownMenuItem>
-                    )}
-                    {showDeleteItem && (
-                      <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
-                        <Trash2 size={12} className="mr-2" /> Delete
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </div>
-        </SheetHeader>
+      <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full overflow-hidden">
+        {/* SUBJECT TITLE (BIG & BOLD) */}
+        <div className="px-5 pt-5 pb-3 border-b shrink-0">
+          <h1 className="text-2xl font-serif font-medium text-foreground leading-tight mb-3">{email.subject}</h1>
+        </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {/* Amber: viewing older message strip (in-thread) */}
+        {/* THREAD CONTEXT */}
+        {isMultiMessageThread && (
+          <div className="px-5 py-3 border-b bg-muted/30 shrink-0">
+            <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Thread context</p>
+            <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
+          </div>
+        )}
+
+        {/* ACTION BUTTONS */}
+        <div className="px-5 py-3 border-b flex items-center gap-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-2">
+            {isResolved && (
+              <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs px-3 py-1">
+                <CheckCircle size={12} className="mr-1" />
+                {email.status === "approved_sent" ? "Sent" : "Resolved"}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            {hasDraft && (
+              <Button
+                size="sm"
+                variant="default"
+                className="rounded-xl gap-1 text-xs h-8"
+                onClick={() => {
+                  onClose();
+                  setTimeout(() => onOpenDraft(email), 150);
+                }}
+              >
+                <FileText size={12} /> View Draft →
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="rounded-xl gap-1 text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground"
+              onClick={() => {
+                onClose();
+                setTimeout(() => onOpenDraft(email), 150);
+              }}
+            >
+              <Reply size={12} /> Reply
+            </Button>
+            {hasOverflow && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="rounded-xl text-xs h-8 px-2" aria-label="More actions">
+                    <MoreHorizontal size={14} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {showWaitingItem && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        onMoveToWaiting!(email);
+                        onClose();
+                      }}
+                    >
+                      <ArrowRightLeft size={12} className="mr-2" /> Waiting on Them
+                    </DropdownMenuItem>
+                  )}
+                  {showArchiveItem && (
+                    <DropdownMenuItem onClick={handleArchive}>
+                      <Archive size={12} className="mr-2" /> Archive
+                    </DropdownMenuItem>
+                  )}
+                  {showDeleteItem && (
+                    <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+                      <Trash2 size={12} className="mr-2" /> Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+
+        {/* ALERT BANNERS & LABELS */}
+        <div className="px-5 pt-3 pb-3 border-b shrink-0 space-y-2">
           {isViewingOlderMessage && (
             <div
               className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-sans"
-              style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}
+              style={{ backgroundColor: "#FFF7ED", border: "1px solid #FED7AA" }}
             >
-              <span className="flex-1" style={{ color: '#92400E' }}>
+              <span className="flex-1" style={{ color: "#92400E" }}>
                 Viewing an older message in this thread
               </span>
               <button
@@ -216,21 +316,19 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
                   if (latestId) onNavigateToEmail(latestId);
                 }}
                 className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap"
-                style={{ color: '#92400E' }}
+                style={{ color: "#92400E" }}
               >
-                <ArrowLeft size={11} />
-                Back to latest
+                <ArrowLeft size={11} /> Back to latest
               </button>
             </div>
           )}
 
-          {/* Amber: cross-thread back strip (only when NOT also viewing older message) */}
           {!isViewingOlderMessage && crossThreadBack && crossThreadBack.id !== email.id && (
             <div
               className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-sans"
-              style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA' }}
+              style={{ backgroundColor: "#FFF7ED", border: "1px solid #FED7AA" }}
             >
-              <span className="flex-1" style={{ color: '#92400E' }}>
+              <span className="flex-1" style={{ color: "#92400E" }}>
                 Viewing related email
               </span>
               <button
@@ -241,20 +339,21 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
                   onNavigateToEmail(backId);
                 }}
                 className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap"
-                style={{ color: '#92400E' }}
+                style={{ color: "#92400E" }}
                 title={crossThreadBack.subject}
               >
-                <ArrowLeft size={11} />
-                Back to {crossThreadBack.subject.length > 40 ? crossThreadBack.subject.slice(0, 40) + "…" : crossThreadBack.subject}
+                <ArrowLeft size={11} /> Back to{" "}
+                {crossThreadBack.subject.length > 40
+                  ? crossThreadBack.subject.slice(0, 40) + "…"
+                  : crossThreadBack.subject}
               </button>
             </div>
           )}
 
-          {/* Label editor for archived emails */}
           {email.status === "resolved" && onUpdateLabel && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-sans text-muted-foreground font-medium">Label:</span>
-              {labelOptions.map(opt => (
+              {labelOptions.map((opt) => (
                 <button
                   key={opt.value || "clear"}
                   onClick={() => onUpdateLabel(email.id, opt.value)}
@@ -269,103 +368,105 @@ export function ThreadView({ email, onClose, onOpenDraft, onNavigateToEmail, onA
               ))}
             </div>
           )}
-
-          {/* Per-message AI summary — only when NOT a multi-message thread (Thread Summary covers it) */}
-          {!isMultiMessageThread && email.incoming_summary && (
-            <div className="text-sm font-sans rounded-lg px-3 py-2 bg-accent/50 text-accent-foreground border border-border">
-              🤖 {email.incoming_summary}
-            </div>
-          )}
-
-          {/* Thread summary (only for multi-message threads) */}
-          <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
-
-          {/* Compact attachments pill row */}
-          {atts.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground font-sans shrink-0">
-                <Paperclip size={11} /> Attachments
-              </span>
-              {visibleAtts.map((att: any, i: number) => {
-                const url = getAttachmentUrl(att);
-                return (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-muted border text-[11px] font-sans text-foreground max-w-[180px] truncate transition-colors"
-                    title={att.name || "Attachment"}
-                  >
-                    <span className="truncate">{att.name || "Attachment"}</span>
-                  </a>
-                );
-              })}
-              {hiddenCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllAttachments(true)}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/40 hover:bg-muted border text-[11px] font-sans text-muted-foreground transition-colors"
-                >
-                  + {hiddenCount} more
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Collapsed pending topics strip */}
-          <AlertBanners
-            email={email}
-            onNavigateToEmail={onNavigateToEmail}
-            onBeforeNavigate={(current) => onCaptureCrossThreadBack?.(current)}
-          />
-
-          {/* Email body */}
-          <div>
-            <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">
-              {(email as any).direction === "outbound" ? "Sent Message" : "Email Body"}
-            </span>
-            {(() => {
-              const isOutbound = (email as any).direction === "outbound";
-              const displayBody = isOutbound && email.draft_response ? email.draft_response : email.body;
-              if (displayBody && displayBody.trim()) {
-                return (
-                  <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans email-html-content max-w-none"
-                    dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(displayBody)) }} />
-                );
-              }
-              if ((email as any).html_body) {
-                return (
-                  <iframe
-                    srcDoc={(email as any).html_body}
-                    title="Email content"
-                    className="w-full bg-white rounded-xl border min-h-[300px]"
-                    sandbox="allow-same-origin"
-                    style={{ border: 'none' }}
-                    onLoad={(e) => {
-                      const iframe = e.currentTarget;
-                      if (iframe.contentDocument?.body) {
-                        iframe.style.height = iframe.contentDocument.body.scrollHeight + 32 + 'px';
-                      }
-                    }}
-                  />
-                );
-              }
-              return (
-                <div className="bg-muted/20 rounded-xl p-4 text-sm font-sans text-muted-foreground italic">No content available</div>
-              );
-            })()}
-          </div>
         </div>
 
-        {/* Bottom action bar with Mark as Quoted */}
+        {/* MAIN CONTENT: THREAD MESSAGES (GMAIL STYLE) */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {threadMessages.length > 0 ? (
+            <div className="space-y-0">
+              {threadMessages.map((msg: any, idx: number) => {
+                const isOutbound = msg.direction === "outbound";
+                const isCollapsed = collapsedMessages[msg.id];
+                const msgAtts = parseAttachments(msg.attachments);
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={isOutbound ? "ml-6 border-l-2 border-blue-400" : ""}
+                    style={isOutbound ? { backgroundColor: "#f0f7ff" } : {}}
+                  >
+                    {/* Message Header (Collapsible) */}
+                    <button
+                      onClick={() => toggleMessageCollapse(msg.id)}
+                      className={`w-full px-4 py-3 text-left flex items-center justify-between gap-2 ${
+                        isOutbound ? "hover:bg-blue-100/50" : "hover:bg-muted/30"
+                      } border-b transition-colors`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium text-sm ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
+                          {isOutbound ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {isOutbound ? "to " : "from "}
+                          {msg.from_email}
+                          {isOutbound && msg.to_recipients && ` • to ${msg.to_recipients}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{formatTimeFull(msg.created_at)}</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                      </div>
+                    </button>
+
+                    {/* Message Content (Collapsible) */}
+                    {!isCollapsed && (
+                      <div className={`px-4 py-3 ${isOutbound ? "bg-blue-50" : "bg-background"}`}>
+                        {/* Message body */}
+                        <div className="mb-3">{renderMessageBody(msg)}</div>
+
+                        {/* Attachments */}
+                        {msgAtts.length > 0 && (
+                          <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground font-sans shrink-0">
+                              <Paperclip size={11} /> Attachments
+                            </span>
+                            {msgAtts.map((att: any, i: number) => {
+                              const url = getAttachmentUrl(att);
+                              return (
+                                <a
+                                  key={i}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-muted border text-[11px] font-sans text-foreground max-w-[140px] truncate transition-colors"
+                                  title={att.name || "Attachment"}
+                                >
+                                  <span className="truncate">{att.name || "Attachment"}</span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground text-sm">No messages in this thread</div>
+          )}
+        </div>
+
+        {/* BOTTOM ACTION BAR: Mark as Quoted */}
         <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
           {quotedAt ? (
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[36px] bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-300 cursor-default" disabled>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1 text-xs min-h-[36px] bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-300 cursor-default"
+              disabled
+            >
               <BookCheck size={12} /> Quoted ✓ {format(new Date(quotedAt), "MMM d")}
             </Button>
           ) : (
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[36px]" onClick={handleMarkAsQuoted} disabled={markingQuoted}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1 text-xs min-h-[36px]"
+              onClick={handleMarkAsQuoted}
+              disabled={markingQuoted}
+            >
               <BookCheck size={12} /> Mark as Quoted
             </Button>
           )}
