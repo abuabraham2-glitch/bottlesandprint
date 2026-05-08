@@ -679,26 +679,21 @@ export default function Inbox() {
                     </button>
                   )}
                 </div>
-                {/* Content */}
-                <div className="flex-1 min-w-0 flex items-center gap-3">
-                  <span className={`text-sm font-sans truncate w-[180px] shrink-0 ${anyUnread && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
+                {/* Content — sender on top, subject below */}
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <span className={`text-sm font-sans truncate ${anyUnread && mainTab === "needs_reply" ? "font-bold" : "font-medium"}`}>
                     {displaySenderName(email.from_name, email.from_email)}
                   </span>
-                  <span className={`text-sm font-sans truncate flex-1 ${anyUnread && mainTab === "needs_reply" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`text-xs font-sans truncate ${anyUnread && mainTab === "needs_reply" ? "font-medium text-foreground/80" : "text-muted-foreground"}`}>
                     {email.subject}
                   </span>
-                  {showThreadBadge && (
-                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
-                      {threadCount} msgs
-                    </span>
-                  )}
-                  {/* Archive tab: label pill */}
-                  {mainTab === "archive" && email.label && (
-                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
-                      {email.label}
-                    </span>
-                  )}
                 </div>
+                {/* Archive tab: label pill */}
+                {mainTab === "archive" && email.label && (
+                  <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
+                    {email.label}
+                  </span>
+                )}
                 {/* Auto-ack pill (needs_reply tab only) */}
                 {mainTab === "needs_reply" && email.holding_sent_at && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-sans font-medium px-2 py-0.5 rounded-full shrink-0 auto-ack-pill">
@@ -712,8 +707,16 @@ export default function Inbox() {
                     <ShieldOff size={10} /> Not Spam
                   </Button>
                 )}
-                {/* Timestamp — outbound emails show approved_sent_at (reply sent time); inbound show created_at */}
-                <span className="text-xs text-muted-foreground font-sans whitespace-nowrap shrink-0">{formatTime(((email as any).approved_sent_at && (email as any).direction === "outbound") ? (email as any).approved_sent_at : email.created_at)}</span>
+                {/* Right-side stack: msgs badge on top, timestamp below */}
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {showThreadBadge && (
+                    <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
+                      {threadCount} msgs
+                    </span>
+                  )}
+                  {/* Timestamp — outbound emails show approved_sent_at (reply sent time); inbound show created_at */}
+                  <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(((email as any).approved_sent_at && (email as any).direction === "outbound") ? (email as any).approved_sent_at : email.created_at)}</span>
+                </div>
               </div>
             </div>
           );})}
