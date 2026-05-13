@@ -714,8 +714,8 @@ export default function Inbox() {
                       {threadCount} msgs
                     </span>
                   )}
-                  {/* Timestamp — outbound emails show approved_sent_at (reply sent time); inbound show created_at */}
-                  <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(((email as any).approved_sent_at && (email as any).direction === "outbound") ? (email as any).approved_sent_at : email.created_at)}</span>
+                  {/* Timestamp — outbound emails show approved_sent_at (reply sent time); needs_reply uses original_sent_at (when customer sent); inbound fallback created_at */}
+                  <span className="text-xs text-muted-foreground font-sans whitespace-nowrap">{formatTime(((email as any).approved_sent_at && (email as any).direction === "outbound") ? (email as any).approved_sent_at : (mainTab === "needs_reply" ? ((email as any).original_sent_at || email.created_at) : email.created_at))}</span>
                 </div>
               </div>
             </div>
