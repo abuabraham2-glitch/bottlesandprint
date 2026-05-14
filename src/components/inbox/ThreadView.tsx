@@ -248,7 +248,7 @@ export function ThreadView({
               {isOutbound ? "to " : "from "}
               {msg.from_email}
             </p>
-            <p className="text-xs text-muted-foreground">{formatTimeFull(msg.created_at)}</p>
+            <p className="text-xs text-muted-foreground">{formatTimeFull(((msg as any).approved_sent_at && msg.direction === "outbound") ? (msg as any).approved_sent_at : ((msg as any).original_sent_at || msg.created_at))}</p>
           </div>
           <div className="flex-shrink-0">{isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}</div>
         </button>
