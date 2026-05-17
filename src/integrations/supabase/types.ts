@@ -56,33 +56,6 @@ export type Database = {
         }
         Relationships: []
       }
-      auto_ack_log: {
-        Row: {
-          ack_type: string
-          email_address: string
-          gmail_id: string | null
-          id: string
-          sent_at: string | null
-          template_id: number | null
-        }
-        Insert: {
-          ack_type: string
-          email_address: string
-          gmail_id?: string | null
-          id?: string
-          sent_at?: string | null
-          template_id?: number | null
-        }
-        Update: {
-          ack_type?: string
-          email_address?: string
-          gmail_id?: string | null
-          id?: string
-          sent_at?: string | null
-          template_id?: number | null
-        }
-        Relationships: []
-      }
       auto_ack_log_backup_2026_04_28: {
         Row: {
           ack_type: string | null
