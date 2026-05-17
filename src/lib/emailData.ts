@@ -303,14 +303,6 @@ export function useInboxCounts() {
   return useQuery({
     queryKey: ["inbox_counts"],
     queryFn: async () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const { count: actionNeeded } = await supabase
-        .from("emails")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["pending", "needs_response"]);
-
       // activeInbox = thread-collapsed count for the "Needs My Reply" tab.
       // Must stay in sync with the needsReplyEmails memo in src/pages/Inbox.tsx.
       // We need to fetch 'waiting' rows too, so a thread with any sibling in
@@ -321,19 +313,6 @@ export function useInboxCounts() {
         .in("status", ["pending", "needs_response", "waiting"]);
       const { countNeedsReplyThreads } = await import("@/lib/emailHelpers");
       const activeInbox = countNeedsReplyThreads((inboxRows || []) as any);
-
-      const { count: draftsToReview } = await supabase
-        .from("emails")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["pending", "needs_response"])
-        .not("draft_response", "is", null);
-
-      const { count: autoHandledToday } = await supabase
-        .from("emails")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "auto_sent")
-        .gte("auto_sent_at", today.toISOString());
-
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { count: newCalls } = await supabase
         .from("calls")
@@ -341,17 +320,12 @@ export function useInboxCounts() {
         .eq("status", "pending")
         .eq("is_read", false)
         .gte("created_at", sevenDaysAgo);
-
       const { count: trashCount } = await supabase
         .from("emails")
         .select("*", { count: "exact", head: true })
         .eq("status", "deleted");
-
       return {
-        actionNeeded: actionNeeded || 0,
         activeInbox: activeInbox || 0,
-        draftsToReview: draftsToReview || 0,
-        autoHandledToday: autoHandledToday || 0,
         newCalls: newCalls || 0,
         trashCount: trashCount || 0,
       };
