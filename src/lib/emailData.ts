@@ -309,22 +309,51 @@ export function useInboxCounts() {
       // 'waiting' is excluded from the count.
       const { data: inboxRows } = await supabase
         .from("emails")
-        .select("status, thread_id, direction")
+        .select("status, thread_id, direction, is_read, created_at")
         .in("status", ["pending", "needs_response", "waiting"]);
       const { countNeedsReplyThreads } = await import("@/lib/emailHelpers");
       const activeInbox = countNeedsReplyThreads((inboxRows || []) as any);
+
+      // inboxHasUnread = true if any thread's LATEST row in pending/needs_response
+      // is is_read = false. Matches the per-row blue-dot logic on the Inbox page.
+      const candidateRows = (inboxRows || []).filter(
+        (r: any) => r.status === "pending" || r.status === "needs_response"
+      );
+      const latestByThread = new Map<string, any>();
+      for (const row of candidateRows) {
+        const existing = latestByThread.get(row.thread_id);
+        if (!existing || new Date(row.created_at).getTime() > new Date(existing.created_at).getTime()) {
+          latestByThread.set(row.thread_id, row);
+        }
+      }
+      const inboxHasUnread = Array.from(latestByThread.values()).some(
+        (r: any) => r.is_read === false
+      );
+
       const { count: newCalls } = await supabase
         .from("calls")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending");
+
+      // callsHasUnread = true if any pending Inbound call is unread.
+      const { count: callsUnreadCount } = await supabase
+        .from("calls")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending")
+        .eq("is_read", false);
+      const callsHasUnread = (callsUnreadCount || 0) > 0;
+
       const { count: trashCount } = await supabase
         .from("emails")
         .select("*", { count: "exact", head: true })
         .eq("status", "deleted");
+
       return {
         activeInbox: activeInbox || 0,
         newCalls: newCalls || 0,
         trashCount: trashCount || 0,
+        inboxHasUnread,
+        callsHasUnread,
       };
     },
   });
