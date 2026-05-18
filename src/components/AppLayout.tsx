@@ -59,10 +59,12 @@ function TogglePill({ active, onClick, icon: Icon, label, collapsed }: { active:
   );
 }
 
-function NavItem({ item, active, collapsed, onNavigate, badgeCount = 0 }: { item: any; active: boolean; collapsed: boolean; onNavigate?: () => void; badgeCount?: number }) {
-  const baseClass = `flex items-center gap-3 rounded-xl text-[13px] font-medium transition-colors min-h-[48px] md:min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
+function NavItem({ item, active, collapsed, onNavigate, badgeCount = 0, hasUnread = false }: { item: any; active: boolean; collapsed: boolean; onNavigate?: () => void; badgeCount?: number; hasUnread?: boolean }) {
+  const fontWeightClass = (!active && hasUnread) ? 'font-bold' : 'font-medium';
+  const baseClass = `flex items-center gap-3 rounded-xl text-[13px] ${fontWeightClass} transition-colors min-h-[48px] md:min-h-[44px] ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'}`;
   const activeClass = active ? "bg-primary text-white" : "md:hover:bg-sidebar-accent";
-  const textStyle = active ? {} : { color: 'rgba(255,255,255,0.46)' };
+  const inactiveColor = hasUnread ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.46)';
+  const textStyle = active ? {} : { color: inactiveColor };
 
   const content = (
     <>
@@ -70,6 +72,9 @@ function NavItem({ item, active, collapsed, onNavigate, badgeCount = 0 }: { item
       {!collapsed && (
         <>
           <span className="flex-1">{item.label}</span>
+          {hasUnread && (
+            <span className="inline-block rounded-full shrink-0" style={{ width: 7, height: 7, backgroundColor: '#f59e0b' }} />
+          )}
           {badgeCount > 0 && (
             <span className="text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded-full leading-none">
               {badgeCount}
