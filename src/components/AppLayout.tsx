@@ -173,7 +173,7 @@ function MoreSection({ collapsed, onNavigate, darkMode, onToggleDark }: { collap
   );
 }
 
-function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, trashCount, showCloseButton, onClose }: {
+function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggleDark, inboxCount, callsCount, trashCount, inboxHasUnread, callsHasUnread, showCloseButton, onClose }: {
   onNavigate?: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -182,6 +182,8 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
   inboxCount: number;
   callsCount: number;
   trashCount: number;
+  inboxHasUnread: boolean;
+  callsHasUnread: boolean;
   showCloseButton?: boolean;
   onClose?: () => void;
 }) {
@@ -217,6 +219,7 @@ function SidebarNav({ onNavigate, collapsed, onToggleCollapse, darkMode, onToggl
             collapsed={collapsed}
             onNavigate={onNavigate}
             badgeCount={item.to === "/inbox" ? inboxCount : item.to === "/calls" ? callsCount : item.to === "/trash" ? trashCount : 0}
+            hasUnread={item.to === "/inbox" ? inboxHasUnread : item.to === "/calls" ? callsHasUnread : false}
           />
         ))}
 
