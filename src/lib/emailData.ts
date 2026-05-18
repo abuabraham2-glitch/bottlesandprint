@@ -313,13 +313,10 @@ export function useInboxCounts() {
         .in("status", ["pending", "needs_response", "waiting"]);
       const { countNeedsReplyThreads } = await import("@/lib/emailHelpers");
       const activeInbox = countNeedsReplyThreads((inboxRows || []) as any);
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { count: newCalls } = await supabase
         .from("calls")
         .select("*", { count: "exact", head: true })
-        .eq("status", "pending")
-        .eq("is_read", false)
-        .gte("created_at", sevenDaysAgo);
+        .eq("status", "pending");
       const { count: trashCount } = await supabase
         .from("emails")
         .select("*", { count: "exact", head: true })
