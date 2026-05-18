@@ -655,7 +655,7 @@ export default function Inbox() {
             const showThreadBadge = mainTab !== "spam" && threadCount > 1;
             return (
             <div key={email.id}
-              className={`floating-card mb-0 cursor-pointer transition-colors ${anyUnread && mainTab === "needs_reply" ? "bg-muted/30 hover:bg-muted/50" : "hover:bg-muted/30"} ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
+              className={`floating-card mb-0 cursor-pointer transition-colors ${anyUnread && mainTab === "needs_reply" ? "bg-muted/60 hover:bg-muted/80" : "hover:bg-muted/30"} ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
               onClick={() => handleOpenEmail(email)}>
               <div className="flex items-center gap-3">
                 {/* Unread dot + checkbox */}
