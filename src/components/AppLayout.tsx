@@ -313,6 +313,8 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
           inboxCount={inboxCounts?.activeInbox || 0}
           callsCount={inboxCounts?.newCalls || 0}
           trashCount={inboxCounts?.trashCount || 0}
+          inboxHasUnread={inboxCounts?.inboxHasUnread || false}
+          callsHasUnread={inboxCounts?.callsHasUnread || false}
         />
       </aside>
 
@@ -329,6 +331,8 @@ export default function AppLayout({ children, searchQuery, onSearchChange }: App
               inboxCount={inboxCounts?.activeInbox || 0}
               callsCount={inboxCounts?.newCalls || 0}
               trashCount={inboxCounts?.trashCount || 0}
+              inboxHasUnread={inboxCounts?.inboxHasUnread || false}
+              callsHasUnread={inboxCounts?.callsHasUnread || false}
               showCloseButton
               onClose={() => setMobileOpen(false)}
             />
