@@ -382,7 +382,7 @@ export default function Calls() {
           return (
             <div
               key={call.id}
-              className="floating-card mb-3 cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all"
+              className={`floating-card mb-3 cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all ${!call.is_read ? "!bg-foreground/10 hover:!bg-foreground/20" : ""}`}
               onClick={() => {
                 setSelectedCall(call);
                 if (!call.is_read) {
@@ -396,7 +396,12 @@ export default function Calls() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-medium text-sm font-sans">{call.caller_name || "Unknown Caller"}</span>
+                    <span className={`text-sm font-sans inline-flex items-center gap-2 ${!call.is_read ? "font-bold" : "font-medium"}`}>
+                      {!call.is_read && (
+                        <span className="inline-block w-2 h-2 rounded-full bg-[hsl(var(--primary))] flex-shrink-0" aria-hidden="true" />
+                      )}
+                      {call.caller_name || "Unknown Caller"}
+                    </span>
                     {showNoActionNeeded && (
                       <Badge variant="secondary" className="shrink-0 border-transparent bg-foreground text-background px-2 py-0.5 text-[10px] font-semibold leading-none">
                         No Action Needed
