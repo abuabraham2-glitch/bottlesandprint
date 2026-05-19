@@ -413,7 +413,6 @@ export type Database = {
           acknowledged: boolean | null
           approved_sent_at: string | null
           attachments: Json | null
-          auto_sent_at: string | null
           body: string | null
           call_id: string | null
           category: string | null
@@ -458,7 +457,6 @@ export type Database = {
           acknowledged?: boolean | null
           approved_sent_at?: string | null
           attachments?: Json | null
-          auto_sent_at?: string | null
           body?: string | null
           call_id?: string | null
           category?: string | null
@@ -503,7 +501,6 @@ export type Database = {
           acknowledged?: boolean | null
           approved_sent_at?: string | null
           attachments?: Json | null
-          auto_sent_at?: string | null
           body?: string | null
           call_id?: string | null
           category?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE emails DROP COLUMN IF EXISTS auto_sent_at;
