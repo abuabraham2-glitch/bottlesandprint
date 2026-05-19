@@ -290,11 +290,13 @@ export async function sendStageEmail(params: {
   await supabase.from("emails").insert({
     from_email: "abu@bottlesandprint.com",
     from_name: "Abu",
+    to_recipients: params.to_email,
     subject: params.subject,
     body: params.body_html,
     category: params.category,
-    status: "auto_sent",
-    auto_sent_at: new Date().toISOString(),
+    status: "approved_sent",
+    approved_sent_at: new Date().toISOString(),
+    direction: "outbound",
   } as any);
 }
 
