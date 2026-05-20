@@ -765,9 +765,6 @@ export default function Inbox() {
                     </div>
                   )}
                 </div>
-              </>
-            );
-          })()}
                 {/* Archive tab: label pill */}
                 {mainTab === "archive" && email.label && (
                   <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
