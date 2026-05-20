@@ -227,6 +227,42 @@ export default function Inbox() {
     }
   }, [allEmails, threadEmail]);
 
+  // Mark-as-read on drawer CLOSE (or thread switch).
+  // Tracks the previously open thread_id; when it changes (incl. -> null), fires
+  // ONE supabase update marking all is_read=false rows in that thread as read.
+  const prevThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentThreadId = threadEmail?.thread_id ?? threadEmail?.id ?? null;
+    const prev = prevThreadIdRef.current;
+    if (prev && prev !== currentThreadId) {
+      (async () => {
+        try {
+          if (prev.length > 0 && !prev.startsWith("manual-")) {
+            await supabase
+              .from("emails")
+              .update({ is_read: true } as any)
+              .eq("thread_id", prev)
+              .eq("is_read", false);
+          } else {
+            // Non-threaded fallback: mark by id
+            await supabase
+              .from("emails")
+              .update({ is_read: true } as any)
+              .eq("id", prev)
+              .eq("is_read", false);
+          }
+          queryClient.invalidateQueries({ queryKey: ["emails"] });
+          queryClient.invalidateQueries({ queryKey: ["all-emails"] });
+          queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+          queryClient.invalidateQueries({ queryKey: ["thread-messages", prev] });
+        } catch (err) {
+          console.error("Mark-as-read on close failed:", err);
+        }
+      })();
+    }
+    prevThreadIdRef.current = currentThreadId;
+  }, [threadEmail, queryClient]);
+
   // Keep draftEmail in sync
   useEffect(() => {
     if (draftEmail) {
