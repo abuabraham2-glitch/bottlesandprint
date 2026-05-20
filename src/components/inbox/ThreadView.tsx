@@ -38,7 +38,7 @@ import {
   getAttachmentUrl,
 } from "./InboxHelpers";
 import { format } from "date-fns";
-import { getContributorCount } from "@/lib/threadHelpers";
+import { getContributorCount, isInboundMessage } from "@/lib/threadHelpers";
 
 interface ThreadViewProps {
   email: Email | null;
