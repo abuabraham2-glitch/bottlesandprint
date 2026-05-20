@@ -437,6 +437,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                 </div>
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {renderThreadSnippet(detailEmail.thread_id)}
                 {/* Draft response */}
                 {detailEmail.draft_response && (() => {
                   const cleaned = stripN8nFooter(detailEmail.draft_response);
