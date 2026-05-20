@@ -38,7 +38,7 @@ import {
   getAttachmentUrl,
 } from "./InboxHelpers";
 import { format } from "date-fns";
-import { getContributorCount } from "@/lib/threadHelpers";
+import { getContributorCount, isInboundMessage } from "@/lib/threadHelpers";
 
 interface ThreadViewProps {
   email: Email | null;
@@ -231,31 +231,35 @@ export function ThreadView({
     const isCollapsed = collapsedMessages[msg.id];
     const msgAtts = parseAttachments(msg.attachments);
     const headerLabel = isOutbound ? "You replied" : "Email";
+    const inbound = isInboundMessage(msg);
+    const isUnread = inbound && msg.is_read === false;
 
     return (
       <div
         key={msg.id}
         className={`rounded-lg overflow-hidden border ${
-          isLatest
-            ? "bg-blue-50 border-blue-400 border-l-4"
-            : isOutbound
-              ? "bg-blue-50 border-blue-300 ml-6 border-l-2"
-              : "bg-background border-border"
+          isUnread
+            ? "!bg-foreground/10 hover:!bg-foreground/15 border-l-2 border-[hsl(var(--primary))]"
+            : isLatest
+              ? "bg-blue-50 border-blue-400 border-l-4"
+              : isOutbound
+                ? "bg-blue-50 border-blue-300 ml-6 border-l-2"
+                : "bg-background border-border"
         }`}
       >
         {/* Message Header (Collapsible) */}
         <button
           onClick={() => toggleMessageCollapse(msg.id)}
           className={`w-full px-4 py-3 text-left flex items-center justify-between gap-2 border-b transition-colors ${
-            isOutbound ? "hover:bg-blue-100/50" : "hover:bg-muted/30"
+            isUnread ? "hover:!bg-foreground/15" : isOutbound ? "hover:bg-blue-100/50" : "hover:bg-muted/30"
           }`}
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              {msg.is_read === false && (
-                <span className="inline-block w-[7px] h-[7px] rounded-full bg-[hsl(var(--primary))] shrink-0" />
+              {isUnread && (
+                <span className="inline-block w-2 h-2 rounded-full bg-[hsl(var(--primary))] shrink-0" />
               )}
-              <p className={`text-sm ${msg.is_read === false ? "font-bold" : "font-medium"} ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
+              <p className={`text-sm ${isUnread ? "font-bold text-foreground" : `font-medium ${isOutbound ? "text-blue-900" : "text-foreground"}`}`}>
                 {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
               </p>
             </div>
@@ -267,6 +271,7 @@ export function ThreadView({
           </div>
           <div className="flex-shrink-0">{isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}</div>
         </button>
+
 
         {/* Message Content (Collapsible) */}
         {!isCollapsed && (

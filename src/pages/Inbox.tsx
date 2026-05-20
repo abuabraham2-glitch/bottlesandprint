@@ -27,6 +27,7 @@ import {
   getOverflowContributorFirstNames,
   extractFirstName,
   extractSnippet,
+  ABU_EMAILS,
 } from "@/lib/threadHelpers";
 
 type MainTab = "needs_reply" | "waiting" | "spam" | "archive";
@@ -238,11 +239,22 @@ export default function Inbox() {
       (async () => {
         try {
           if (prev.length > 0 && !prev.startsWith("manual-")) {
+            // Update 1: explicit inbound rows
             await supabase
               .from("emails")
               .update({ is_read: true } as any)
               .eq("thread_id", prev)
-              .eq("is_read", false);
+              .eq("is_read", false)
+              .eq("direction", "inbound");
+            // Update 2: legacy direction=null rows from non-Abu senders
+            const abuEmailsArray = Array.from(ABU_EMAILS);
+            await supabase
+              .from("emails")
+              .update({ is_read: true } as any)
+              .eq("thread_id", prev)
+              .eq("is_read", false)
+              .is("direction", null)
+              .not("from_email", "in", `(${abuEmailsArray.map(e => `"${e}"`).join(",")})`);
           } else {
             // Non-threaded fallback: mark by id
             await supabase

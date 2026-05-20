@@ -14,6 +14,16 @@ export function isAbuEmail(email: string | null | undefined): boolean {
   return ABU_EMAILS.has(email.trim().toLowerCase());
 }
 
+export function isInboundMessage(email: {
+  direction?: string | null;
+  from_email?: string | null;
+}): boolean {
+  const dir = email.direction?.toLowerCase();
+  if (dir === "inbound") return true;
+  if (dir == null) return !isAbuEmail(email.from_email);
+  return false;
+}
+
 type ThreadEmail = {
   id?: string;
   from_email?: string | null;
