@@ -359,14 +359,21 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
             </tr></thead>
-            <tbody>{emails.map(e => (
-              <tr key={e.id} onClick={() => setDetailEmail(e)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer">
+            <tbody>{emails.map(e => {
+              const showSnippet = firstOccurrenceIds.has(e.id);
+              return (
+              <tr key={e.id} onClick={() => setDetailEmail(e)} className="border-b last:border-b-0 hover:bg-muted/30 cursor-pointer align-top">
                 <td className="p-3 font-medium">{e.from_name || e.from_email}</td>
-                <td className="p-3">{e.subject}</td>
+                <td className="p-3">
+                  <div>{e.subject}</div>
+                  {showSnippet && renderThreadSnippet(e.thread_id)}
+                </td>
                 <td className="p-3 text-muted-foreground">{e.category || "—"}</td>
                 <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime((e.direction === "outbound" && (e as any).approved_sent_at) ? (e as any).approved_sent_at : e.created_at)}</td>
               </tr>
-            ))}</tbody>
+              );
+            })}</tbody>
+
           </table>
         </div>
       ))}
