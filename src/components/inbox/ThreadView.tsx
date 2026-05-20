@@ -498,7 +498,24 @@ export function ThreadView({
                 {/* FULL THREAD CONTENT (expandable) */}
                 {fullThreadExpanded && (
                   <div className="space-y-0">
-                    {otherMessages.map((msg) => (
+                    {earlierMessages.length > 0 && !earlierExpanded && (
+                      <button
+                        onClick={() => setEarlierExpanded(true)}
+                        className="w-full px-4 py-2.5 bg-muted/20 hover:bg-muted/40 flex items-center justify-between gap-2 transition-colors border-b text-sm font-medium text-muted-foreground"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ChevronRight size={14} />
+                          Show {earlierMessages.length} earlier messages
+                          {earlierUnreadCount > 0 && ` (${earlierUnreadCount} unread)`}
+                        </span>
+                      </button>
+                    )}
+                    {earlierExpanded && earlierMessages.map((msg) => (
+                      <div key={msg.id} className="border-t">
+                        {renderMessageSection(msg, false)}
+                      </div>
+                    ))}
+                    {recentMessages.map((msg) => (
                       <div key={msg.id} className="border-t">
                         {renderMessageSection(msg, false)}
                       </div>
