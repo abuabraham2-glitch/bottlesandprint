@@ -747,7 +747,27 @@ export default function Inbox() {
                   <span className={`text-xs font-sans truncate ${anyUnread && mainTab === "needs_reply" ? "font-medium text-foreground/80" : "text-muted-foreground"}`}>
                     {email.subject}
                   </span>
+                  {showSnippets && (
+                    <div className="mt-1.5 space-y-0.5">
+                      {shownMessages.map((msg) => (
+                        <div key={msg.id} className="text-xs font-sans text-muted-foreground truncate">
+                          <span className="font-semibold text-foreground/80">
+                            {extractFirstName(msg.from_name, msg.from_email)}:
+                          </span>{" "}
+                          {extractSnippet(msg.body, 65)}
+                        </div>
+                      ))}
+                      {overflowNames.length > 0 && (
+                        <div className="text-[11px] font-sans italic text-muted-foreground/80 truncate">
+                          + {overflowNames.length} earlier in thread ({overflowNames.join(", ")})
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+              </>
+            );
+          })()}
                 {/* Archive tab: label pill */}
                 {mainTab === "archive" && email.label && (
                   <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
