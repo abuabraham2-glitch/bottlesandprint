@@ -705,10 +705,14 @@ export default function Inbox() {
           </div>
           {displayedEmails.map(email => {
             const threadCount = email.thread_id ? (threadCountMap.get(email.thread_id) || 1) : 1;
-            const threadSiblings = email.thread_id ? allEmails.filter(e => e.thread_id === email.thread_id) : [email];
+            const threadSiblings = email.thread_id ? (threadEmailsMap.get(email.thread_id) || [email]) : [email];
             const anyUnread = threadSiblings.some(e => e.is_read === false);
             const anyUrgent = threadSiblings.some(e => e.is_urgent === true);
             const showThreadBadge = mainTab !== "spam" && threadCount > 1;
+            const showSnippets = (mainTab === "needs_reply" || mainTab === "waiting" || mainTab === "archive")
+              && getContributorCount(threadSiblings) >= 3;
+            const shownMessages = showSnippets ? getShownContributorMessages(threadSiblings, 3) : [];
+            const overflowNames = showSnippets ? getOverflowContributorFirstNames(threadSiblings, shownMessages) : [];
             return (
             <div key={email.id}
               className={`floating-card mb-0 cursor-pointer transition-colors ${anyUnread && mainTab === "needs_reply" ? "!bg-foreground/10 hover:!bg-foreground/20" : "hover:bg-muted/30"} ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
