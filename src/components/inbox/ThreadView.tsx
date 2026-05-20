@@ -123,7 +123,15 @@ export function ThreadView({
 
   useEffect(() => {
     setShowAllAttachments(false);
+    setEarlierExpanded(false);
   }, [email?.id]);
+
+  // Multi-party threads default-expand the Full Thread box; others stay collapsed.
+  const isMultiParty = getContributorCount(threadMessages as any[]) >= 3;
+  useEffect(() => {
+    if (isMultiParty) setFullThreadExpanded(true);
+    else setFullThreadExpanded(false);
+  }, [isMultiParty, email?.thread_id]);
 
   if (!email) return null;
 
