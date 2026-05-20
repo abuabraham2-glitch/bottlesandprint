@@ -306,6 +306,10 @@ export function ThreadView({
   // Get latest message and all other messages
   const latestMessage = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : null;
   const otherMessages = threadMessages.slice(0, -1);
+  // Recent = last 5 of otherMessages (chronological), Earlier = everything before
+  const recentMessages = otherMessages.slice(-5);
+  const earlierMessages = otherMessages.slice(0, Math.max(0, otherMessages.length - 5));
+  const earlierUnreadCount = earlierMessages.filter((m: any) => m.is_read === false).length;
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
