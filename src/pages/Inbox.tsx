@@ -100,6 +100,19 @@ export default function Inbox() {
     return map;
   }, [allEmails]);
 
+  // Map of thread_id -> all emails in that thread (no status filtering — we want
+  // every contributor visible for multi-party snippet rendering).
+  const threadEmailsMap = useMemo(() => {
+    const map = new Map<string, Email[]>();
+    allEmails.forEach(e => {
+      if (!e.thread_id) return;
+      const arr = map.get(e.thread_id);
+      if (arr) arr.push(e);
+      else map.set(e.thread_id, [e]);
+    });
+    return map;
+  }, [allEmails]);
+
   const needsReplyEmails = useMemo(() => {
     const getTime = (e: Email) => new Date(e.created_at || 0).getTime();
     const matches = allEmails.filter(e =>
