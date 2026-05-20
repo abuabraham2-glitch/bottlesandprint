@@ -251,9 +251,14 @@ export function ThreadView({
           }`}
         >
           <div className="flex-1 min-w-0">
-            <p className={`font-medium text-sm ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
-              {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
-            </p>
+            <div className="flex items-center gap-2">
+              {msg.is_read === false && (
+                <span className="inline-block w-[7px] h-[7px] rounded-full bg-[hsl(var(--primary))] shrink-0" />
+              )}
+              <p className={`text-sm ${msg.is_read === false ? "font-bold" : "font-medium"} ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
+                {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
+              </p>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               {isOutbound ? "to " : "from "}
               {msg.from_email}
