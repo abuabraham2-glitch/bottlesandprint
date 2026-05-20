@@ -71,6 +71,7 @@ export function ThreadView({
   const [markingQuoted, setMarkingQuoted] = useState(false);
   const [showAllAttachments, setShowAllAttachments] = useState(false);
   const [fullThreadExpanded, setFullThreadExpanded] = useState(false);
+  const [earlierExpanded, setEarlierExpanded] = useState(false);
   const [collapsedMessages, setCollapsedMessages] = useState<{ [key: string]: boolean }>({});
 
   const threadId = email?.thread_id ?? null;
