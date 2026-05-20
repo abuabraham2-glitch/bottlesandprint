@@ -193,12 +193,82 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
     );
   }
 
+  // Fetch full thread emails for any matching email results, in one query.
+  const threadIds = useMemo(
+    () => [...new Set(emails.map(e => e.thread_id).filter(Boolean) as string[])],
+    [emails]
+  );
+  const { data: allThreadEmails = [] } = useQuery({
+    queryKey: ["search-thread-emails", threadIds],
+    queryFn: async () => {
+      if (threadIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("emails")
+        .select("*")
+        .in("thread_id", threadIds);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: threadIds.length > 0,
+    staleTime: 60 * 1000,
+  });
+  const threadEmailsMap = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const e of allThreadEmails) {
+      if (!e.thread_id) continue;
+      const arr = map.get(e.thread_id);
+      if (arr) arr.push(e);
+      else map.set(e.thread_id, [e]);
+    }
+    return map;
+  }, [allThreadEmails]);
+  // Track first occurrence of each thread_id in the email results list, so
+  // the snippet block only renders once per thread.
+  const firstOccurrenceIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids = new Set<string>();
+    for (const e of emails) {
+      if (!e.thread_id) continue;
+      if (!seen.has(e.thread_id)) {
+        seen.add(e.thread_id);
+        ids.add(e.id);
+      }
+    }
+    return ids;
+  }, [emails]);
+
+  const renderThreadSnippet = (threadId: string | null) => {
+    if (!threadId) return null;
+    const siblings = threadEmailsMap.get(threadId) || [];
+    if (getContributorCount(siblings) < 3) return null;
+    const shown = getShownContributorMessages(siblings, 3);
+    const overflow = getOverflowContributorFirstNames(siblings, shown);
+    return (
+      <div className="mt-3 border-l-2 border-[#d4cfc3] pl-3 flex flex-col gap-1.5">
+        {shown.map((msg) => (
+          <div key={msg.id} className="text-xs font-sans text-muted-foreground truncate">
+            <span className="font-semibold text-foreground/80">
+              {extractFirstName(msg.from_name, msg.from_email)}:
+            </span>{" "}
+            {extractSnippet(msg.body, 65)}
+          </div>
+        ))}
+        {overflow.length > 0 && (
+          <div className="text-[11px] font-sans italic text-muted-foreground/80 truncate">
+            + {overflow.length} earlier in thread ({overflow.join(", ")})
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSection = (title: string, count: number, children: React.ReactNode) => count > 0 ? (
     <div>
       <h2 className="text-lg font-serif mb-2">{title} ({count})</h2>
       {children}
     </div>
   ) : null;
+
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1400px]">
