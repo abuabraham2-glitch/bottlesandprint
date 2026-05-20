@@ -21,6 +21,13 @@ import {
   stripN8nFooter, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
 import { computeWaitingThreadIds } from "@/lib/emailHelpers";
+import {
+  getContributorCount,
+  getShownContributorMessages,
+  getOverflowContributorFirstNames,
+  extractFirstName,
+  extractSnippet,
+} from "@/lib/threadHelpers";
 
 type MainTab = "needs_reply" | "waiting" | "spam" | "archive";
 
