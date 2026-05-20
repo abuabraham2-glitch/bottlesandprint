@@ -21,6 +21,13 @@ import {
   stripN8nFooter, SIGNATURE,
 } from "@/components/inbox/InboxHelpers";
 import { computeWaitingThreadIds } from "@/lib/emailHelpers";
+import {
+  getContributorCount,
+  getShownContributorMessages,
+  getOverflowContributorFirstNames,
+  extractFirstName,
+  extractSnippet,
+} from "@/lib/threadHelpers";
 
 type MainTab = "needs_reply" | "waiting" | "spam" | "archive";
 
@@ -89,6 +96,19 @@ export default function Inbox() {
       if (e.status === "deleted" || e.status === "spam") return;
       if (e.category === "SPAM" || (e as any).tier === "SPAM") return;
       map.set(e.thread_id, (map.get(e.thread_id) || 0) + 1);
+    });
+    return map;
+  }, [allEmails]);
+
+  // Map of thread_id -> all emails in that thread (no status filtering — we want
+  // every contributor visible for multi-party snippet rendering).
+  const threadEmailsMap = useMemo(() => {
+    const map = new Map<string, Email[]>();
+    allEmails.forEach(e => {
+      if (!e.thread_id) return;
+      const arr = map.get(e.thread_id);
+      if (arr) arr.push(e);
+      else map.set(e.thread_id, [e]);
     });
     return map;
   }, [allEmails]);
@@ -206,6 +226,42 @@ export default function Inbox() {
       }
     }
   }, [allEmails, threadEmail]);
+
+  // Mark-as-read on drawer CLOSE (or thread switch).
+  // Tracks the previously open thread_id; when it changes (incl. -> null), fires
+  // ONE supabase update marking all is_read=false rows in that thread as read.
+  const prevThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentThreadId = threadEmail?.thread_id ?? threadEmail?.id ?? null;
+    const prev = prevThreadIdRef.current;
+    if (prev && prev !== currentThreadId) {
+      (async () => {
+        try {
+          if (prev.length > 0 && !prev.startsWith("manual-")) {
+            await supabase
+              .from("emails")
+              .update({ is_read: true } as any)
+              .eq("thread_id", prev)
+              .eq("is_read", false);
+          } else {
+            // Non-threaded fallback: mark by id
+            await supabase
+              .from("emails")
+              .update({ is_read: true } as any)
+              .eq("id", prev)
+              .eq("is_read", false);
+          }
+          queryClient.invalidateQueries({ queryKey: ["emails"] });
+          queryClient.invalidateQueries({ queryKey: ["all-emails"] });
+          queryClient.invalidateQueries({ queryKey: ["inbox_counts"] });
+          queryClient.invalidateQueries({ queryKey: ["thread-messages", prev] });
+        } catch (err) {
+          console.error("Mark-as-read on close failed:", err);
+        }
+      })();
+    }
+    prevThreadIdRef.current = currentThreadId;
+  }, [threadEmail, queryClient]);
 
   // Keep draftEmail in sync
   useEffect(() => {
@@ -466,7 +522,7 @@ export default function Inbox() {
   };
 
   const handleOpenEmail = (email: Email) => {
-    if (!email.is_read) markAsRead(email.id);
+    // Mark-as-read happens on drawer CLOSE, not on row click.
     setThreadEmail(email);
   };
 
@@ -649,10 +705,14 @@ export default function Inbox() {
           </div>
           {displayedEmails.map(email => {
             const threadCount = email.thread_id ? (threadCountMap.get(email.thread_id) || 1) : 1;
-            const threadSiblings = email.thread_id ? allEmails.filter(e => e.thread_id === email.thread_id) : [email];
+            const threadSiblings = email.thread_id ? (threadEmailsMap.get(email.thread_id) || [email]) : [email];
             const anyUnread = threadSiblings.some(e => e.is_read === false);
             const anyUrgent = threadSiblings.some(e => e.is_urgent === true);
             const showThreadBadge = mainTab !== "spam" && threadCount > 1;
+            const showSnippets = (mainTab === "needs_reply" || mainTab === "waiting" || mainTab === "archive")
+              && getContributorCount(threadSiblings) >= 3;
+            const shownMessages = showSnippets ? getShownContributorMessages(threadSiblings, 3) : [];
+            const overflowNames = showSnippets ? getOverflowContributorFirstNames(threadSiblings, shownMessages) : [];
             return (
             <div key={email.id}
               className={`floating-card mb-0 cursor-pointer transition-colors ${anyUnread && mainTab === "needs_reply" ? "!bg-foreground/10 hover:!bg-foreground/20" : "hover:bg-muted/30"} ${selectedIds.has(email.id) ? "ring-2 ring-primary/50" : ""}`}
@@ -687,6 +747,23 @@ export default function Inbox() {
                   <span className={`text-xs font-sans truncate ${anyUnread && mainTab === "needs_reply" ? "font-medium text-foreground/80" : "text-muted-foreground"}`}>
                     {email.subject}
                   </span>
+                  {showSnippets && (
+                    <div className="mt-1.5 space-y-0.5">
+                      {shownMessages.map((msg) => (
+                        <div key={msg.id} className="text-xs font-sans text-muted-foreground truncate">
+                          <span className="font-semibold text-foreground/80">
+                            {extractFirstName(msg.from_name, msg.from_email)}:
+                          </span>{" "}
+                          {extractSnippet(msg.body, 65)}
+                        </div>
+                      ))}
+                      {overflowNames.length > 0 && (
+                        <div className="text-[11px] font-sans italic text-muted-foreground/80 truncate">
+                          + {overflowNames.length} earlier in thread ({overflowNames.join(", ")})
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {/* Archive tab: label pill */}
                 {mainTab === "archive" && email.label && (

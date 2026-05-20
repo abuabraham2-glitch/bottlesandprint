@@ -38,6 +38,7 @@ import {
   getAttachmentUrl,
 } from "./InboxHelpers";
 import { format } from "date-fns";
+import { getContributorCount } from "@/lib/threadHelpers";
 
 interface ThreadViewProps {
   email: Email | null;
@@ -70,6 +71,7 @@ export function ThreadView({
   const [markingQuoted, setMarkingQuoted] = useState(false);
   const [showAllAttachments, setShowAllAttachments] = useState(false);
   const [fullThreadExpanded, setFullThreadExpanded] = useState(false);
+  const [earlierExpanded, setEarlierExpanded] = useState(false);
   const [collapsedMessages, setCollapsedMessages] = useState<{ [key: string]: boolean }>({});
 
   const threadId = email?.thread_id ?? null;
@@ -121,7 +123,15 @@ export function ThreadView({
 
   useEffect(() => {
     setShowAllAttachments(false);
+    setEarlierExpanded(false);
   }, [email?.id]);
+
+  // Multi-party threads default-expand the Full Thread box; others stay collapsed.
+  const isMultiParty = getContributorCount(threadMessages as any[]) >= 3;
+  useEffect(() => {
+    if (isMultiParty) setFullThreadExpanded(true);
+    else setFullThreadExpanded(false);
+  }, [isMultiParty, email?.thread_id]);
 
   if (!email) return null;
 
@@ -241,9 +251,14 @@ export function ThreadView({
           }`}
         >
           <div className="flex-1 min-w-0">
-            <p className={`font-medium text-sm ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
-              {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
-            </p>
+            <div className="flex items-center gap-2">
+              {msg.is_read === false && (
+                <span className="inline-block w-[7px] h-[7px] rounded-full bg-[hsl(var(--primary))] shrink-0" />
+              )}
+              <p className={`text-sm ${msg.is_read === false ? "font-bold" : "font-medium"} ${isOutbound ? "text-blue-900" : "text-foreground"}`}>
+                {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
+              </p>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               {isOutbound ? "to " : "from "}
               {msg.from_email}
@@ -291,6 +306,10 @@ export function ThreadView({
   // Get latest message and all other messages
   const latestMessage = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : null;
   const otherMessages = threadMessages.slice(0, -1);
+  // Recent = last 5 of otherMessages (chronological), Earlier = everything before
+  const recentMessages = otherMessages.slice(-5);
+  const earlierMessages = otherMessages.slice(0, Math.max(0, otherMessages.length - 5));
+  const earlierUnreadCount = earlierMessages.filter((m: any) => m.is_read === false).length;
 
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
@@ -479,7 +498,24 @@ export function ThreadView({
                 {/* FULL THREAD CONTENT (expandable) */}
                 {fullThreadExpanded && (
                   <div className="space-y-0">
-                    {otherMessages.map((msg) => (
+                    {earlierMessages.length > 0 && !earlierExpanded && (
+                      <button
+                        onClick={() => setEarlierExpanded(true)}
+                        className="w-full px-4 py-2.5 bg-muted/20 hover:bg-muted/40 flex items-center justify-between gap-2 transition-colors border-b text-sm font-medium text-muted-foreground"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ChevronRight size={14} />
+                          Show {earlierMessages.length} earlier messages
+                          {earlierUnreadCount > 0 && ` (${earlierUnreadCount} unread)`}
+                        </span>
+                      </button>
+                    )}
+                    {earlierExpanded && earlierMessages.map((msg) => (
+                      <div key={msg.id} className="border-t">
+                        {renderMessageSection(msg, false)}
+                      </div>
+                    ))}
+                    {recentMessages.map((msg) => (
                       <div key={msg.id} className="border-t">
                         {renderMessageSection(msg, false)}
                       </div>
