@@ -486,7 +486,7 @@ export default function Inbox() {
   };
 
   const handleOpenEmail = (email: Email) => {
-    if (!email.is_read) markAsRead(email.id);
+    // Mark-as-read happens on drawer CLOSE, not on row click.
     setThreadEmail(email);
   };
 
