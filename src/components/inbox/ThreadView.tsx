@@ -228,7 +228,7 @@ export function ThreadView({
 
   const renderMessageSection = (msg: any, isLatest: boolean = false) => {
     const isOutbound = msg.direction === "outbound";
-    const isCollapsed = collapsedMessages[msg.id];
+    const isCollapsed = isLatest ? !!collapsedMessages[msg.id] : (collapsedMessages[msg.id] !== false);
     const msgAtts = parseAttachments(msg.attachments);
     const headerLabel = isOutbound ? "You replied" : "Email";
     const inbound = isInboundMessage(msg);
