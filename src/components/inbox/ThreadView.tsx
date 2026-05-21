@@ -273,7 +273,7 @@ export function ThreadView({
 
         {/* Message Content (Collapsible) */}
         {!isCollapsed && (
-          <div className={`px-4 py-3 ${isOutbound ? "bg-blue-50" : "bg-background"}`}>
+          <div className={`px-4 py-3 ${isUnread ? "bg-[#f59e0b]/10" : "bg-background"}`}>
             {/* Message body */}
             <div className="mb-3">{renderMessageBody(msg)}</div>
 
