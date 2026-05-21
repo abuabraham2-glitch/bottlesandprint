@@ -402,7 +402,7 @@ export default function Calls() {
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className={`text-sm font-sans inline-flex items-center gap-2 ${!call.is_read ? "font-bold" : "font-medium"}`}>
                       {!call.is_read && (
-                        <span className="inline-block w-2 h-2 rounded-full bg-[hsl(var(--primary))] flex-shrink-0" aria-hidden="true" />
+                        <span className="inline-block w-2 h-2 rounded-full bg-[#f59e0b] flex-shrink-0" aria-hidden="true" />
                       )}
                       {call.caller_name || "Unknown Caller"}
                     </span>
