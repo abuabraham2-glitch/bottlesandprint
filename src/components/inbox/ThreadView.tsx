@@ -239,27 +239,25 @@ export function ThreadView({
         key={msg.id}
         className={`rounded-lg overflow-hidden border ${
           isUnread
-            ? "!bg-foreground/10 hover:!bg-foreground/15 border-l-2 border-[hsl(var(--primary))]"
-            : isLatest
-              ? "bg-blue-50 border-blue-400 border-l-4"
-              : isOutbound
-                ? "bg-blue-50 border-blue-300 ml-6 border-l-2"
-                : "bg-background border-border"
+            ? "bg-[#f59e0b]/10 hover:bg-[#f59e0b]/15 border-l-[4px] border-l-[#f59e0b]"
+            : isOutbound
+              ? "bg-background border-l-2 border-l-[#c5c0b5]"
+              : "bg-background border-border"
         }`}
       >
         {/* Message Header (Collapsible) */}
         <button
           onClick={() => toggleMessageCollapse(msg.id)}
           className={`w-full px-4 py-3 text-left flex items-center justify-between gap-2 border-b transition-colors ${
-            isUnread ? "hover:!bg-foreground/15" : isOutbound ? "hover:bg-blue-100/50" : "hover:bg-muted/30"
+            isUnread ? "hover:bg-[#f59e0b]/15" : "hover:bg-muted/30"
           }`}
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               {isUnread && (
-                <span className="inline-block w-2 h-2 rounded-full bg-[hsl(var(--primary))] shrink-0" />
+                <span className="inline-block w-2 h-2 rounded-full bg-[#f59e0b] shrink-0" />
               )}
-              <p className={`text-sm ${isUnread ? "font-bold text-foreground" : `font-medium ${isOutbound ? "text-blue-900" : "text-foreground"}`}`}>
+              <p className={`text-sm ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
                 {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
               </p>
             </div>
