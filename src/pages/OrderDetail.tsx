@@ -785,14 +785,10 @@ export default function OrderDetail() {
                 </Button>
               </div>
             )}
-            <div className="flex justify-between items-center">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-muted-foreground">Paid</span>
-              <div className="flex items-center gap-2">
-                <span className={order.paid ? "text-green-600 font-medium" : "text-destructive font-medium"}>
-                  {order.paid ? "Yes" : "No"}
-                </span>
-              </div>
-            </div>
+              <Checkbox checked={(order as any).paid || false} onCheckedChange={v => update({ paid: !!v })} />
+            </label>
             {/* QB Review Checkboxes */}
             {(order.invoiced || order.invoice_num) && (
               <label className="flex items-center justify-between cursor-pointer">
