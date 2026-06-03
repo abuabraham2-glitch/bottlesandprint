@@ -369,9 +369,15 @@ export function getCompletedStageEmail(clientName: string) {
   };
 }
 
-export function getShipStageEmail(clientName: string) {
+export function getShipStageEmail(clientName: string, paid: boolean = true) {
+  if (paid) {
+    return {
+      subject: "Payment Received – Arrange Pickup/Shipping",
+      body: `Hi ${clientName},<br><br>Payment has been received — thank you. Please go ahead and arrange for pickup/shipping. Please send over any BOLs that we may need for the driver.<br><br>Best regards,<br>Abu<br>Bottles & Print`,
+    };
+  }
   return {
-    subject: "Payment Received – Arrange Pickup/Shipping",
-    body: `Hi ${clientName},<br><br>Payment has been received — thank you. Please go ahead and arrange for pickup/shipping. Please send over any BOLs that we may need for the driver.<br><br>Best regards,<br>Abu<br>Bottles & Print`,
+    subject: "Your Order is Ready – Arrange Pickup/Shipping",
+    body: `Hi ${clientName},<br><br>Your order is complete and ready to go. Please go ahead and arrange for pickup/shipping, and send over any BOLs that we may need for the driver.<br><br>Best regards,<br>Abu<br>Bottles & Print`,
   };
 }

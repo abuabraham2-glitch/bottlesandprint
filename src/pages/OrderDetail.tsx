@@ -187,7 +187,7 @@ export default function OrderDetail() {
     if (newStage === "to_ship") {
       // Auto-send ship stage email to client
       if (order.clients?.email) {
-        const { subject, body } = getShipStageEmail(order.clients.contact_name || order.clients.company);
+        const { subject, body } = getShipStageEmail(order.clients.contact_name || order.clients.company, !!order.paid);
         try {
           await sendStageEmail({
             to_email: order.clients.email,
