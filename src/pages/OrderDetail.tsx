@@ -96,6 +96,7 @@ export default function OrderDetail() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; file_url: string } | null>(null);
   const [moveBackOpen, setMoveBackOpen] = useState(false);
   const [moveBackTarget, setMoveBackTarget] = useState("");
+  const [shipConfirmOpen, setShipConfirmOpen] = useState(false);
   const [bolDialogOpen, setBolDialogOpen] = useState(false);
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
   const [bolRegenOpen, setBolRegenOpen] = useState(false);
@@ -140,7 +141,7 @@ export default function OrderDetail() {
     toast.success("Updated successfully");
   };
 
-  const moveStage = async (newStage: string) => {
+  const moveStage = async (newStage: string, override: boolean = false) => {
     // Guard: require vendor_po_reviewed before WIP
     if (newStage === "wip" && !order.vendor_po_reviewed) {
       toast.error("Vendor PO must be reviewed in QuickBooks before moving to WIP.");
@@ -151,9 +152,10 @@ export default function OrderDetail() {
       toast.error("Invoice must be reviewed in QuickBooks before moving to Completed.");
       return;
     }
-    // Guard: require paid before Ship
-    if (newStage === "to_ship" && !order.paid) {
-      toast.error("Payment must be confirmed before shipping.");
+    // Soft gate: payment not confirmed → open confirmation dialog
+    // (Net 30 / rush orders for trusted clients can override)
+    if (newStage === "to_ship" && !order.paid && !override) {
+      setShipConfirmOpen(true);
       return;
     }
     const updates: Record<string, any> = { stage: newStage };
@@ -517,13 +519,7 @@ export default function OrderDetail() {
           <Button onClick={() => moveStage("completed")}>Mark Completed</Button>
         )}
         {order.stage === "completed" && (
-          <>
-            {order.paid ? (
-              <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>
-            ) : (
-              <span className="text-sm text-muted-foreground">Payment must be confirmed before shipping.</span>
-            )}
-          </>
+          <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>
         )}
         {order.stage === "to_ship" && (
           <>
@@ -1037,6 +1033,29 @@ export default function OrderDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Ship Confirmation Dialog */}
+      <AlertDialog open={shipConfirmOpen} onOpenChange={setShipConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Payment not confirmed</AlertDialogTitle>
+            <AlertDialogDescription>
+              This order has not been marked as Paid. Proceed to Ship anyway?
+              <br /><br />
+              Use this for Net 30 terms or trusted-client rush orders. The order will move to Ship with Paid still marked No — tick the Paid checkbox later when payment actually arrives.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              setShipConfirmOpen(false);
+              await moveStage("to_ship", true);
+            }}>
+              Yes, Ship Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* BOL Regeneration Confirmation */}
       <AlertDialog open={bolRegenOpen} onOpenChange={setBolRegenOpen}>
