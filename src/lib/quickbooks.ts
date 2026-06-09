@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/b6dc8d57-3e50-4b28-bb6f-0fe08bbf1dc4";
 const MONEYSLATE_URL = "https://moneyslate.lovable.app/api/command-center";
-const MONEYSLATE_API_KEY = fff678063afe0848c0f3f1f5dd555622bdfe989862c9be84;
+const MONEYSLATE_API_KEY = "fff678063afe0848c0f3f1f5dd555622bdfe989862c9be84";
 
 async function postToWebhook(payload: Record<string, any>): Promise<boolean> {
   try {
