@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/b6dc8d57-3e50-4b28-bb6f-0fe08bbf1dc4";
 const MONEYSLATE_URL = "https://moneyslate.lovable.app/api/command-center";
-const MONEYSLATE_API_KEY = "PASTE_KEY_HERE";
+const MONEYSLATE_API_KEY = fff678063afe0848c0f3f1f5dd555622bdfe989862c9be84;
 
 async function postToWebhook(payload: Record<string, any>): Promise<boolean> {
   try {
@@ -18,7 +18,12 @@ async function postToWebhook(payload: Record<string, any>): Promise<boolean> {
     clearTimeout(timeout);
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      console.error("QB webhook error:", { status: res.status, statusText: res.statusText, body: errorText, payload: { ...payload, action: payload.action } });
+      console.error("QB webhook error:", {
+        status: res.status,
+        statusText: res.statusText,
+        body: errorText,
+        payload: { ...payload, action: payload.action },
+      });
     }
     return res.ok;
   } catch (err) {
@@ -37,7 +42,7 @@ async function addQbTodo(text: string) {
 
 async function getNextSequenceNumber(counterName: string): Promise<number | null> {
   try {
-    const { data, error } = await supabase.rpc('get_next_sequence_number', { p_counter_name: counterName });
+    const { data, error } = await supabase.rpc("get_next_sequence_number", { p_counter_name: counterName });
     if (error) {
       console.error("Failed to get sequence number:", error);
       return null;
@@ -89,7 +94,7 @@ export async function pushInvoiceToQB(params: {
   items: { description: string; quantity: number }[];
 }): Promise<{ ok: boolean; docNumber?: string }> {
   try {
-    const docNum = await getNextSequenceNumber('invoice');
+    const docNum = await getNextSequenceNumber("invoice");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     const payload: Record<string, any> = {
@@ -114,7 +119,9 @@ export async function pushInvoiceToQB(params: {
     try {
       const json = await res.json();
       docNumber = json?.DocNumber || json?.Invoice?.DocNumber;
-    } catch { /* ignore parse errors */ }
+    } catch {
+      /* ignore parse errors */
+    }
     toast.success("Invoice draft created in QuickBooks.");
     await addQbTodo(`Invoice created — ${params.company}`);
     return { ok: true, docNumber };
@@ -128,10 +135,10 @@ export async function pushVendorPoToQB(params: {
   items: { description: string; quantity: number; memo: string }[];
 }): Promise<{ ok: boolean; docNumber?: string }> {
   try {
-    const docNum = await getNextSequenceNumber('vendor_po');
+    const docNum = await getNextSequenceNumber("vendor_po");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    const combinedMemo = params.items.map(i => i.memo).join(" | ");
+    const combinedMemo = params.items.map((i) => i.memo).join(" | ");
     const payload: Record<string, any> = {
       action: "create_vendor_po",
       items: params.items,
@@ -153,7 +160,9 @@ export async function pushVendorPoToQB(params: {
     try {
       const json = await res.json();
       docNumber = json?.PurchaseOrder?.DocNumber || json?.DocNumber;
-    } catch { /* ignore parse errors */ }
+    } catch {
+      /* ignore parse errors */
+    }
     toast.success("Vendor PO draft created in QuickBooks.");
     await addQbTodo(`Vendor PO created`);
     return { ok: true, docNumber };
@@ -175,7 +184,9 @@ export async function pushToMoneySlate(payload: Record<string, any>): Promise<bo
     });
     clearTimeout(timeout);
     let json: any = null;
-    try { json = await res.json(); } catch {}
+    try {
+      json = await res.json();
+    } catch {}
     if (res.ok && json && json.success) {
       toast.success(`Also created in Money Slate (${json.invoice_number || json.po_number || "ok"})`);
       return true;
