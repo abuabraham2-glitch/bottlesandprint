@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw, Plus, X } from "lucide-react";
-import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, buildOrderDescription } from "@/lib/quickbooks";
+import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, buildOrderDescription, pushToMoneySlate } from "@/lib/quickbooks";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
 import { format, addWeeks } from "date-fns";
