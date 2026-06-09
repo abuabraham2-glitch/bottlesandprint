@@ -163,6 +163,33 @@ export async function pushVendorPoToQB(params: {
   }
 }
 
+export async function pushToMoneySlate(payload: Record<string, any>): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(MONEYSLATE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": MONEYSLATE_API_KEY },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    let json: any = null;
+    try { json = await res.json(); } catch {}
+    if (res.ok && json && json.success) {
+      toast.success(`Also created in Money Slate (${json.invoice_number || json.po_number || "ok"})`);
+      return true;
+    }
+    toast.error(`Money Slate push failed: ${(json && json.error) || res.status}`);
+    console.error("Money Slate push failed:", { status: res.status, body: json });
+    return false;
+  } catch (err) {
+    toast.error("Money Slate push failed (network).");
+    console.error("Money Slate network error:", err);
+    return false;
+  }
+}
+
 export function buildOrderDescription(order: {
   item_name: string;
   bottle_size?: string | null;
