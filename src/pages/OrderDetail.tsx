@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw, Plus, X } from "lucide-react";
-import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, buildOrderDescription } from "@/lib/quickbooks";
+import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, buildOrderDescription, pushToMoneySlate } from "@/lib/quickbooks";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
 import { format, addWeeks } from "date-fns";
@@ -721,6 +721,22 @@ export default function OrderDetail() {
                     if (result.docNumber) updates.vendor_po = result.docNumber;
                     await update(updates);
                   }
+                  await pushToMoneySlate({
+                    action: "create_vendor_po",
+                    vendor_external_id: "arco",
+                    client_company_name: order.clients?.company || "",
+                    internal_po_number: order.vendor_po || "",
+                    expected_delivery_date: null,
+                    items: orderItems.map(item => ({
+                      item_name: item.item_name,
+                      bottle_size: item.bottle_size,
+                      bottle_color: item.bottle_color,
+                      material: item.material,
+                      bottle_type: item.bottle_type,
+                      num_colors: item.num_colors,
+                      quantity: item.quantity,
+                    })),
+                  });
                 }}>
                   <RefreshCw size={10} className="mr-1" /> Push Vendor PO to QuickBooks
                 </Button>
@@ -776,6 +792,22 @@ export default function OrderDetail() {
                     if (result.docNumber) updates.invoice_num = result.docNumber;
                     await update(updates);
                   }
+                  await pushToMoneySlate({
+                    action: "create_invoice",
+                    client_external_id: order.clients?.id || "",
+                    client_po_number: order.client_po || "",
+                    due_date: null,
+                    payment_terms: null,
+                    items: orderItems.map(item => ({
+                      item_name: item.item_name,
+                      bottle_size: item.bottle_size,
+                      bottle_color: item.bottle_color,
+                      material: item.material,
+                      bottle_type: item.bottle_type,
+                      num_colors: item.num_colors,
+                      quantity: item.quantity,
+                    })),
+                  });
                 }}>
                   <RefreshCw size={10} className="mr-1" /> Push to QB
                 </Button>
