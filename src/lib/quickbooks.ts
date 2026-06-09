@@ -2,6 +2,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 const WEBHOOK_URL = "https://bottlesandprint.app.n8n.cloud/webhook/b6dc8d57-3e50-4b28-bb6f-0fe08bbf1dc4";
+const MONEYSLATE_URL = "https://moneyslate.lovable.app/api/command-center";
+const MONEYSLATE_API_KEY = "PASTE_KEY_HERE";
 
 async function postToWebhook(payload: Record<string, any>): Promise<boolean> {
   try {
