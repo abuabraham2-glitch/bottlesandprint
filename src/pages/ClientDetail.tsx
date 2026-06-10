@@ -76,6 +76,29 @@ export default function ClientDetail() {
     setDeleteDocTarget(null);
   };
 
+  const handleArchiveClick = () => {
+    const activeOrders = orders.filter(o => o.client_id === id && !o.archived);
+    if (activeOrders.length > 0) {
+      setArchiveError("This client has active orders and cannot be archived. Archive the orders first.");
+    } else {
+      setArchiveError(null);
+    }
+    setArchiveOpen(true);
+  };
+
+  const confirmArchive = async () => {
+    await updateClient.mutateAsync({ id: client.id, archived: true });
+    void pushClientToMoneySlate({ ...(client as any), archived: true });
+    toast.success("Client archived");
+    navigate("/clients");
+  };
+
+  const handleRestore = async () => {
+    await updateClient.mutateAsync({ id: client.id, archived: false });
+    void pushClientToMoneySlate({ ...(client as any), archived: false });
+    toast.success("Client restored");
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1200px]">
       <div className="flex items-center gap-3">
