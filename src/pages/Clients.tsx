@@ -232,6 +232,12 @@ export default function Clients() {
                   {(client as any).orders_contact_name && <p className="text-sm text-muted-foreground">{(client as any).orders_contact_name}</p>}
                 </div>
                 <div className="flex items-center gap-1">
+                  <span onClick={(e) => e.stopPropagation()} className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                    <Checkbox
+                      checked={selectedIds.has(client.id)}
+                      onCheckedChange={() => toggleSelected(client.id)}
+                    />
+                  </span>
                   {activeTab === "active" && (
                     <button onClick={e => handleArchiveClick(client.id, client.company, e)} className="text-muted-foreground hover:text-foreground p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" title="Archive">
                       <Archive size={16} />
