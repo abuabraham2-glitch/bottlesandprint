@@ -105,6 +105,11 @@ export default function ClientDetail() {
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
         <h1 className="text-2xl font-bold">{client.company}</h1>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil size={14} className="mr-1" /> Edit</Button>
+        {(client as any).archived ? (
+          <Button variant="outline" size="sm" onClick={handleRestore}><RotateCcw size={14} className="mr-1" /> Restore</Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={handleArchiveClick}><Archive size={14} className="mr-1" /> Archive</Button>
+        )}
         <Button variant="outline" size="sm" onClick={handleDeleteClick} className="text-destructive hover:text-destructive"><Trash2 size={14} className="mr-1" /> Delete</Button>
         <Button variant="outline" size="sm" onClick={() => syncClientToQB(client)}><RefreshCw size={14} className="mr-1" /> Sync to QuickBooks</Button>
       </div>
