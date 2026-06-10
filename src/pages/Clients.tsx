@@ -27,6 +27,54 @@ export default function Clients() {
   const [archiveTarget, setArchiveTarget] = useState<{ id: string; company: string } | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"archive" | "delete" | null>(null);
+  const [bulkWorking, setBulkWorking] = useState(false);
+
+  const switchTab = (tab: "active" | "archived") => {
+    setActiveTab(tab);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async () => {
+    if (!bulkAction) return;
+    const selectedClients = allClients.filter(c => selectedIds.has(c.id));
+    const blocked = selectedClients.filter(c => orders.filter(o => o.client_id === c.id && !o.archived).length > 0);
+    const eligible = selectedClients.filter(c => !blocked.includes(c));
+    if (eligible.length === 0) { setBulkAction(null); return; }
+    setBulkWorking(true);
+    let success = 0, fail = 0;
+    for (const c of eligible) {
+      try {
+        if (bulkAction === "archive") {
+          await updateClient.mutateAsync({ id: c.id, archived: true });
+          void pushClientToMoneySlate({ ...(c as any), archived: true });
+        } else {
+          await deleteClient.mutateAsync(c.id);
+        }
+        success++;
+      } catch (err) {
+        console.error("Bulk action failed for", c.company, err);
+        fail++;
+      }
+    }
+    setBulkWorking(false);
+    if (fail === 0) {
+      toast.success(`${success} client${success !== 1 ? "s" : ""} ${bulkAction === "archive" ? "archived" : "deleted"}`);
+    } else {
+      toast.error(`${success} succeeded, ${fail} failed — please retry the failed ones`);
+    }
+    setBulkAction(null);
+    setSelectedIds(new Set());
+  };
 
   const activeClients = allClients.filter(c => !c.archived);
   const archivedClients = allClients.filter(c => c.archived);
