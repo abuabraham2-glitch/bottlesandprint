@@ -1,16 +1,16 @@
 import { useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useClient, useOrders, useCatalog, useDeleteClient, useClientDocuments, useUploadClientDocument, useDeleteClientDocument } from "@/lib/data";
+import { useClient, useOrders, useCatalog, useDeleteClient, useClientDocuments, useUploadClientDocument, useDeleteClientDocument, useUpdateClient } from "@/lib/data";
 import { getStageBadgeClass, getStageLabel, formatAddress, formatDateShort } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw, Upload, FileText, ExternalLink } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw, Upload, FileText, ExternalLink, Archive, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClientForm } from "./Clients";
-import { syncClientToQB } from "@/lib/quickbooks";
+import { syncClientToQB, pushClientToMoneySlate } from "@/lib/quickbooks";
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -20,11 +20,14 @@ export default function ClientDetail() {
   const { data: catalog = [] } = useCatalog(id);
   const { data: clientDocs = [] } = useClientDocuments(id!);
   const deleteClient = useDeleteClient();
+  const updateClient = useUpdateClient();
   const uploadClientDoc = useUploadClientDocument();
   const deleteClientDoc = useDeleteClientDocument();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [deleteDocTarget, setDeleteDocTarget] = useState<{ id: string; fileUrl: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,12 +76,40 @@ export default function ClientDetail() {
     setDeleteDocTarget(null);
   };
 
+  const handleArchiveClick = () => {
+    const activeOrders = orders.filter(o => o.client_id === id && !o.archived);
+    if (activeOrders.length > 0) {
+      setArchiveError("This client has active orders and cannot be archived. Archive the orders first.");
+    } else {
+      setArchiveError(null);
+    }
+    setArchiveOpen(true);
+  };
+
+  const confirmArchive = async () => {
+    await updateClient.mutateAsync({ id: client.id, archived: true });
+    void pushClientToMoneySlate({ ...(client as any), archived: true });
+    toast.success("Client archived");
+    navigate("/clients");
+  };
+
+  const handleRestore = async () => {
+    await updateClient.mutateAsync({ id: client.id, archived: false });
+    void pushClientToMoneySlate({ ...(client as any), archived: false });
+    toast.success("Client restored");
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1200px]">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
         <h1 className="text-2xl font-bold">{client.company}</h1>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil size={14} className="mr-1" /> Edit</Button>
+        {(client as any).archived ? (
+          <Button variant="outline" size="sm" onClick={handleRestore}><RotateCcw size={14} className="mr-1" /> Restore</Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={handleArchiveClick}><Archive size={14} className="mr-1" /> Archive</Button>
+        )}
         <Button variant="outline" size="sm" onClick={handleDeleteClick} className="text-destructive hover:text-destructive"><Trash2 size={14} className="mr-1" /> Delete</Button>
         <Button variant="outline" size="sm" onClick={() => syncClientToQB(client)}><RefreshCw size={14} className="mr-1" /> Sync to QuickBooks</Button>
       </div>
@@ -247,6 +278,25 @@ export default function ClientDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Archive Client Dialog */}
+      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{archiveError ? "Cannot Archive Client" : "Archive Client"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {archiveError || `Archive "${client.company}"? They will be moved to the Archived tab.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {!archiveError && (
+              <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {/* Delete Document Dialog */}
       <AlertDialog open={!!deleteDocTarget} onOpenChange={(open) => { if (!open) setDeleteDocTarget(null); }}>
