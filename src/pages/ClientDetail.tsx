@@ -1,16 +1,16 @@
 import { useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useClient, useOrders, useCatalog, useDeleteClient, useClientDocuments, useUploadClientDocument, useDeleteClientDocument } from "@/lib/data";
+import { useClient, useOrders, useCatalog, useDeleteClient, useClientDocuments, useUploadClientDocument, useDeleteClientDocument, useUpdateClient } from "@/lib/data";
 import { getStageBadgeClass, getStageLabel, formatAddress, formatDateShort } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw, Upload, FileText, ExternalLink } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Pencil, Trash2, RefreshCw, Upload, FileText, ExternalLink, Archive, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClientForm } from "./Clients";
-import { syncClientToQB } from "@/lib/quickbooks";
+import { syncClientToQB, pushClientToMoneySlate } from "@/lib/quickbooks";
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
