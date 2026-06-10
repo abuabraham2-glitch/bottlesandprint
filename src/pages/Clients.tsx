@@ -166,7 +166,7 @@ export default function Clients() {
       {/* Active / Archived tabs */}
       <div className="flex flex-wrap gap-1">
         <button
-          onClick={() => setActiveTab("active")}
+          onClick={() => switchTab("active")}
           className={`px-3 py-2 text-xs font-medium rounded-md transition-colors min-h-[44px] ${
             activeTab === "active"
               ? "bg-primary text-primary-foreground"
@@ -176,7 +176,7 @@ export default function Clients() {
           Active ({activeClients.length})
         </button>
         <button
-          onClick={() => setActiveTab("archived")}
+          onClick={() => switchTab("archived")}
           className={`px-3 py-2 text-xs font-medium rounded-md transition-colors min-h-[44px] ${
             activeTab === "archived"
               ? "bg-primary text-primary-foreground"
@@ -186,6 +186,35 @@ export default function Clients() {
           Archived ({archivedClients.length})
         </button>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={clients.length > 0 && clients.every(c => selectedIds.has(c.id))}
+                onCheckedChange={(v) => {
+                  if (v) setSelectedIds(new Set(clients.map(c => c.id)));
+                  else setSelectedIds(new Set());
+                }}
+              />
+              Select all
+            </label>
+            <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeTab === "active" && (
+              <Button variant="outline" size="sm" onClick={() => setBulkAction("archive")}>
+                <Archive size={14} className="mr-1" /> Archive Selected
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkAction("delete")}>
+              <Trash2 size={14} className="mr-1" /> Delete Selected
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {clients.map(client => {
