@@ -364,6 +364,14 @@ export function ClientForm({ onSuccess, initialData }: { onSuccess: () => void; 
       clientId = created?.id;
     }
 
+    if (clientId) {
+      void pushClientToMoneySlate({
+        ...form,
+        id: clientId,
+        archived: isEdit ? initialData.archived === true : false,
+      });
+    }
+
     // Upload the document to storage if we have one
     if (docFile && clientId) {
       try {
