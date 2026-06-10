@@ -172,7 +172,8 @@ export async function pushVendorPoToQB(params: {
   }
 }
 
-export async function pushToMoneySlate(payload: Record<string, any>): Promise<boolean> {
+export async function pushToMoneySlate(payload: Record<string, any>, opts?: { quiet?: boolean }): Promise<boolean> {
+  const quiet = opts?.quiet === true;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -188,17 +189,67 @@ export async function pushToMoneySlate(payload: Record<string, any>): Promise<bo
       json = await res.json();
     } catch {}
     if (res.ok && json && json.success) {
-      toast.success(`Also created in Money Slate (${json.invoice_number || json.po_number || "ok"})`);
+      if (!quiet) toast.success(`Also created in Money Slate (${json.invoice_number || json.po_number || "ok"})`);
       return true;
     }
-    toast.error(`Money Slate push failed: ${(json && json.error) || res.status}`);
+    if (!quiet) toast.error(`Money Slate push failed: ${(json && json.error) || res.status}`);
     console.error("Money Slate push failed:", { status: res.status, body: json });
     return false;
   } catch (err) {
-    toast.error("Money Slate push failed (network).");
+    if (!quiet) toast.error("Money Slate push failed (network).");
     console.error("Money Slate network error:", err);
     return false;
   }
+}
+
+export async function pushClientToMoneySlate(client: {
+  id: string;
+  company: string;
+  orders_contact_name?: string | null;
+  orders_email?: string | null;
+  orders_phone?: string | null;
+  street_address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  billing_street?: string | null;
+  billing_city?: string | null;
+  billing_state?: string | null;
+  billing_zip?: string | null;
+  ap_contact_name?: string | null;
+  ap_email?: string | null;
+  ap_phone?: string | null;
+  archived?: boolean | null;
+}) {
+  return pushToMoneySlate(
+    {
+      action: "create_customer",
+      external_id: client.id,
+      company_name: client.company,
+      contact_name: client.orders_contact_name || null,
+      contact_email: client.orders_email || null,
+      contact_phone: client.orders_phone || null,
+      billing_address: {
+        street: client.billing_street || null,
+        city: client.billing_city || null,
+        state: client.billing_state || null,
+        zip: client.billing_zip || null,
+      },
+      shipping_address: {
+        street: client.street_address || null,
+        city: client.city || null,
+        state: client.state || null,
+        zip: client.zip || null,
+      },
+      ap_contact: {
+        name: client.ap_contact_name || null,
+        email: client.ap_email || null,
+        phone: client.ap_phone || null,
+      },
+      archived: client.archived === true,
+    },
+    { quiet: true }
+  );
 }
 
 export function buildOrderDescription(order: {
