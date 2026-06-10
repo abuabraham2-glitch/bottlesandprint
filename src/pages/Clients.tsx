@@ -27,6 +27,54 @@ export default function Clients() {
   const [archiveTarget, setArchiveTarget] = useState<{ id: string; company: string } | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"archive" | "delete" | null>(null);
+  const [bulkWorking, setBulkWorking] = useState(false);
+
+  const switchTab = (tab: "active" | "archived") => {
+    setActiveTab(tab);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulk = async () => {
+    if (!bulkAction) return;
+    const selectedClients = allClients.filter(c => selectedIds.has(c.id));
+    const blocked = selectedClients.filter(c => orders.filter(o => o.client_id === c.id && !o.archived).length > 0);
+    const eligible = selectedClients.filter(c => !blocked.includes(c));
+    if (eligible.length === 0) { setBulkAction(null); return; }
+    setBulkWorking(true);
+    let success = 0, fail = 0;
+    for (const c of eligible) {
+      try {
+        if (bulkAction === "archive") {
+          await updateClient.mutateAsync({ id: c.id, archived: true });
+          void pushClientToMoneySlate({ ...(c as any), archived: true });
+        } else {
+          await deleteClient.mutateAsync(c.id);
+        }
+        success++;
+      } catch (err) {
+        console.error("Bulk action failed for", c.company, err);
+        fail++;
+      }
+    }
+    setBulkWorking(false);
+    if (fail === 0) {
+      toast.success(`${success} client${success !== 1 ? "s" : ""} ${bulkAction === "archive" ? "archived" : "deleted"}`);
+    } else {
+      toast.error(`${success} succeeded, ${fail} failed — please retry the failed ones`);
+    }
+    setBulkAction(null);
+    setSelectedIds(new Set());
+  };
 
   const activeClients = allClients.filter(c => !c.archived);
   const archivedClients = allClients.filter(c => c.archived);
@@ -118,7 +166,7 @@ export default function Clients() {
       {/* Active / Archived tabs */}
       <div className="flex flex-wrap gap-1">
         <button
-          onClick={() => setActiveTab("active")}
+          onClick={() => switchTab("active")}
           className={`px-3 py-2 text-xs font-medium rounded-md transition-colors min-h-[44px] ${
             activeTab === "active"
               ? "bg-primary text-primary-foreground"
@@ -128,7 +176,7 @@ export default function Clients() {
           Active ({activeClients.length})
         </button>
         <button
-          onClick={() => setActiveTab("archived")}
+          onClick={() => switchTab("archived")}
           className={`px-3 py-2 text-xs font-medium rounded-md transition-colors min-h-[44px] ${
             activeTab === "archived"
               ? "bg-primary text-primary-foreground"
@@ -138,6 +186,35 @@ export default function Clients() {
           Archived ({archivedClients.length})
         </button>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={clients.length > 0 && clients.every(c => selectedIds.has(c.id))}
+                onCheckedChange={(v) => {
+                  if (v) setSelectedIds(new Set(clients.map(c => c.id)));
+                  else setSelectedIds(new Set());
+                }}
+              />
+              Select all
+            </label>
+            <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeTab === "active" && (
+              <Button variant="outline" size="sm" onClick={() => setBulkAction("archive")}>
+                <Archive size={14} className="mr-1" /> Archive Selected
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkAction("delete")}>
+              <Trash2 size={14} className="mr-1" /> Delete Selected
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {clients.map(client => {
@@ -155,6 +232,12 @@ export default function Clients() {
                   {(client as any).orders_contact_name && <p className="text-sm text-muted-foreground">{(client as any).orders_contact_name}</p>}
                 </div>
                 <div className="flex items-center gap-1">
+                  <span onClick={(e) => e.stopPropagation()} className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                    <Checkbox
+                      checked={selectedIds.has(client.id)}
+                      onCheckedChange={() => toggleSelected(client.id)}
+                    />
+                  </span>
                   {activeTab === "active" && (
                     <button onClick={e => handleArchiveClick(client.id, client.company, e)} className="text-muted-foreground hover:text-foreground p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" title="Archive">
                       <Archive size={16} />
@@ -224,6 +307,63 @@ export default function Clients() {
               <AlertDialogAction onClick={confirmDeleteClient} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
             )}
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Action Confirmation */}
+      <AlertDialog open={!!bulkAction} onOpenChange={(open) => { if (!open && !bulkWorking) setBulkAction(null); }}>
+        <AlertDialogContent>
+          {(() => {
+            const selectedClients = allClients.filter(c => selectedIds.has(c.id));
+            const blocked = bulkAction === "archive"
+              ? selectedClients.filter(c => orders.filter(o => o.client_id === c.id && !o.archived).length > 0)
+              : selectedClients.filter(c => orders.filter(o => o.client_id === c.id && !o.archived).length > 0);
+            const eligible = selectedClients.filter(c => !blocked.includes(c));
+            const verb = bulkAction === "archive" ? "archive" : "delete";
+            const Verb = bulkAction === "archive" ? "Archive" : "Delete";
+            if (eligible.length === 0) {
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Nothing to {verb}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      All selected clients have active orders. Archive their orders first.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  </AlertDialogFooter>
+                </>
+              );
+            }
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{Verb} {eligible.length} client{eligible.length !== 1 ? "s" : ""}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {bulkAction === "archive"
+                      ? "These clients will be moved to the Archived tab."
+                      : "This permanently deletes these clients and cannot be undone."}
+                    {blocked.length > 0 && (
+                      <span className="block mt-2">
+                        {blocked.length} will be skipped (active orders): {blocked.map(b => b.company).join(", ")}
+                      </span>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={bulkWorking}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => { e.preventDefault(); void runBulk(); }}
+                    disabled={bulkWorking}
+                    className={bulkAction === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+                  >
+                    {bulkWorking ? "Working..." : Verb}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
         </AlertDialogContent>
       </AlertDialog>
     </div>
