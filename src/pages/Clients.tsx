@@ -47,6 +47,8 @@ export default function Clients() {
   const confirmArchive = async () => {
     if (!archiveTarget || archiveError) { setArchiveTarget(null); setArchiveError(null); return; }
     await updateClient.mutateAsync({ id: archiveTarget.id, archived: true });
+    const c = allClients.find(x => x.id === archiveTarget.id);
+    if (c) void pushClientToMoneySlate({ ...(c as any), archived: true });
     toast.success("Client archived");
     setArchiveTarget(null);
   };
@@ -54,6 +56,8 @@ export default function Clients() {
   const restoreClient = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     await updateClient.mutateAsync({ id, archived: false });
+    const c = allClients.find(x => x.id === id);
+    if (c) void pushClientToMoneySlate({ ...(c as any), archived: false });
     toast.success("Client restored");
   };
 
