@@ -20,11 +20,14 @@ export default function ClientDetail() {
   const { data: catalog = [] } = useCatalog(id);
   const { data: clientDocs = [] } = useClientDocuments(id!);
   const deleteClient = useDeleteClient();
+  const updateClient = useUpdateClient();
   const uploadClientDoc = useUploadClientDocument();
   const deleteClientDoc = useDeleteClientDocument();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [deleteDocTarget, setDeleteDocTarget] = useState<{ id: string; fileUrl: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
