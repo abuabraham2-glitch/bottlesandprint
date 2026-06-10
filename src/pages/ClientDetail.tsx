@@ -279,6 +279,25 @@ export default function ClientDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Archive Client Dialog */}
+      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{archiveError ? "Cannot Archive Client" : "Archive Client"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {archiveError || `Archive "${client.company}"? They will be moved to the Archived tab.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {!archiveError && (
+              <AlertDialogAction onClick={confirmArchive}>Archive</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
       {/* Delete Document Dialog */}
       <AlertDialog open={!!deleteDocTarget} onOpenChange={(open) => { if (!open) setDeleteDocTarget(null); }}>
         <AlertDialogContent>
