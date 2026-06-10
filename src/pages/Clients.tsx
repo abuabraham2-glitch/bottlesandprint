@@ -309,6 +309,63 @@ export default function Clients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Action Confirmation */}
+      <AlertDialog open={!!bulkAction} onOpenChange={(open) => { if (!open && !bulkWorking) setBulkAction(null); }}>
+        <AlertDialogContent>
+          {(() => {
+            const selectedClients = allClients.filter(c => selectedIds.has(c.id));
+            const blocked = bulkAction === "archive"
+              ? selectedClients.filter(c => orders.filter(o => o.client_id === c.id && !o.archived).length > 0)
+              : selectedClients.filter(c => orders.filter(o => o.client_id === c.id && !o.archived).length > 0);
+            const eligible = selectedClients.filter(c => !blocked.includes(c));
+            const verb = bulkAction === "archive" ? "archive" : "delete";
+            const Verb = bulkAction === "archive" ? "Archive" : "Delete";
+            if (eligible.length === 0) {
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Nothing to {verb}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      All selected clients have active orders. Archive their orders first.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  </AlertDialogFooter>
+                </>
+              );
+            }
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{Verb} {eligible.length} client{eligible.length !== 1 ? "s" : ""}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {bulkAction === "archive"
+                      ? "These clients will be moved to the Archived tab."
+                      : "This permanently deletes these clients and cannot be undone."}
+                    {blocked.length > 0 && (
+                      <span className="block mt-2">
+                        {blocked.length} will be skipped (active orders): {blocked.map(b => b.company).join(", ")}
+                      </span>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={bulkWorking}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => { e.preventDefault(); void runBulk(); }}
+                    disabled={bulkWorking}
+                    className={bulkAction === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+                  >
+                    {bulkWorking ? "Working..." : Verb}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
