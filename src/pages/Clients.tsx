@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AddressFields from "@/components/AddressFields";
-import { syncClientToQB } from "@/lib/quickbooks";
+import { syncClientToQB, pushClientToMoneySlate } from "@/lib/quickbooks";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Clients() {
