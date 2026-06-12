@@ -6,17 +6,65 @@ export const STAGES = [
   { key: "close", label: "Close", description: "Final review — archive", color: "bg-stone-500" },
 ] as const;
 
-export const STAGE_KEYS = STAGES.map(s => s.key);
+export const STAGE_KEYS = STAGES.map((s) => s.key);
 
 export const BOTTLE_TYPES = ["Bottle", "Jar", "Packer", "Dropper Bottle", "Tube"];
 export const MATERIALS = ["HDPE", "Glass", "PET", "PP"];
-export const COLORS = ["White", "Clear", "Amber", "Black"];
+export const COLORS = ["Natural", "White", "Clear", "Amber", "Black"];
 export const DOC_TYPES = ["Client PO", "Invoice", "Signed BOL", "Approved Proof", "Incoming BOL", "Other"];
 
 export const US_STATES = [
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
-  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
-  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"
+  "AL",
+  "AK",
+  "AZ",
+  "AR",
+  "CA",
+  "CO",
+  "CT",
+  "DE",
+  "FL",
+  "GA",
+  "HI",
+  "ID",
+  "IL",
+  "IN",
+  "IA",
+  "KS",
+  "KY",
+  "LA",
+  "ME",
+  "MD",
+  "MA",
+  "MI",
+  "MN",
+  "MS",
+  "MO",
+  "MT",
+  "NE",
+  "NV",
+  "NH",
+  "NJ",
+  "NM",
+  "NY",
+  "NC",
+  "ND",
+  "OH",
+  "OK",
+  "OR",
+  "PA",
+  "RI",
+  "SC",
+  "SD",
+  "TN",
+  "TX",
+  "UT",
+  "VT",
+  "VA",
+  "WA",
+  "WV",
+  "WI",
+  "WY",
+  "DC",
 ];
 
 export function getStageBadgeClass(stage: string) {
@@ -31,10 +79,17 @@ export function getStageBadgeClass(stage: string) {
 }
 
 export function getStageLabel(stage: string) {
-  return STAGES.find(s => s.key === stage)?.label || stage;
+  return STAGES.find((s) => s.key === stage)?.label || stage;
 }
 
-export function checklistCount(order: { checklist_new_client_form: boolean; checklist_artwork_in: boolean; checklist_proof_approved: boolean; checklist_purchase_order: boolean; checklist_bottles: boolean; checklist_art_order_logged: boolean }) {
+export function checklistCount(order: {
+  checklist_new_client_form: boolean;
+  checklist_artwork_in: boolean;
+  checklist_proof_approved: boolean;
+  checklist_purchase_order: boolean;
+  checklist_bottles: boolean;
+  checklist_art_order_logged: boolean;
+}) {
   return [
     order.checklist_new_client_form,
     order.checklist_artwork_in,
@@ -65,11 +120,18 @@ export function generateInvoiceNumber() {
   const now = new Date();
   const y = now.getFullYear().toString().slice(-2);
   const m = (now.getMonth() + 1).toString().padStart(2, "0");
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  const rand = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0");
   return `INV-${y}${m}-${rand}`;
 }
 
-export function formatAddress(street?: string | null, city?: string | null, state?: string | null, zip?: string | null) {
+export function formatAddress(
+  street?: string | null,
+  city?: string | null,
+  state?: string | null,
+  zip?: string | null,
+) {
   const line1 = street || "";
   const parts = [city, state].filter(Boolean).join(", ");
   const line2 = [parts, zip].filter(Boolean).join(" ");
