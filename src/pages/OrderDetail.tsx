@@ -68,6 +68,7 @@ import {
   pushVendorPoToQB,
   buildOrderDescription,
   pushToMoneySlate,
+  getNextSequenceNumber,
 } from "@/lib/quickbooks";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
@@ -819,21 +820,19 @@ export default function OrderDetail() {
                   size="sm"
                   className="h-7 text-xs"
                   onClick={async () => {
+                    const seqNum = await getNextSequenceNumber("vendor_po");
+                    if (seqNum === null) {
+                      toast.error("Could not generate a PO number. Try again.");
+                      return;
+                    }
+                    const vendorPoNumber = seqNum.toString();
+                    await update({ vendor_po: vendorPoNumber, vendor_po_reviewed: false });
                     const items = orderItems.map((item) => ({
                       description: `${order.clients?.company || ""} - ${buildOrderDescription(item)}`,
                       quantity: item.quantity || 1,
                       memo: [item.item_name, item.bottle_size].filter(Boolean).join(" "),
                     }));
-                    const result = await pushVendorPoToQB({ items });
-                    const vendorPoNumber = result.docNumber || result.generatedNumber || "";
-                    alert(
-                      `DEBUG → ok:${result.ok} | docNumber:${result.docNumber} | generatedNumber:${result.generatedNumber} | sending:${vendorPoNumber}`,
-                    );
-                    if (result.ok) {
-                      const updates: Record<string, any> = { vendor_po_reviewed: false };
-                      if (result.docNumber) updates.vendor_po = result.docNumber;
-                      await update(updates);
-                    }
+                    await pushVendorPoToQB({ items, docNumber: vendorPoNumber });
                     await pushToMoneySlate({
                       action: "create_vendor_po",
                       vendor_external_id: "arco",
@@ -905,21 +904,23 @@ export default function OrderDetail() {
                   size="sm"
                   className="h-7 text-xs"
                   onClick={async () => {
+                    const seqNum = await getNextSequenceNumber("invoice");
+                    if (seqNum === null) {
+                      toast.error("Could not generate an invoice number. Try again.");
+                      return;
+                    }
+                    const invoiceNumber = seqNum.toString();
+                    await update({ invoice_num: invoiceNumber, invoice_reviewed: false });
                     const items = orderItems.map((item) => ({
                       description: buildOrderDescription(item),
                       quantity: item.quantity || 1,
                     }));
-                    const result = await pushInvoiceToQB({
+                    await pushInvoiceToQB({
                       company: order.clients?.company || "",
                       client_po: order.client_po || "",
                       items,
+                      docNumber: invoiceNumber,
                     });
-                    const invoiceNumber = result.docNumber || result.generatedNumber || "";
-                    if (result.ok) {
-                      const updates: Record<string, any> = { invoice_reviewed: false };
-                      if (result.docNumber) updates.invoice_num = result.docNumber;
-                      await update(updates);
-                    }
                     await pushToMoneySlate({
                       action: "create_invoice",
                       client_external_id: order.clients?.id || "",
