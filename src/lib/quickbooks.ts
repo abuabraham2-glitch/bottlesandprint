@@ -92,7 +92,7 @@ export async function pushInvoiceToQB(params: {
   company: string;
   client_po: string;
   items: { description: string; quantity: number }[];
-}): Promise<{ ok: boolean; docNumber?: string }> {
+}): Promise<{ ok: boolean; docNumber?: string; generatedNumber?: string }> {
   try {
     const docNum = await getNextSequenceNumber("invoice");
     const controller = new AbortController();
@@ -124,7 +124,7 @@ export async function pushInvoiceToQB(params: {
     }
     toast.success("Invoice draft created in QuickBooks.");
     await addQbTodo(`Invoice created — ${params.company}`);
-    return { ok: true, docNumber };
+    return { ok: true, docNumber, generatedNumber: docNum !== null ? docNum.toString() : undefined };
   } catch {
     toast.error("Failed to push invoice to QuickBooks.");
     return { ok: false };
@@ -248,7 +248,7 @@ export async function pushClientToMoneySlate(client: {
       },
       archived: client.archived === true,
     },
-    { quiet: true }
+    { quiet: true },
   );
 }
 
