@@ -133,7 +133,7 @@ export async function pushInvoiceToQB(params: {
 
 export async function pushVendorPoToQB(params: {
   items: { description: string; quantity: number; memo: string }[];
-}): Promise<{ ok: boolean; docNumber?: string }> {
+}): Promise<{ ok: boolean; docNumber?: string; generatedNumber?: string }> {
   try {
     const docNum = await getNextSequenceNumber("vendor_po");
     const controller = new AbortController();
@@ -165,7 +165,7 @@ export async function pushVendorPoToQB(params: {
     }
     toast.success("Vendor PO draft created in QuickBooks.");
     await addQbTodo(`Vendor PO created`);
-    return { ok: true, docNumber };
+    return { ok: true, docNumber, generatedNumber: docNum !== null ? docNum.toString() : undefined };
   } catch {
     toast.error("Failed to create Vendor PO in QuickBooks.");
     return { ok: false };
