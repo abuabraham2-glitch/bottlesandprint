@@ -826,6 +826,9 @@ export default function OrderDetail() {
                     }));
                     const result = await pushVendorPoToQB({ items });
                     const vendorPoNumber = result.docNumber || result.generatedNumber || "";
+                    alert(
+                      `DEBUG → ok:${result.ok} | docNumber:${result.docNumber} | generatedNumber:${result.generatedNumber} | sending:${vendorPoNumber}`,
+                    );
                     if (result.ok) {
                       const updates: Record<string, any> = { vendor_po_reviewed: false };
                       if (result.docNumber) updates.vendor_po = result.docNumber;
