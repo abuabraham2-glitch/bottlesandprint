@@ -40,7 +40,7 @@ async function addQbTodo(text: string) {
   }
 }
 
-async function getNextSequenceNumber(counterName: string): Promise<number | null> {
+export async function getNextSequenceNumber(counterName: string): Promise<number | null> {
   try {
     const { data, error } = await supabase.rpc("get_next_sequence_number", { p_counter_name: counterName });
     if (error) {
@@ -92,9 +92,9 @@ export async function pushInvoiceToQB(params: {
   company: string;
   client_po: string;
   items: { description: string; quantity: number }[];
-}): Promise<{ ok: boolean; docNumber?: string; generatedNumber?: string }> {
+  docNumber: string;
+}): Promise<{ ok: boolean; docNumber?: string }> {
   try {
-    const docNum = await getNextSequenceNumber("invoice");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     const payload: Record<string, any> = {
@@ -102,8 +102,8 @@ export async function pushInvoiceToQB(params: {
       company: params.company,
       client_po: params.client_po,
       items: params.items,
+      doc_number: params.docNumber,
     };
-    if (docNum !== null) payload.doc_number = docNum.toString();
     const res = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ export async function pushInvoiceToQB(params: {
     }
     toast.success("Invoice draft created in QuickBooks.");
     await addQbTodo(`Invoice created — ${params.company}`);
-    return { ok: true, docNumber, generatedNumber: docNum !== null ? docNum.toString() : undefined };
+    return { ok: true, docNumber };
   } catch {
     toast.error("Failed to push invoice to QuickBooks.");
     return { ok: false };
@@ -133,9 +133,9 @@ export async function pushInvoiceToQB(params: {
 
 export async function pushVendorPoToQB(params: {
   items: { description: string; quantity: number; memo: string }[];
-}): Promise<{ ok: boolean; docNumber?: string; generatedNumber?: string }> {
+  docNumber: string;
+}): Promise<{ ok: boolean; docNumber?: string }> {
   try {
-    const docNum = await getNextSequenceNumber("vendor_po");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
     const combinedMemo = params.items.map((i) => i.memo).join(" | ");
@@ -143,8 +143,8 @@ export async function pushVendorPoToQB(params: {
       action: "create_vendor_po",
       items: params.items,
       memo: combinedMemo,
+      doc_number: params.docNumber,
     };
-    if (docNum !== null) payload.doc_number = docNum.toString();
     const res = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,7 +165,7 @@ export async function pushVendorPoToQB(params: {
     }
     toast.success("Vendor PO draft created in QuickBooks.");
     await addQbTodo(`Vendor PO created`);
-    return { ok: true, docNumber, generatedNumber: docNum !== null ? docNum.toString() : undefined };
+    return { ok: true, docNumber };
   } catch {
     toast.error("Failed to create Vendor PO in QuickBooks.");
     return { ok: false };
