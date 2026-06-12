@@ -194,6 +194,37 @@ export default function OrderDetail() {
     [id, updateOrder],
   );
 
+  const [checkingPaid, setCheckingPaid] = useState(false);
+  const checkPaidStatus = useCallback(async () => {
+    const invNum = (order as any)?.invoice_num;
+    if (!invNum) {
+      toast.error("No invoice number on this order yet.");
+      return;
+    }
+    setCheckingPaid(true);
+    try {
+      const res = await fetch(
+        `https://moneyslate.lovable.app/api/invoice-status?invoice_number=${encodeURIComponent(invNum)}`,
+        { headers: { "X-API-Key": "5ebd79350fd9eba9706751108ab83aec15d1b8d1c9690ba3" } },
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(`Could not check status: ${data.error || res.status}`);
+        return;
+      }
+      if (data.paid) {
+        await update({ paid: true });
+        toast.success("Money Slate says PAID — marked paid.");
+      } else {
+        toast(`Still unpaid in Money Slate (status: ${data.status}).`);
+      }
+    } catch (e: any) {
+      toast.error(`Status check failed: ${e?.message || "network error"}`);
+    } finally {
+      setCheckingPaid(false);
+    }
+  }, [order, update]);
+
   const relatedOrders = useMemo(() => {
     if (!order?.client_po) return [];
     return allOrders.filter((o) => o.client_po === order.client_po && o.id !== order.id && !o.archived);
@@ -944,10 +975,24 @@ export default function OrderDetail() {
                 </Button>
               </div>
             )}
-            <label className="flex items-center justify-between cursor-pointer">
+            <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Paid</span>
-              <Checkbox checked={(order as any).paid || false} onCheckedChange={(v) => update({ paid: !!v })} />
-            </label>
+              <div className="flex items-center gap-2">
+                {(order as any).paid ? (
+                  <span className="text-xs font-semibold text-green-600">PAID</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={checkPaidStatus}
+                    disabled={checkingPaid}
+                    className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    {checkingPaid ? "Checking…" : "UNPAID — check"}
+                  </button>
+                )}
+                <Checkbox checked={(order as any).paid || false} onCheckedChange={(v) => update({ paid: !!v })} />
+              </div>
+            </div>
             {/* QB Review Checkboxes */}
             {(order.invoiced || order.invoice_num) && (
               <label className="flex items-center justify-between cursor-pointer">
