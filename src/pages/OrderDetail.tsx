@@ -1,7 +1,34 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useOrder, useOrders, useUpdateOrder, useOrderDocuments, useUploadDocument, useArchiveOrder, useRenameDocument, useDeleteDocument, getNextBolNumber, updateCatalogLastRun, getSignedUrl, extractStoragePath, useOrderItems, useUpdateOrderItem, useDeleteOrderItem, OrderItem } from "@/lib/data";
+import {
+  useOrder,
+  useOrders,
+  useUpdateOrder,
+  useOrderDocuments,
+  useUploadDocument,
+  useArchiveOrder,
+  useRenameDocument,
+  useDeleteDocument,
+  getNextBolNumber,
+  updateCatalogLastRun,
+  getSignedUrl,
+  extractStoragePath,
+  useOrderItems,
+  useUpdateOrderItem,
+  useDeleteOrderItem,
+  OrderItem,
+} from "@/lib/data";
 import { sendStageEmail, getCompletedStageEmail, getShipStageEmail } from "@/lib/emailData";
-import { STAGES, checklistCount, daysUntilDue, daysSinceCreated, DOC_TYPES, formatAddress, formatDateShort, getStageBadgeClass, getStageLabel } from "@/lib/constants";
+import {
+  STAGES,
+  checklistCount,
+  daysUntilDue,
+  daysSinceCreated,
+  DOC_TYPES,
+  formatAddress,
+  formatDateShort,
+  getStageBadgeClass,
+  getStageLabel,
+} from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -9,10 +36,39 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Check, Eye, Upload, FileText, Pencil, Trash2, Download, ArrowDown, Link2, RefreshCw, Plus, X } from "lucide-react";
-import { syncClientToQB, pushInvoiceToQB, pushVendorPoToQB, buildOrderDescription, pushToMoneySlate } from "@/lib/quickbooks";
+import {
+  ArrowLeft,
+  Check,
+  Eye,
+  Upload,
+  FileText,
+  Pencil,
+  Trash2,
+  Download,
+  ArrowDown,
+  Link2,
+  RefreshCw,
+  Plus,
+  X,
+} from "lucide-react";
+import {
+  syncClientToQB,
+  pushInvoiceToQB,
+  pushVendorPoToQB,
+  buildOrderDescription,
+  pushToMoneySlate,
+} from "@/lib/quickbooks";
 import { toast } from "sonner";
 import { useState, useCallback, useRef, useMemo } from "react";
 import { format, addWeeks } from "date-fns";
@@ -22,7 +78,17 @@ import { generateBolPdf } from "@/lib/generateBolPdf";
 import { useQueryClient } from "@tanstack/react-query";
 
 // Inline editable field component
-function EditableField({ label, value, onSave, type = "text" }: { label: string; value: string | number | null | undefined; onSave: (val: string) => void; type?: string }) {
+function EditableField({
+  label,
+  value,
+  onSave,
+  type = "text",
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  onSave: (val: string) => void;
+  type?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
 
@@ -45,7 +111,7 @@ function EditableField({ label, value, onSave, type = "text" }: { label: string;
         type === "textarea" ? (
           <Textarea
             value={editValue}
-            onChange={e => setEditValue(e.target.value)}
+            onChange={(e) => setEditValue(e.target.value)}
             onBlur={save}
             className="w-48 text-sm"
             autoFocus
@@ -55,17 +121,22 @@ function EditableField({ label, value, onSave, type = "text" }: { label: string;
           <Input
             type={type}
             value={editValue}
-            onChange={e => setEditValue(e.target.value)}
+            onChange={(e) => setEditValue(e.target.value)}
             onBlur={save}
-            onKeyDown={e => e.key === "Enter" && save()}
+            onKeyDown={(e) => e.key === "Enter" && save()}
             className="h-7 text-sm w-48"
             autoFocus
           />
         )
       ) : (
         <span className="flex items-center gap-1 cursor-pointer text-right" onClick={startEdit}>
-          <span>{value?.toString() ? (type === "number" ? Number(value).toLocaleString() : value.toString()) : "—"}</span>
-          <Pencil size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          <span>
+            {value?.toString() ? (type === "number" ? Number(value).toLocaleString() : value.toString()) : "—"}
+          </span>
+          <Pencil
+            size={12}
+            className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          />
         </span>
       )}
     </div>
@@ -114,21 +185,24 @@ export default function OrderDetail() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
 
-  const update = useCallback(async (updates: Record<string, any>) => {
-    if (!id) return;
-    await updateOrder.mutateAsync({ id, ...updates } as any);
-  }, [id, updateOrder]);
+  const update = useCallback(
+    async (updates: Record<string, any>) => {
+      if (!id) return;
+      await updateOrder.mutateAsync({ id, ...updates } as any);
+    },
+    [id, updateOrder],
+  );
 
   const relatedOrders = useMemo(() => {
     if (!order?.client_po) return [];
-    return allOrders.filter(o => o.client_po === order.client_po && o.id !== order.id && !o.archived);
+    return allOrders.filter((o) => o.client_po === order.client_po && o.id !== order.id && !o.archived);
   }, [order, allOrders]);
 
   const hasRelatedOrders = relatedOrders.length > 0;
 
   if (isLoading || !order) return <div className="p-8 text-muted-foreground">Loading...</div>;
 
-  const stageIndex = STAGES.findIndex(s => s.key === order.stage);
+  const stageIndex = STAGES.findIndex((s) => s.key === order.stage);
   const checked = checklistCount(order);
   const allChecked = checked === 6;
   const days = daysUntilDue(order.due_date);
@@ -203,12 +277,12 @@ export default function OrderDetail() {
         }
       }
     }
-    toast.success(`Order moved to ${STAGES.find(s => s.key === newStage)?.label}`);
+    toast.success(`Order moved to ${STAGES.find((s) => s.key === newStage)?.label}`);
   };
 
   // Check if this order shares its Client PO with others
   const isSharedPo = hasRelatedOrders;
-  const allRelatedShipped = isSharedPo && relatedOrders.every(o => o.shipped);
+  const allRelatedShipped = isSharedPo && relatedOrders.every((o) => o.shipped);
   const allGroupShipped = isSharedPo && order.shipped && allRelatedShipped;
 
   const createInvoice = async () => {
@@ -234,7 +308,6 @@ export default function OrderDetail() {
     setInvoiceChoiceOpen(false);
   };
 
-
   const handleArchive = async () => {
     if (!confirm("Archive this order? It will be moved to Completed Orders.")) return;
     await archiveOrder.mutateAsync(order);
@@ -250,7 +323,10 @@ export default function OrderDetail() {
     }
     await supabase.from("order_documents").delete().eq("order_id", id);
     const { error } = await supabase.from("orders").delete().eq("id", id);
-    if (error) { toast.error("Failed to delete order"); return; }
+    if (error) {
+      toast.error("Failed to delete order");
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["orders"] });
     toast.success("Order deleted");
     navigate("/orders");
@@ -387,7 +463,7 @@ export default function OrderDetail() {
     if (!order || !id || !order.outgoing_bol) return;
     const bolNum = order.outgoing_bol;
 
-    const existingBols = documents.filter(d => d.file_name.startsWith("BOL-"));
+    const existingBols = documents.filter((d) => d.file_name.startsWith("BOL-"));
     for (const doc of existingBols) {
       const storagePath = extractStoragePath(doc.file_url);
       await supabase.storage.from("order-documents").remove([storagePath]);
@@ -473,7 +549,9 @@ export default function OrderDetail() {
     <div className="p-4 md:p-6 space-y-6 max-w-[1200px]">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft size={16} /></Button>
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ArrowLeft size={16} />
+        </Button>
         <div>
           <h1 className="text-2xl font-bold">{order.item_name}</h1>
           <p className="text-muted-foreground">{order.clients?.company}</p>
@@ -486,11 +564,15 @@ export default function OrderDetail() {
           {STAGES.map((stage, i) => (
             <div key={stage.key} className="flex items-center flex-1">
               <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  i < stageIndex ? "bg-success text-success-foreground" :
-                  i === stageIndex ? "bg-primary text-primary-foreground" :
-                  "bg-muted text-muted-foreground"
-                }`}>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    i < stageIndex
+                      ? "bg-success text-success-foreground"
+                      : i === stageIndex
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
                   {i < stageIndex ? <Check size={14} /> : i + 1}
                 </div>
                 <span className={`text-xs mt-1 ${i === stageIndex ? "font-semibold" : "text-muted-foreground"}`}>
@@ -512,50 +594,54 @@ export default function OrderDetail() {
             <ArrowDown size={14} className="mr-1 rotate-90" /> Move Back
           </Button>
         )}
-        {order.stage === "preflight" && (
-          <Button onClick={() => moveStage("wip")}>Move to WIP</Button>
-        )}
-        {order.stage === "wip" && (
-          <Button onClick={() => moveStage("completed")}>Mark Completed</Button>
-        )}
-        {order.stage === "completed" && (
-          <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>
-        )}
+        {order.stage === "preflight" && <Button onClick={() => moveStage("wip")}>Move to WIP</Button>}
+        {order.stage === "wip" && <Button onClick={() => moveStage("completed")}>Mark Completed</Button>}
+        {order.stage === "completed" && <Button onClick={() => moveStage("to_ship")}>Move to Ship</Button>}
         {order.stage === "to_ship" && (
           <>
-            {!order.outgoing_bol && (
-              <Button onClick={initiateGenerateBol}>Generate BOL</Button>
-            )}
+            {!order.outgoing_bol && <Button onClick={initiateGenerateBol}>Generate BOL</Button>}
             {order.outgoing_bol && (
               <>
                 {(() => {
-                  const bolDoc = documents.find(d => d.file_name.startsWith("BOL-"));
+                  const bolDoc = documents.find((d) => d.file_name.startsWith("BOL-"));
                   return bolDoc ? (
                     <Button variant="outline" onClick={() => openPreview(bolDoc.file_url)}>
                       <Eye size={14} className="mr-1" /> View/Download BOL
                     </Button>
                   ) : null;
                 })()}
-                <Button variant="outline" onClick={() => setBolRegenOpen(true)}>Regenerate BOL</Button>
+                <Button variant="outline" onClick={() => setBolRegenOpen(true)}>
+                  Regenerate BOL
+                </Button>
               </>
             )}
             {order.outgoing_bol && !order.bol_signed && (
-              <Button onClick={async () => { await update({ bol_signed: true }); toast.success("BOL marked as signed"); }}>
+              <Button
+                onClick={async () => {
+                  await update({ bol_signed: true });
+                  toast.success("BOL marked as signed");
+                }}
+              >
                 Mark BOL Signed
               </Button>
             )}
             {order.bol_signed && (
-              <Button onClick={() => { update({ shipped: true, ship_date: new Date().toISOString().split("T")[0] }); moveStage("close"); }}>
+              <Button
+                onClick={() => {
+                  update({ shipped: true, ship_date: new Date().toISOString().split("T")[0] });
+                  moveStage("close");
+                }}
+              >
                 Move to Close
               </Button>
             )}
           </>
         )}
-        {order.stage === "close" && (
-          <Button onClick={handleArchive}>Archive & Close Order</Button>
-        )}
+        {order.stage === "close" && <Button onClick={handleArchive}>Archive & Close Order</Button>}
         {(order.stage === "preflight" || order.stage === "wip") && !order.invoiced && !isSharedPo && (
-          <Button variant="outline" onClick={createInvoice} className="ml-auto">Invoice Early</Button>
+          <Button variant="outline" onClick={createInvoice} className="ml-auto">
+            Invoice Early
+          </Button>
         )}
       </div>
 
@@ -569,45 +655,48 @@ export default function OrderDetail() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => update({
-                  checklist_new_client_form: true,
-                  checklist_artwork_in: true,
-                  checklist_proof_approved: true,
-                  checklist_purchase_order: true,
-                  checklist_bottles: true,
-                  checklist_art_order_logged: true,
-                })}
+                onClick={() =>
+                  update({
+                    checklist_new_client_form: true,
+                    checklist_artwork_in: true,
+                    checklist_proof_approved: true,
+                    checklist_purchase_order: true,
+                    checklist_bottles: true,
+                    checklist_art_order_logged: true,
+                  })
+                }
               >
                 Check All
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => update({
-                  checklist_new_client_form: false,
-                  checklist_artwork_in: false,
-                  checklist_proof_approved: false,
-                  checklist_purchase_order: false,
-                  checklist_bottles: false,
-                  checklist_art_order_logged: false,
-                })}
+                onClick={() =>
+                  update({
+                    checklist_new_client_form: false,
+                    checklist_artwork_in: false,
+                    checklist_proof_approved: false,
+                    checklist_purchase_order: false,
+                    checklist_bottles: false,
+                    checklist_art_order_logged: false,
+                  })
+                }
               >
                 Uncheck All
               </Button>
             </div>
           </div>
           <div className="space-y-3">
-            {checklistItems.map(item => (
+            {checklistItems.map((item) => (
               <label key={item.key} className="flex items-center gap-3 cursor-pointer">
-                <Checkbox
-                  checked={(order as any)[item.key]}
-                  onCheckedChange={(val) => update({ [item.key]: val })}
-                />
+                <Checkbox checked={(order as any)[item.key]} onCheckedChange={(val) => update({ [item.key]: val })} />
                 <span className="text-sm">{item.label}</span>
               </label>
             ))}
           </div>
-          <div className={`mt-4 p-2 rounded text-sm text-center font-medium ${allChecked ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+          <div
+            className={`mt-4 p-2 rounded text-sm text-center font-medium ${allChecked ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}
+          >
             {allChecked ? "✓ All clear" : `⏳ ${6 - checked} item(s) needed`}
           </div>
         </div>
@@ -621,7 +710,13 @@ export default function OrderDetail() {
               <Detail
                 label="Days in New Order"
                 value={`${daysInPreflight} day${daysInPreflight !== 1 ? "s" : ""}`}
-                className={daysInPreflight > 14 ? "text-destructive font-medium" : daysInPreflight > 7 ? "text-amber-600 font-medium" : ""}
+                className={
+                  daysInPreflight > 14
+                    ? "text-destructive font-medium"
+                    : daysInPreflight > 7
+                      ? "text-amber-600 font-medium"
+                      : ""
+                }
               />
             )}
             {showDueDate && (
@@ -631,7 +726,7 @@ export default function OrderDetail() {
                   <Input
                     type="date"
                     value={order.due_date || ""}
-                    onChange={e => update({ due_date: e.target.value })}
+                    onChange={(e) => update({ due_date: e.target.value })}
                     className="w-40 h-8 text-sm"
                   />
                 </div>
@@ -668,10 +763,20 @@ export default function OrderDetail() {
             </thead>
             <tbody>
               {orderItems.map((item) => (
-                <OrderItemRow key={item.id} item={item} orderId={id!} onUpdate={updateOrderItem} onDelete={deleteOrderItem} />
+                <OrderItemRow
+                  key={item.id}
+                  item={item}
+                  orderId={id!}
+                  onUpdate={updateOrderItem}
+                  onDelete={deleteOrderItem}
+                />
               ))}
               {orderItems.length === 0 && (
-                <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">No items</td></tr>
+                <tr>
+                  <td colSpan={9} className="p-4 text-center text-muted-foreground">
+                    No items
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
@@ -690,9 +795,9 @@ export default function OrderDetail() {
                 {editingVendorPo ? (
                   <Input
                     value={vendorPoValue}
-                    onChange={e => setVendorPoValue(e.target.value)}
+                    onChange={(e) => setVendorPoValue(e.target.value)}
                     onBlur={saveVendorPo}
-                    onKeyDown={e => e.key === "Enter" && saveVendorPo()}
+                    onKeyDown={(e) => e.key === "Enter" && saveVendorPo()}
                     className="h-7 text-sm w-32"
                     autoFocus
                   />
@@ -706,70 +811,85 @@ export default function OrderDetail() {
                 )}
               </div>
             </div>
-            {(
+            {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Push Vendor PO</span>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
-                  const items = orderItems.map(item => ({
-                    description: `${order.clients?.company || ""} - ${buildOrderDescription(item)}`,
-                    quantity: item.quantity || 1,
-                    memo: [item.item_name, item.bottle_size].filter(Boolean).join(" "),
-                  }));
-                  const result = await pushVendorPoToQB({ items });
-                  if (result.ok) {
-                    const updates: Record<string, any> = { vendor_po_reviewed: false };
-                    if (result.docNumber) updates.vendor_po = result.docNumber;
-                    await update(updates);
-                  }
-                  await pushToMoneySlate({
-                    action: "create_vendor_po",
-                    vendor_external_id: "arco",
-                    client_company_name: order.clients?.company || "",
-                    internal_po_number: order.vendor_po || "",
-                    expected_delivery_date: null,
-                    items: orderItems.map(item => ({
-                      item_name: item.item_name,
-                      bottle_size: item.bottle_size,
-                      bottle_color: item.bottle_color,
-                      material: item.material,
-                      bottle_type: item.bottle_type,
-                      num_colors: item.num_colors,
-                      quantity: item.quantity,
-                    })),
-                  });
-                }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={async () => {
+                    const vendorPoNumber = order.vendor_po || "";
+                    const items = orderItems.map((item) => ({
+                      description: `${order.clients?.company || ""} - ${buildOrderDescription(item)}`,
+                      quantity: item.quantity || 1,
+                      memo: [item.item_name, item.bottle_size].filter(Boolean).join(" "),
+                    }));
+                    const result = await pushVendorPoToQB({ items });
+                    if (result.ok) {
+                      const updates: Record<string, any> = { vendor_po_reviewed: false };
+                      if (result.docNumber) updates.vendor_po = result.docNumber;
+                      await update(updates);
+                    }
+                    await pushToMoneySlate({
+                      action: "create_vendor_po",
+                      vendor_external_id: "arco",
+                      client_company_name: order.clients?.company || "",
+                      internal_po_number: vendorPoNumber,
+                      expected_delivery_date: null,
+                      items: orderItems.map((item) => ({
+                        item_name: item.item_name,
+                        bottle_size: item.bottle_size,
+                        bottle_color: item.bottle_color,
+                        material: item.material,
+                        bottle_type: item.bottle_type,
+                        num_colors: item.num_colors,
+                        quantity: item.quantity,
+                      })),
+                    });
+                  }}
+                >
                   <RefreshCw size={10} className="mr-1" /> Push Vendor PO to QuickBooks
                 </Button>
               </div>
-            )}
-            <Detail label="Invoiced" value={order.invoiced ? (order.invoice_num ? `Yes — ${order.invoice_num}` : "Yes") : "No"} />
+            }
+            <Detail
+              label="Invoiced"
+              value={order.invoiced ? (order.invoice_num ? `Yes — ${order.invoice_num}` : "Yes") : "No"}
+            />
             {isSharedPo && !allGroupShipped && !order.invoiced && (
-              <p className="text-xs text-amber-600">Multiple orders share this PO — invoice will be generated when all orders are complete.</p>
+              <p className="text-xs text-amber-600">
+                Multiple orders share this PO — invoice will be generated when all orders are complete.
+              </p>
             )}
             {isSharedPo && allGroupShipped && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Combined Invoice</span>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
-                  const { utils, writeFile } = await import("xlsx");
-                  const rows = [order, ...relatedOrders].map(o => ({
-                    "Client PO": o.client_po || "",
-                    "Product Name": o.item_name,
-                    "Size": o.bottle_size || "",
-                    "Material": o.material || "",
-                    "Component": o.bottle_type || "",
-                    "Quantity": o.quantity || 0,
-                    "Description": buildOrderDescription(o),
-                  }));
-                  const ws = utils.json_to_sheet(rows);
-                  utils.sheet_add_aoa(ws, [
-                    [`${order.clients?.company || ""}`],
-                    [`PO: ${order.client_po || ""}`],
-                  ], { origin: "A1" });
-                  const wb = utils.book_new();
-                  utils.book_append_sheet(wb, ws, "Invoice Summary");
-                  writeFile(wb, `Invoice-Summary-${order.client_po || "PO"}.xlsx`);
-                  toast.success("Invoice summary downloaded");
-                }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={async () => {
+                    const { utils, writeFile } = await import("xlsx");
+                    const rows = [order, ...relatedOrders].map((o) => ({
+                      "Client PO": o.client_po || "",
+                      "Product Name": o.item_name,
+                      Size: o.bottle_size || "",
+                      Material: o.material || "",
+                      Component: o.bottle_type || "",
+                      Quantity: o.quantity || 0,
+                      Description: buildOrderDescription(o),
+                    }));
+                    const ws = utils.json_to_sheet(rows);
+                    utils.sheet_add_aoa(ws, [[`${order.clients?.company || ""}`], [`PO: ${order.client_po || ""}`]], {
+                      origin: "A1",
+                    });
+                    const wb = utils.book_new();
+                    utils.book_append_sheet(wb, ws, "Invoice Summary");
+                    writeFile(wb, `Invoice-Summary-${order.client_po || "PO"}.xlsx`);
+                    toast.success("Invoice summary downloaded");
+                  }}
+                >
                   Generate Combined Invoice Summary
                 </Button>
               </div>
@@ -777,57 +897,70 @@ export default function OrderDetail() {
             {!isSharedPo && order.invoiced && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Push Invoice</span>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
-                  const items = orderItems.map(item => ({
-                    description: buildOrderDescription(item),
-                    quantity: item.quantity || 1,
-                  }));
-                  const result = await pushInvoiceToQB({
-                    company: order.clients?.company || "",
-                    client_po: order.client_po || "",
-                    items,
-                  });
-                  if (result.ok) {
-                    const updates: Record<string, any> = { invoice_reviewed: false };
-                    if (result.docNumber) updates.invoice_num = result.docNumber;
-                    await update(updates);
-                  }
-                  await pushToMoneySlate({
-                    action: "create_invoice",
-                    client_external_id: order.clients?.id || "",
-                    client_po_number: order.client_po || "",
-                    due_date: null,
-                    payment_terms: null,
-                    items: orderItems.map(item => ({
-                      item_name: item.item_name,
-                      bottle_size: item.bottle_size,
-                      bottle_color: item.bottle_color,
-                      material: item.material,
-                      bottle_type: item.bottle_type,
-                      num_colors: item.num_colors,
-                      quantity: item.quantity,
-                    })),
-                  });
-                }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={async () => {
+                    const items = orderItems.map((item) => ({
+                      description: buildOrderDescription(item),
+                      quantity: item.quantity || 1,
+                    }));
+                    const result = await pushInvoiceToQB({
+                      company: order.clients?.company || "",
+                      client_po: order.client_po || "",
+                      items,
+                    });
+                    const invoiceNumber = result.docNumber || result.generatedNumber || "";
+                    if (result.ok) {
+                      const updates: Record<string, any> = { invoice_reviewed: false };
+                      if (result.docNumber) updates.invoice_num = result.docNumber;
+                      await update(updates);
+                    }
+                    await pushToMoneySlate({
+                      action: "create_invoice",
+                      client_external_id: order.clients?.id || "",
+                      client_po_number: order.client_po || "",
+                      invoice_number: invoiceNumber,
+                      due_date: null,
+                      payment_terms: null,
+                      items: orderItems.map((item) => ({
+                        item_name: item.item_name,
+                        bottle_size: item.bottle_size,
+                        bottle_color: item.bottle_color,
+                        material: item.material,
+                        bottle_type: item.bottle_type,
+                        num_colors: item.num_colors,
+                        quantity: item.quantity,
+                      })),
+                    });
+                  }}
+                >
                   <RefreshCw size={10} className="mr-1" /> Push to QB
                 </Button>
               </div>
             )}
             <label className="flex items-center justify-between cursor-pointer">
               <span className="text-muted-foreground">Paid</span>
-              <Checkbox checked={(order as any).paid || false} onCheckedChange={v => update({ paid: !!v })} />
+              <Checkbox checked={(order as any).paid || false} onCheckedChange={(v) => update({ paid: !!v })} />
             </label>
             {/* QB Review Checkboxes */}
             {(order.invoiced || order.invoice_num) && (
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="text-muted-foreground">Invoice reviewed in QB</span>
-                <Checkbox checked={(order as any).invoice_reviewed || false} onCheckedChange={v => update({ invoice_reviewed: !!v })} />
+                <Checkbox
+                  checked={(order as any).invoice_reviewed || false}
+                  onCheckedChange={(v) => update({ invoice_reviewed: !!v })}
+                />
               </label>
             )}
             {order.vendor_po && (
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="text-muted-foreground">Vendor PO reviewed in QB</span>
-                <Checkbox checked={(order as any).vendor_po_reviewed || false} onCheckedChange={v => update({ vendor_po_reviewed: !!v })} />
+                <Checkbox
+                  checked={(order as any).vendor_po_reviewed || false}
+                  onCheckedChange={(v) => update({ vendor_po_reviewed: !!v })}
+                />
               </label>
             )}
           </div>
@@ -850,7 +983,7 @@ export default function OrderDetail() {
             Related Orders (Same PO: {order.client_po})
           </h3>
           <div className="space-y-2">
-            {relatedOrders.map(ro => (
+            {relatedOrders.map((ro) => (
               <div
                 key={ro.id}
                 onClick={() => navigate(`/orders/${ro.id}`)}
@@ -874,15 +1007,15 @@ export default function OrderDetail() {
         <h3 className="font-semibold mb-4">Documents</h3>
         {documents.length > 0 && (
           <div className="space-y-2 mb-4">
-            {documents.map(doc => (
+            {documents.map((doc) => (
               <div key={doc.id} className="flex items-center gap-3 p-2 rounded bg-muted/30">
                 <FileText size={16} className="text-muted-foreground shrink-0" />
                 {renamingId === doc.id ? (
                   <Input
                     value={renameValue}
-                    onChange={e => setRenameValue(e.target.value)}
+                    onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={saveRename}
-                    onKeyDown={e => e.key === "Enter" && saveRename()}
+                    onKeyDown={(e) => e.key === "Enter" && saveRename()}
                     className="h-7 text-sm flex-1"
                     autoFocus
                   />
@@ -891,16 +1024,32 @@ export default function OrderDetail() {
                 )}
                 <span className="text-xs bg-muted px-2 py-0.5 rounded shrink-0">{doc.file_type}</span>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => openPreview(doc.file_url)} className="text-muted-foreground hover:text-foreground p-1" title="Preview">
+                  <button
+                    onClick={() => openPreview(doc.file_url)}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    title="Preview"
+                  >
                     <Eye size={15} />
                   </button>
-                  <button onClick={() => startRename(doc)} className="text-muted-foreground hover:text-foreground p-1" title="Rename">
+                  <button
+                    onClick={() => startRename(doc)}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    title="Rename"
+                  >
                     <Pencil size={15} />
                   </button>
-                  <button onClick={() => downloadFile(doc.file_url, doc.file_name)} className="text-muted-foreground hover:text-foreground p-1" title="Download">
+                  <button
+                    onClick={() => downloadFile(doc.file_url, doc.file_name)}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    title="Download"
+                  >
                     <Download size={15} />
                   </button>
-                  <button onClick={() => setDeleteTarget({ id: doc.id, file_url: doc.file_url })} className="text-muted-foreground hover:text-destructive p-1" title="Delete">
+                  <button
+                    onClick={() => setDeleteTarget({ id: doc.id, file_url: doc.file_url })}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    title="Delete"
+                  >
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -910,12 +1059,20 @@ export default function OrderDetail() {
         )}
         <div className="flex items-center gap-3 mb-3">
           <Select value={uploadType} onValueChange={setUploadType}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-            <SelectContent>{DOC_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DOC_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
         <div
-          onDragOver={e => e.preventDefault()}
+          onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-muted/20 transition-colors"
@@ -923,16 +1080,30 @@ export default function OrderDetail() {
           <Upload size={24} className="mx-auto mb-2 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Drag & drop files here — PNG, JPG, Word, PDF</p>
           <p className="text-xs text-muted-foreground mt-1">Images (JPG/PNG) will be auto-converted to PDF</p>
-          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={e => handleFileUpload(e.target.files)} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFileUpload(e.target.files)}
+          />
         </div>
       </div>
 
       {/* Notes - editable */}
-      <div className="rounded-lg border-l-4 p-5 group" style={{ borderLeftColor: "#C2793D", backgroundColor: "#FBF0E5" }}>
+      <div
+        className="rounded-lg border-l-4 p-5 group"
+        style={{ borderLeftColor: "#C2793D", backgroundColor: "#FBF0E5" }}
+      >
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold" style={{ color: "#C2793D" }}>Notes</h3>
+          <h3 className="font-semibold" style={{ color: "#C2793D" }}>
+            Notes
+          </h3>
           {!editingNotes && (
-            <button onClick={startNotesEdit} className="text-muted-foreground hover:text-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={startNotesEdit}
+              className="text-muted-foreground hover:text-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
               <Pencil size={14} />
             </button>
           )}
@@ -940,7 +1111,7 @@ export default function OrderDetail() {
         {editingNotes ? (
           <Textarea
             value={notesValue}
-            onChange={e => setNotesValue(e.target.value)}
+            onChange={(e) => setNotesValue(e.target.value)}
             onBlur={saveNotes}
             className="text-sm"
             autoFocus
@@ -962,7 +1133,15 @@ export default function OrderDetail() {
             <Detail label="Contact" value={order.clients.contact_name} />
             <Detail label="Email" value={order.clients.email} />
             <Detail label="Phone" value={order.clients.phone} />
-            <Detail label="Address" value={formatAddress(order.clients.street_address, order.clients.city, order.clients.state, order.clients.zip)} />
+            <Detail
+              label="Address"
+              value={formatAddress(
+                order.clients.street_address,
+                order.clients.city,
+                order.clients.state,
+                order.clients.zip,
+              )}
+            />
           </div>
         </details>
       )}
@@ -970,14 +1149,15 @@ export default function OrderDetail() {
       {/* Document Preview Dialog */}
       <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader><DialogTitle>Document Preview</DialogTitle></DialogHeader>
-          {previewUrl && (
-            previewUrl.toLowerCase().includes(".pdf") ? (
+          <DialogHeader>
+            <DialogTitle>Document Preview</DialogTitle>
+          </DialogHeader>
+          {previewUrl &&
+            (previewUrl.toLowerCase().includes(".pdf") ? (
               <iframe src={previewUrl} className="w-full h-[70vh]" />
             ) : (
               <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] mx-auto" />
-            )
-          )}
+            ))}
         </DialogContent>
       </Dialog>
 
@@ -986,11 +1166,18 @@ export default function OrderDetail() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Document</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this document? This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Are you sure you want to delete this document? This action cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -998,47 +1185,66 @@ export default function OrderDetail() {
       {/* Move Back Dialog */}
       <Dialog open={moveBackOpen} onOpenChange={setMoveBackOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Move Order Back</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Move Order Back</DialogTitle>
+          </DialogHeader>
           <div className="space-y-3">
             <Label>Select previous stage:</Label>
             <Select value={moveBackTarget} onValueChange={setMoveBackTarget}>
-              <SelectTrigger><SelectValue placeholder="Choose stage" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose stage" />
+              </SelectTrigger>
               <SelectContent>
-                {previousStages.map(s => (
-                  <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                {previousStages.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoveBackOpen(false)}>Cancel</Button>
-            <Button disabled={!moveBackTarget} onClick={async () => {
-              await moveStage(moveBackTarget);
-              setMoveBackOpen(false);
-              setMoveBackTarget("");
-            }}>
-              Move Back to {STAGES.find(s => s.key === moveBackTarget)?.label || "..."}
+            <Button variant="outline" onClick={() => setMoveBackOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!moveBackTarget}
+              onClick={async () => {
+                await moveStage(moveBackTarget);
+                setMoveBackOpen(false);
+                setMoveBackTarget("");
+              }}
+            >
+              Move Back to {STAGES.find((s) => s.key === moveBackTarget)?.label || "..."}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-
       {/* BOL Choice Dialog (for grouped orders) */}
       <Dialog open={bolChoiceOpen} onOpenChange={setBolChoiceOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Generate Bill of Lading</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Generate Bill of Lading</DialogTitle>
+          </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This order is part of PO {order.client_po} with {relatedOrders.length} other item{relatedOrders.length > 1 ? "s" : ""}. What would you like to do?
+            This order is part of PO {order.client_po} with {relatedOrders.length} other item
+            {relatedOrders.length > 1 ? "s" : ""}. What would you like to do?
           </p>
           <div className="space-y-3 mt-2">
             <div>
               <Label>Carrier</Label>
-              <Input value={bolCarrier} onChange={e => setBolCarrier(e.target.value)} />
+              <Input value={bolCarrier} onChange={(e) => setBolCarrier(e.target.value)} />
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => { setBolChoiceOpen(false); handleGenerateBol(false); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBolChoiceOpen(false);
+                handleGenerateBol(false);
+              }}
+            >
               BOL for this item only
             </Button>
             <Button onClick={() => handleGenerateBol(true)}>
@@ -1051,16 +1257,22 @@ export default function OrderDetail() {
       {/* BOL Generation Dialog (single item) */}
       <Dialog open={bolDialogOpen} onOpenChange={setBolDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Generate Bill of Lading</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Generate Bill of Lading</DialogTitle>
+          </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">A BOL number will be auto-assigned. The PDF will be saved to this order's documents.</p>
+            <p className="text-sm text-muted-foreground">
+              A BOL number will be auto-assigned. The PDF will be saved to this order's documents.
+            </p>
             <div>
               <Label>Carrier</Label>
-              <Input value={bolCarrier} onChange={e => setBolCarrier(e.target.value)} />
+              <Input value={bolCarrier} onChange={(e) => setBolCarrier(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBolDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setBolDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={() => handleGenerateBol(false)}>Generate BOL</Button>
           </DialogFooter>
         </DialogContent>
@@ -1073,16 +1285,20 @@ export default function OrderDetail() {
             <AlertDialogTitle>Payment not confirmed</AlertDialogTitle>
             <AlertDialogDescription>
               This order has not been marked as Paid. Proceed to Ship anyway?
-              <br /><br />
-              Use this for Net 30 terms or trusted-client rush orders. The order will move to Ship with Paid still marked No — tick the Paid checkbox later when payment actually arrives.
+              <br />
+              <br />
+              Use this for Net 30 terms or trusted-client rush orders. The order will move to Ship with Paid still
+              marked No — tick the Paid checkbox later when payment actually arrives.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              setShipConfirmOpen(false);
-              await moveStage("to_ship", true);
-            }}>
+            <AlertDialogAction
+              onClick={async () => {
+                setShipConfirmOpen(false);
+                await moveStage("to_ship", true);
+              }}
+            >
               Yes, Ship Anyway
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1100,7 +1316,7 @@ export default function OrderDetail() {
           </AlertDialogHeader>
           <div className="px-6 pb-2">
             <Label>Carrier</Label>
-            <Input value={bolCarrier} onChange={e => setBolCarrier(e.target.value)} />
+            <Input value={bolCarrier} onChange={(e) => setBolCarrier(e.target.value)} />
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -1112,17 +1328,24 @@ export default function OrderDetail() {
       {/* Invoice Choice Dialog (for grouped orders) */}
       <Dialog open={invoiceChoiceOpen} onOpenChange={setInvoiceChoiceOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create Invoice</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+          </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This order is part of PO {order.client_po} with {relatedOrders.length} other item{relatedOrders.length > 1 ? "s" : ""}. What would you like to do?
+            This order is part of PO {order.client_po} with {relatedOrders.length} other item
+            {relatedOrders.length > 1 ? "s" : ""}. What would you like to do?
           </p>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => { setInvoiceChoiceOpen(false); doCreateInvoice(false); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInvoiceChoiceOpen(false);
+                doCreateInvoice(false);
+              }}
+            >
               Invoice this item only
             </Button>
-            <Button onClick={() => doCreateInvoice(true)}>
-              Invoice all {relatedOrders.length + 1} items
-            </Button>
+            <Button onClick={() => doCreateInvoice(true)}>Invoice all {relatedOrders.length + 1} items</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1130,12 +1353,16 @@ export default function OrderDetail() {
       {/* Vendor PO Apply to Group Dialog */}
       <Dialog open={vendorPoApplyOpen} onOpenChange={setVendorPoApplyOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Apply Vendor PO</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Apply Vendor PO</DialogTitle>
+          </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Apply this Vendor PO to all {relatedOrders.length + 1} items under PO {order.client_po}?
           </p>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => applyVendorPoToGroup(false)}>This item only</Button>
+            <Button variant="outline" onClick={() => applyVendorPoToGroup(false)}>
+              This item only
+            </Button>
             <Button onClick={() => applyVendorPoToGroup(true)}>Apply to all</Button>
           </DialogFooter>
         </DialogContent>
@@ -1146,15 +1373,21 @@ export default function OrderDetail() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Order</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to permanently delete this order? This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this order? This cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteOrder} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleDeleteOrder}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
 
       {/* Delete Order Link */}
       <div className="flex justify-end pt-2 pb-8">
@@ -1175,7 +1408,12 @@ function Detail({ label, value, className }: { label: string; value?: string | n
   );
 }
 
-function OrderItemRow({ item, orderId, onUpdate, onDelete }: {
+function OrderItemRow({
+  item,
+  orderId,
+  onUpdate,
+  onDelete,
+}: {
   item: OrderItem;
   orderId: string;
   onUpdate: { mutateAsync: (args: any) => Promise<any> };
@@ -1205,9 +1443,9 @@ function OrderItemRow({ item, orderId, onUpdate, onDelete }: {
         <Input
           type={type === "number" ? "number" : "text"}
           value={editValue}
-          onChange={e => setEditValue(e.target.value)}
+          onChange={(e) => setEditValue(e.target.value)}
           onBlur={() => save(field)}
-          onKeyDown={e => e.key === "Enter" && save(field)}
+          onKeyDown={(e) => e.key === "Enter" && save(field)}
           className="h-7 text-sm w-full"
           autoFocus
         />
@@ -1232,7 +1470,10 @@ function OrderItemRow({ item, orderId, onUpdate, onDelete }: {
       <td className="p-3">{renderCell("quantity", item.quantity ? item.quantity.toLocaleString() : null, "number")}</td>
       <td className="p-3">{renderCell("packing", item.packing)}</td>
       <td className="p-3">
-        <button onClick={() => onDelete.mutateAsync({ id: item.id, orderId })} className="text-muted-foreground hover:text-destructive p-1">
+        <button
+          onClick={() => onDelete.mutateAsync({ id: item.id, orderId })}
+          className="text-muted-foreground hover:text-destructive p-1"
+        >
           <Trash2 size={14} />
         </button>
       </td>
