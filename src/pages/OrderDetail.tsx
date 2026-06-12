@@ -819,13 +819,13 @@ export default function OrderDetail() {
                   size="sm"
                   className="h-7 text-xs"
                   onClick={async () => {
-                    const vendorPoNumber = order.vendor_po || "";
                     const items = orderItems.map((item) => ({
                       description: `${order.clients?.company || ""} - ${buildOrderDescription(item)}`,
                       quantity: item.quantity || 1,
                       memo: [item.item_name, item.bottle_size].filter(Boolean).join(" "),
                     }));
                     const result = await pushVendorPoToQB({ items });
+                    const vendorPoNumber = result.docNumber || result.generatedNumber || "";
                     if (result.ok) {
                       const updates: Record<string, any> = { vendor_po_reviewed: false };
                       if (result.docNumber) updates.vendor_po = result.docNumber;
