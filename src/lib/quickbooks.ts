@@ -75,7 +75,6 @@ export async function syncClientToQB(client: {
     });
     if (ok) {
       toast.success("Client synced to QuickBooks.");
-      await addQbTodo(`Sync new customer — ${client.company}`);
     } else {
       console.error("QB syncClient failed: webhook returned non-ok response", { company: client.company });
       toast.error("Failed to sync client. Please try again.");
@@ -123,7 +122,6 @@ export async function pushInvoiceToQB(params: {
       /* ignore parse errors */
     }
     toast.success("Invoice draft created in QuickBooks.");
-    await addQbTodo(`Invoice created — ${params.company}`);
     return { ok: true, docNumber };
   } catch {
     toast.error("Failed to push invoice to QuickBooks.");
@@ -164,7 +162,6 @@ export async function pushVendorPoToQB(params: {
       /* ignore parse errors */
     }
     toast.success("Vendor PO draft created in QuickBooks.");
-    await addQbTodo(`Vendor PO created`);
     return { ok: true, docNumber };
   } catch {
     toast.error("Failed to create Vendor PO in QuickBooks.");
