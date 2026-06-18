@@ -103,7 +103,25 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         original_draft: email.draft_response || undefined,
       };
       await sendEmailViaWebhook(payload);
-      await supabase.from("emails").update({ status: "approved_sent", approved_sent_at: new Date().toISOString(), direction: "outbound", draft_response: stripN8nFooter(draftContent) } as any).eq("id", email.id);
+      const sentAt = new Date().toISOString();
+      // Insert the reply as its own outbound message row so it appears in the thread
+      await supabase.from("emails").insert({
+        thread_id: email.thread_id,
+        gmail_id: email.gmail_id,
+        from_name: "Abu Mathew Abraham",
+        from_email: "abu@bottlesandprint.com",
+        to_recipients: toValue,
+        subject: subjectValue,
+        body: stripN8nFooter(draftContent),
+        draft_response: stripN8nFooter(draftContent),
+        category: email.category,
+        direction: "outbound",
+        status: "approved_sent",
+        approved_sent_at: sentAt,
+        created_at: sentAt,
+      } as any);
+      // Mark the original inbound email resolved WITHOUT flipping its direction (that flip was corrupting the customer's row)
+      await supabase.from("emails").update({ status: "resolved", resolved_at: sentAt } as any).eq("id", email.id);
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       if (markAsQuoted) {
         await supabase.from("emails").update({ quoted_at: new Date().toISOString() } as any).eq("id", email.id);
