@@ -1006,6 +1006,11 @@ export default function Inbox() {
                             📎 image in Gmail
                           </span>
                         )}
+                      {parseAttachments(email.attachments).length > 0 && (
+                        <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0 whitespace-nowrap">
+                          📎 Attachment
+                        </span>
+                      )}
                     </div>
                     {showSnippets && (
                       <div className="mt-1.5 space-y-0.5">
