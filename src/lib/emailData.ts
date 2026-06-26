@@ -316,10 +316,13 @@ export function useInboxCounts() {
       const { countNeedsReplyThreads } = await import("@/lib/emailHelpers");
       const activeInbox = countNeedsReplyThreads((inboxRows || []) as any);
 
-      // inboxHasUnread = true if any thread's LATEST row in pending/needs_response
-      // is is_read = false. Matches the per-row blue-dot logic on the Inbox page.
+      // inboxHasUnread = true if any thread's LATEST INBOUND row in pending/needs_response
+      // is is_read = false. Inbound-only, to match the per-row amber unread dot on the Inbox page
+      // (outbound/sent messages never count as unread).
       const candidateRows = (inboxRows || []).filter(
-        (r: any) => r.status === "pending" || r.status === "needs_response"
+        (r: any) =>
+          (r.status === "pending" || r.status === "needs_response") &&
+          r.direction !== "outbound"
       );
       const latestByThread = new Map<string, any>();
       for (const row of candidateRows) {
