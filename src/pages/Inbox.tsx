@@ -63,6 +63,7 @@ import {
   extractFirstName,
   extractSnippet,
   ABU_EMAILS,
+  isInboundMessage,
 } from "@/lib/threadHelpers";
 
 type MainTab = "needs_reply" | "waiting" | "spam" | "archive";
@@ -937,7 +938,7 @@ export default function Inbox() {
           {displayedEmails.map((email) => {
             const threadCount = email.thread_id ? threadCountMap.get(email.thread_id) || 1 : 1;
             const threadSiblings = email.thread_id ? threadEmailsMap.get(email.thread_id) || [email] : [email];
-            const anyUnread = threadSiblings.some((e) => e.is_read === false);
+            const anyUnread = threadSiblings.some((e) => e.is_read === false && isInboundMessage(e));
             const anyUrgent = threadSiblings.some((e) => e.is_urgent === true);
             const showThreadBadge = mainTab !== "spam" && threadCount > 1;
             const showSnippets =

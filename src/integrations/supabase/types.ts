@@ -85,12 +85,15 @@ export type Database = {
           action_items: Json | null
           call_reason: string | null
           call_sid: string | null
+          call_summary_title: string | null
           caller_name: string | null
           category: string | null
           company_name: string | null
+          conversation_id: string | null
           created_at: string | null
           cross_match_note: string | null
           draft_response: string | null
+          duration_secs: number | null
           email: string | null
           has_quote_request: boolean | null
           holding_sent_at: string | null
@@ -105,18 +108,22 @@ export type Database = {
           resolved_at: string | null
           status: string | null
           summary: string | null
+          termination_reason: string | null
           transcript: string | null
         }
         Insert: {
           action_items?: Json | null
           call_reason?: string | null
           call_sid?: string | null
+          call_summary_title?: string | null
           caller_name?: string | null
           category?: string | null
           company_name?: string | null
+          conversation_id?: string | null
           created_at?: string | null
           cross_match_note?: string | null
           draft_response?: string | null
+          duration_secs?: number | null
           email?: string | null
           has_quote_request?: boolean | null
           holding_sent_at?: string | null
@@ -131,18 +138,22 @@ export type Database = {
           resolved_at?: string | null
           status?: string | null
           summary?: string | null
+          termination_reason?: string | null
           transcript?: string | null
         }
         Update: {
           action_items?: Json | null
           call_reason?: string | null
           call_sid?: string | null
+          call_summary_title?: string | null
           caller_name?: string | null
           category?: string | null
           company_name?: string | null
+          conversation_id?: string | null
           created_at?: string | null
           cross_match_note?: string | null
           draft_response?: string | null
+          duration_secs?: number | null
           email?: string | null
           has_quote_request?: boolean | null
           holding_sent_at?: string | null
@@ -157,6 +168,7 @@ export type Database = {
           resolved_at?: string | null
           status?: string | null
           summary?: string | null
+          termination_reason?: string | null
           transcript?: string | null
         }
         Relationships: []
