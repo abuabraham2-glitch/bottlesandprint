@@ -438,33 +438,9 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {renderThreadSnippet(detailEmail.thread_id)}
-                {/* Draft response */}
-                {detailEmail.draft_response && (() => {
-                  const cleaned = stripN8nFooter(detailEmail.draft_response);
-                  const { draftPart, quotedPart } = splitDraftAtHr(cleaned);
-                  return (
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Draft Response</span>
-                      <div className="bg-muted/30 rounded-xl p-4 text-sm font-sans email-html-content max-w-none" dangerouslySetInnerHTML={{ __html: draftPart }} />
-                      {quotedPart && (
-                        <Accordion type="single" collapsible className="w-full mt-3">
-                          <AccordionItem value="quoted-email" className="border rounded-xl">
-                            <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
-                            <AccordionContent className="px-4 pb-4">
-                              <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: quotedPart }} />
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      )}
-                    </div>
-                  );
-                })()}
 
                 {/* Original email body */}
                 {detailEmail.body && (() => {
-                  const cleaned = stripN8nFooter(detailEmail.draft_response || "");
-                  const hasQuotedInDraft = cleaned ? splitDraftAtHr(cleaned).quotedPart !== null : false;
-                  if (hasQuotedInDraft) return null;
                   return (
                     <Accordion type="single" collapsible className="w-full">
                       <AccordionItem value="original-email" className="border rounded-xl">
