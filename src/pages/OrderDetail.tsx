@@ -169,6 +169,7 @@ export default function OrderDetail() {
   const [moveBackOpen, setMoveBackOpen] = useState(false);
   const [moveBackTarget, setMoveBackTarget] = useState("");
   const [shipConfirmOpen, setShipConfirmOpen] = useState(false);
+  const [shipDateEditing, setShipDateEditing] = useState(false);
   const [bolDialogOpen, setBolDialogOpen] = useState(false);
   const [bolCarrier, setBolCarrier] = useState("WILL CALL");
   const [bolRegenOpen, setBolRegenOpen] = useState(false);
@@ -1017,7 +1018,26 @@ export default function OrderDetail() {
         <div className="bg-card rounded-lg border p-5">
           <h3 className="font-semibold mb-4">Shipping</h3>
           <div className="space-y-2 text-sm">
-            <Detail label="Shipped" value={order.shipped ? `Yes — ${formatDateShort(order.ship_date)}` : "No"} />
+            <Detail label="Shipped" value={order.shipped ? "Yes" : "No"} />
+            <div className="flex justify-between items-center group">
+              <span className="text-muted-foreground">Ship Date</span>
+              {shipDateEditing ? (
+                <Input
+                  type="date"
+                  value={order.ship_date || ""}
+                  onChange={(e) => { update({ ship_date: e.target.value || null }); }}
+                  onBlur={() => setShipDateEditing(false)}
+                  onKeyDown={(e) => { if (e.key === "Enter") setShipDateEditing(false); }}
+                  className="h-7 text-sm w-40"
+                  autoFocus
+                />
+              ) : (
+                <span className="flex items-center gap-1 cursor-pointer text-right text-primary" onClick={() => setShipDateEditing(true)}>
+                  <span>{order.ship_date ? formatDateShort(order.ship_date) : "—"}</span>
+                  <Pencil size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </span>
+              )}
+            </div>
             <Detail label="Outgoing BOL" value={order.outgoing_bol || "—"} />
             <Detail label="BOL Signed" value={order.bol_signed ? "Yes" : "No"} />
           </div>
