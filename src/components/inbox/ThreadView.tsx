@@ -322,17 +322,7 @@ export function ThreadView({
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full overflow-hidden">
-        </div>
-
-        {/* THREAD CONTEXT */}
-        {isMultiMessageThread && (
-          <div className="px-5 py-3 border-b bg-muted/30 shrink-0">
-            <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Thread context</p>
-            <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
-          </div>
-        )}
-
-        {/* ACTION BUTTONS */}
+        {/* ACTION BUTTONS (PINNED TOP) */}
         <div className="px-5 py-3 border-b flex items-center gap-2 flex-wrap shrink-0">
           <div className="flex items-center gap-2">
             {email.thread_id && (
