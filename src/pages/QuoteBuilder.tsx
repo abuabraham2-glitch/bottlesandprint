@@ -53,8 +53,8 @@ export default function QuoteBuilder() {
     setEmailError("");
     setStatus("idle");
 
-    if (!clientEmail.trim()) {
-      setEmailError("Client email is required to generate a quote.");
+    if (!clientName.trim()) {
+      setEmailError("Client name is required to generate a quote.");
       return;
     }
 
@@ -119,7 +119,7 @@ export default function QuoteBuilder() {
           <h2 className="text-sm font-semibold text-foreground">Client Info</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="client-name" className="text-xs text-muted-foreground">Client Name</Label>
+              <Label htmlFor="client-name" className="text-xs text-muted-foreground">Client Name <span className="text-destructive">*</span></Label>
               <Input
                 id="client-name"
                 placeholder="e.g. Maddy Smith"
@@ -130,7 +130,7 @@ export default function QuoteBuilder() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="client-email" className="text-xs text-muted-foreground">
-                Client Email <span className="text-destructive">*</span>
+                Client Email
               </Label>
               <Input
                 id="client-email"
