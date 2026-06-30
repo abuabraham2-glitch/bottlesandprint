@@ -13,15 +13,14 @@ import { FormattingToolbar } from "@/components/FormattingToolbar";
 import { TemplateShortcuts } from "@/components/TemplateShortcuts";
 import { AlertBanners } from "./AlertBanners";
 import { EmailCrossMatchBanner } from "@/components/CrossMatchBanner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  splitDraftAtHr, stripN8nFooter, formatEmailBodyAsHtml, parseAttachments, getAttachmentUrl, getReplyAllCc,
+  splitDraftAtHr,
+  stripN8nFooter,
+  formatEmailBodyAsHtml,
+  parseAttachments,
+  getAttachmentUrl,
+  getReplyAllCc,
 } from "./InboxHelpers";
 
 interface DraftEditorProps {
@@ -77,7 +76,9 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       if (!email.quote_data) return false;
       const qd = typeof email.quote_data === "string" ? JSON.parse(email.quote_data) : email.quote_data;
       return qd?.draft_type === "QUOTE";
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   })();
 
   const getEditorContent = () => {
@@ -99,7 +100,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         email_id: email.id,
         cc: ccValue || undefined,
         bcc: bccValue || undefined,
-        attachments: attachments.map(a => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
+        attachments: attachments.map((a) => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         original_draft: email.draft_response || undefined,
       };
       await sendEmailViaWebhook(payload);
@@ -121,10 +122,16 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         created_at: sentAt,
       } as any);
       // Mark the original inbound email resolved WITHOUT flipping its direction (that flip was corrupting the customer's row)
-      await supabase.from("emails").update({ status: "resolved", resolved_at: sentAt } as any).eq("id", email.id);
+      await supabase
+        .from("emails")
+        .update({ status: "resolved", resolved_at: sentAt } as any)
+        .eq("id", email.id);
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       if (markAsQuoted) {
-        await supabase.from("emails").update({ quoted_at: new Date().toISOString() } as any).eq("id", email.id);
+        await supabase
+          .from("emails")
+          .update({ quoted_at: new Date().toISOString() } as any)
+          .eq("id", email.id);
       }
       // Schedule follow-ups for SALES
       if (email.category === "SALES") {
@@ -132,8 +139,26 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         if (!existing || existing.length === 0) {
           const now = new Date();
           await supabase.from("follow_ups").insert([
-            { email_id: email.id, client_email: email.from_email, client_name: email.from_name, subject: email.subject, follow_up_number: 1, scheduled_for: new Date(now.getTime() + 7 * 86400000).toISOString(), sent: false, cancelled: false },
-            { email_id: email.id, client_email: email.from_email, client_name: email.from_name, subject: email.subject, follow_up_number: 2, scheduled_for: new Date(now.getTime() + 14 * 86400000).toISOString(), sent: false, cancelled: false },
+            {
+              email_id: email.id,
+              client_email: email.from_email,
+              client_name: email.from_name,
+              subject: email.subject,
+              follow_up_number: 1,
+              scheduled_for: new Date(now.getTime() + 7 * 86400000).toISOString(),
+              sent: false,
+              cancelled: false,
+            },
+            {
+              email_id: email.id,
+              client_email: email.from_email,
+              client_name: email.from_name,
+              subject: email.subject,
+              follow_up_number: 2,
+              scheduled_for: new Date(now.getTime() + 14 * 86400000).toISOString(),
+              sent: false,
+              cancelled: false,
+            },
           ] as any);
         }
       }
@@ -152,7 +177,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       }
       // Silently resolve linked call if present
       if ((email as any).call_id) {
-        await supabase.from("calls").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", (email as any).call_id);
+        await supabase
+          .from("calls")
+          .update({ status: "resolved", resolved_at: new Date().toISOString() })
+          .eq("id", (email as any).call_id);
       }
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast.success(markAsQuoted ? "Email sent & marked as quoted" : "Email sent");
@@ -174,7 +202,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
   };
 
   const handleDiscardDraft = async () => {
-    await supabase.from("emails").update({ draft_response: null } as any).eq("id", email.id);
+    await supabase
+      .from("emails")
+      .update({ draft_response: null } as any)
+      .eq("id", email.id);
     if (editRef.current) editRef.current.innerHTML = "";
     await queryClient.invalidateQueries({ queryKey: ["emails"] });
     toast.success("Draft discarded — editor cleared");
@@ -197,16 +228,20 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         const rows = (threadRows || []).filter((r: any) => r.status !== "deleted" && r.status !== "spam");
         if (rows.length > 0) {
           mostRecentCreatedAt = rows[rows.length - 1].created_at || mostRecentCreatedAt;
-          const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          const stripHtml = (html: string) =>
+            html
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s+/g, " ")
+              .trim();
           const lines: string[] = [`[Thread context — ${rows.length} messages, oldest first]`, ""];
           rows.forEach((r: any, idx: number) => {
             const isOutbound = r.direction === "outbound";
-            const rawBody = (isOutbound && r.draft_response) ? r.draft_response : (r.body || "");
+            const rawBody = isOutbound && r.draft_response ? r.draft_response : r.body || "";
             const cleaned = stripHtml(stripN8nFooter(rawBody));
             const dateStr = r.created_at
               ? new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
               : "";
-            const sender = isOutbound ? "Abu (You)" : (r.from_name || r.from_email || "Unknown");
+            const sender = isOutbound ? "Abu (You)" : r.from_name || r.from_email || "Unknown";
             const isLast = idx === rows.length - 1;
             const suffix = isLast ? " (most recent — respond to this)" : "";
             lines.push(`=== ${dateStr} — From ${sender}${suffix} ===`);
@@ -237,7 +272,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
       clearTimeout(timeoutId);
       if (!res.ok) throw new Error("not ok");
       // Wait 3s for n8n workflow to write the new draft to Supabase
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 3000));
       const { data: updated, error } = await supabase
         .from("emails")
         .select("draft_response")
@@ -259,10 +294,14 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
 
   const handleArchive = async () => {
     const now = new Date().toISOString();
-    const { error } = await supabase.from("emails").update({ status: "resolved", draft_response: null, resolved_at: now } as any).eq("id", email.id);
+    const { error } = await supabase
+      .from("emails")
+      .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
+      .eq("id", email.id);
     if (error) console.error("[DraftEditor] Archive error:", error);
     if (email.thread_id) {
-      await supabase.from("emails")
+      await supabase
+        .from("emails")
         .update({ status: "resolved", draft_response: null, resolved_at: now } as any)
         .eq("thread_id", email.thread_id)
         .in("status", ["pending", "needs_response"])
@@ -280,17 +319,28 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
           <SheetHeader className="p-4 pb-3 border-b shrink-0">
             <div>
               <label className="text-xs font-sans text-muted-foreground">To</label>
-              <Input value={toValue} onChange={e => setToValue(e.target.value)} placeholder="recipient@example.com" className="rounded-xl h-8 text-sm" />
+              <Input
+                value={toValue}
+                onChange={(e) => setToValue(e.target.value)}
+                placeholder="recipient@example.com"
+                className="rounded-xl h-8 text-sm"
+              />
             </div>
             <div>
               <label className="text-xs font-sans text-muted-foreground">Subject</label>
-              <Input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} className="rounded-xl h-8 text-sm" />
+              <Input
+                value={subjectValue}
+                onChange={(e) => setSubjectValue(e.target.value)}
+                className="rounded-xl h-8 text-sm"
+              />
             </div>
           </SheetHeader>
 
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-            <div className="md:w-[40%] border-r overflow-y-auto p-4 space-y-3">
-              <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">Original Email</h3>
+            <div className="md:w-[40%] border-b md:border-b-0 border-r overflow-y-auto p-4 space-y-3">
+              <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">
+                Original Email
+              </h3>
               {threadCount >= 2 ? (
                 <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
               ) : (
@@ -309,8 +359,13 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
                     {atts.map((att: any, i: number) => {
                       const url = getAttachmentUrl(att);
                       return (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/50 border text-[11px] font-sans hover:bg-muted">
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/50 border text-[11px] font-sans hover:bg-muted"
+                        >
                           <Paperclip size={10} />
                           <span className="truncate max-w-[120px]">{att.name || "Attachment"}</span>
                           <ExternalLink size={9} />
@@ -320,49 +375,84 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
                   </div>
                 </div>
               )}
-              <div className="bg-muted/20 rounded-xl p-3 text-sm font-sans email-html-content max-w-none"
-                dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }} />
+              <div
+                className="bg-muted/20 rounded-xl p-3 text-sm font-sans email-html-content max-w-none"
+                dangerouslySetInnerHTML={{ __html: formatEmailBodyAsHtml(stripN8nFooter(email.body || "")) }}
+              />
             </div>
 
             <div className="md:w-[60%] overflow-y-auto p-4 space-y-3 flex flex-col">
-              <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">Draft Response</h3>
+              <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">
+                Draft Response
+              </h3>
               <div>
                 <label className="text-xs font-sans text-muted-foreground">CC</label>
-                <Input name="draft-cc" autoComplete="off" value={ccValue} onChange={e => setCcValue(e.target.value)} placeholder="cc@example.com" className="rounded-xl h-8 text-sm" />
+                <Input
+                  name="draft-cc"
+                  autoComplete="off"
+                  value={ccValue}
+                  onChange={(e) => setCcValue(e.target.value)}
+                  placeholder="cc@example.com"
+                  className="rounded-xl h-8 text-sm"
+                />
               </div>
               <div>
                 <label className="text-xs font-sans text-muted-foreground">BCC</label>
-                <Input name="draft-bcc" autoComplete="off" value={bccValue} onChange={e => setBccValue(e.target.value)} placeholder="bcc@example.com" className="rounded-xl h-8 text-sm" />
+                <Input
+                  name="draft-bcc"
+                  autoComplete="off"
+                  value={bccValue}
+                  onChange={(e) => setBccValue(e.target.value)}
+                  placeholder="bcc@example.com"
+                  className="rounded-xl h-8 text-sm"
+                />
               </div>
-              <TemplateShortcuts
-                editorRef={editRef}
-                setSubject={setSubjectValue}
-                currentSubject={subjectValue}
-              />
+              <TemplateShortcuts editorRef={editRef} setSubject={setSubjectValue} currentSubject={subjectValue} />
               <FormattingToolbar />
-              <div ref={editRef} contentEditable suppressContentEditableWarning
+              <div
+                ref={editRef}
+                contentEditable
+                suppressContentEditableWarning
                 className="flex-1 text-sm font-sans rounded-xl border bg-background p-4 min-h-[300px] focus:outline-none focus:ring-2 focus:ring-ring email-html-content max-w-none overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: cleaned }} />
+                dangerouslySetInnerHTML={{ __html: cleaned }}
+              />
               <AttachmentPicker files={attachments} onChange={setAttachments} />
             </div>
           </div>
 
           <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
-            <Button size="sm" className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
-              onClick={handleSend} disabled={sending}>
+            <Button
+              size="sm"
+              className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px]"
+              onClick={handleSend}
+              disabled={sending}
+            >
               <Send size={12} /> Send
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 min-h-[44px]"
-              onClick={handleDiscardDraft}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 min-h-[44px]"
+              onClick={handleDiscardDraft}
+            >
               <Trash2 size={12} /> Discard Draft
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[44px]"
-              onClick={handleRegenerate} disabled={regenerating}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1 text-xs min-h-[44px]"
+              onClick={handleRegenerate}
+              disabled={regenerating}
+            >
               <RotateCw size={12} className={regenerating ? "animate-spin" : ""} />
               {regenerating ? "Regenerating draft (this can take 10-20 seconds for long threads)…" : "Regenerate Draft"}
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs min-h-[44px]"
-              onClick={handleArchive}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1 text-xs min-h-[44px]"
+              onClick={handleArchive}
+            >
               <Archive size={12} /> Archive Email
             </Button>
           </div>
@@ -383,7 +473,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
               size="sm"
               className="rounded-xl gap-1 text-xs bg-teal-600 hover:bg-teal-700 text-white min-h-[44px] flex-1"
               disabled={sending}
-              onClick={() => { setQuotePromptOpen(false); executeSend(true); }}
+              onClick={() => {
+                setQuotePromptOpen(false);
+                executeSend(true);
+              }}
             >
               Yes, Mark as Quoted
             </Button>
@@ -392,7 +485,10 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
               variant="outline"
               className="rounded-xl gap-1 text-xs min-h-[44px] flex-1"
               disabled={sending}
-              onClick={() => { setQuotePromptOpen(false); executeSend(false); }}
+              onClick={() => {
+                setQuotePromptOpen(false);
+                executeSend(false);
+              }}
             >
               No, Just Send
             </Button>
