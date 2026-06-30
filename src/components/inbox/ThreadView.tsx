@@ -228,7 +228,7 @@ export function ThreadView({
 
   const renderMessageSection = (msg: any, isLatest: boolean = false) => {
     const isOutbound = msg.direction === "outbound";
-    const isCollapsed = isLatest ? !!collapsedMessages[msg.id] : (collapsedMessages[msg.id] !== false);
+    const isCollapsed = isLatest ? !!collapsedMessages[msg.id] : collapsedMessages[msg.id] !== false;
     const msgAtts = parseAttachments(msg.attachments);
     const headerLabel = isOutbound ? "You replied" : "Email";
     const inbound = isInboundMessage(msg);
@@ -254,22 +254,27 @@ export function ThreadView({
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              {isUnread && (
-                <span className="inline-block w-2 h-2 rounded-full bg-[#f59e0b] shrink-0" />
-              )}
+              {isUnread && <span className="inline-block w-2 h-2 rounded-full bg-[#f59e0b] shrink-0" />}
               <p className={`text-sm ${isUnread ? "font-bold text-foreground" : "font-medium text-foreground"}`}>
-                {headerLabel === "You replied" ? "Abu Mathew Abraham" : displaySenderName(msg.from_name, msg.from_email)}
+                {headerLabel === "You replied"
+                  ? "Abu Mathew Abraham"
+                  : displaySenderName(msg.from_name, msg.from_email)}
               </p>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {isOutbound ? "to " : "from "}
               {msg.from_email}
             </p>
-            <p className="text-xs text-muted-foreground">{formatTimeFull(((msg as any).approved_sent_at && msg.direction === "outbound") ? (msg as any).approved_sent_at : ((msg as any).original_sent_at || msg.created_at))}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatTimeFull(
+                (msg as any).approved_sent_at && msg.direction === "outbound"
+                  ? (msg as any).approved_sent_at
+                  : (msg as any).original_sent_at || msg.created_at,
+              )}
+            </p>
           </div>
           <div className="flex-shrink-0">{isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}</div>
         </button>
-
 
         {/* Message Content (Collapsible) */}
         {!isCollapsed && (
@@ -482,6 +487,17 @@ export function ThreadView({
 
         {/* MAIN CONTENT: LATEST-FIRST LAYOUT */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* SUBJECT TITLE (SCROLLS) */}
+          <h1 className="text-2xl font-serif font-medium text-foreground leading-tight mb-3">{email.subject}</h1>
+
+          {/* THREAD CONTEXT (SCROLLS) */}
+          {isMultiMessageThread && (
+            <div className="mb-4 pb-4 border-b">
+              <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Thread context</p>
+              <ThreadSummaryCard threadId={email.thread_id} messageCount={threadCount} />
+            </div>
+          )}
+
           <div className="space-y-4">
             {/* FULL THREAD COLLAPSIBLE BOX (collapsed by default) */}
             {isMultiMessageThread && otherMessages.length > 0 && (
@@ -513,11 +529,12 @@ export function ThreadView({
                         </span>
                       </button>
                     )}
-                    {earlierExpanded && earlierMessages.map((msg) => (
-                      <div key={msg.id} className="border-t">
-                        {renderMessageSection(msg, false)}
-                      </div>
-                    ))}
+                    {earlierExpanded &&
+                      earlierMessages.map((msg) => (
+                        <div key={msg.id} className="border-t">
+                          {renderMessageSection(msg, false)}
+                        </div>
+                      ))}
                     {recentMessages.map((msg) => (
                       <div key={msg.id} className="border-t">
                         {renderMessageSection(msg, false)}
@@ -540,11 +557,26 @@ export function ThreadView({
               <div className="text-center py-8 text-muted-foreground text-sm">No messages in this thread</div>
             )}
           </div>
+
+          {/* MARK AS QUOTED (SCROLLS — only before quoting) */}
+          {!quotedAt && (
+            <div className="mt-6 pt-4 border-t flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl gap-1 text-xs min-h-[36px]"
+                onClick={handleMarkAsQuoted}
+                disabled={markingQuoted}
+              >
+                <BookCheck size={12} /> Mark as Quoted
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* BOTTOM ACTION BAR: Mark as Quoted */}
-        <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
-          {quotedAt ? (
+        {/* BOTTOM ACTION BAR: pinned only once Quoted */}
+        {quotedAt && (
+          <div className="border-t p-4 flex items-center gap-2 flex-wrap bg-background shrink-0">
             <Button
               size="sm"
               variant="outline"
@@ -553,18 +585,8 @@ export function ThreadView({
             >
               <BookCheck size={12} /> Quoted ✓ {format(new Date(quotedAt), "MMM d")}
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl gap-1 text-xs min-h-[36px]"
-              onClick={handleMarkAsQuoted}
-              disabled={markingQuoted}
-            >
-              <BookCheck size={12} /> Mark as Quoted
-            </Button>
-          )}
-        </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
