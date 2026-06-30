@@ -356,7 +356,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
             <thead><tr className="border-b bg-muted/40">
               <th className="text-left p-3 font-medium text-muted-foreground">From</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Subject</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Preview</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
             </tr></thead>
             <tbody>{emails.map(e => {
