@@ -322,9 +322,6 @@ export function ThreadView({
   return (
     <Sheet open={!!email} onOpenChange={() => onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-[55vw] p-0 flex flex-col h-full overflow-hidden">
-        {/* SUBJECT TITLE (BIG & BOLD) */}
-        <div className="px-5 pt-5 pb-3 border-b shrink-0">
-          <h1 className="text-2xl font-serif font-medium text-foreground leading-tight mb-3">{email.subject}</h1>
         </div>
 
         {/* THREAD CONTEXT */}
