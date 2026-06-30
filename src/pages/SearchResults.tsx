@@ -368,7 +368,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                   <div>{e.subject}</div>
                   {showSnippet && renderThreadSnippet(e.thread_id)}
                 </td>
-                <td className="p-3 text-muted-foreground">{e.category || "—"}</td>
+                <td className="p-3 text-muted-foreground max-w-xs truncate">{extractSnippet(stripN8nFooter(e.body || ""), 60) || "—"}</td>
                 <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime((e.direction === "outbound" && (e as any).approved_sent_at) ? (e as any).approved_sent_at : e.created_at)}</td>
               </tr>
               );
