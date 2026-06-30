@@ -337,7 +337,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
           </SheetHeader>
 
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-            <div className="md:w-[40%] border-b md:border-b-0 border-r overflow-y-auto p-4 space-y-3">
+            <div className="md:w-[40%] border-r overflow-y-auto p-4 space-y-3">
               <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">
                 Original Email
               </h3>
@@ -381,7 +381,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
               />
             </div>
 
-            <div className="md:w-[60%] overflow-y-auto p-4 space-y-3 flex flex-col">
+            <div className="md:w-[60%] overflow-y-auto p-4 space-y-3 flex flex-col border-t-4 border-border md:border-t-0">
               <h3 className="text-xs font-medium text-muted-foreground font-sans uppercase tracking-wide">
                 Draft Response
               </h3>
