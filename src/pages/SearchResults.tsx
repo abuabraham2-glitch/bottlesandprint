@@ -442,19 +442,15 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                 {/* Original email body */}
                 {detailEmail.body && (() => {
                   return (
-                    <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem value="original-email" className="border rounded-xl">
-                        <AccordionTrigger className="px-4 py-3 text-xs font-medium text-muted-foreground font-sans hover:no-underline">Original Email</AccordionTrigger>
-                        <AccordionContent className="px-4 pb-4">
-                          <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', marginTop: '10px', color: '#555' }} dangerouslySetInnerHTML={{ __html: (() => {
-                            const body = stripN8nFooter(detailEmail.body);
-                            if (/<(?:div|p|br|span|table|a|b|i|strong|em|ul|ol|li|h[1-6]|img|blockquote)\b/i.test(body)) return body;
-                            const lines = body.split(/\r?\n/).map(line => line.replace(/^(?:>\s*)+/g, "").trimEnd()).filter(line => line !== ">" && line !== "> ");
-                            return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.6;">${lines.join("<br>")}</div>`;
-                          })() }} />
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground font-sans block mb-1">Email</span>
+                      <div className="text-sm font-sans email-html-content max-w-none" style={{ borderLeft: '3px solid #ccc', paddingLeft: '12px', color: '#555' }} dangerouslySetInnerHTML={{ __html: (() => {
+                        const body = stripN8nFooter(detailEmail.body);
+                        if (/<(?:div|p|br|span|table|a|b|i|strong|em|ul|ol|li|h[1-6]|img|blockquote)\b/i.test(body)) return body;
+                        const lines = body.split(/\r?\n/).map(line => line.replace(/^(?:>\s*)+/g, "").trimEnd()).filter(line => line !== ">" && line !== "> ");
+                        return `<div style="font-family: Tahoma, sans-serif; font-size: 12pt; line-height: 1.6;">${lines.join("<br>")}</div>`;
+                      })() }} />
+                    </div>
                   );
                 })()}
               </div>
