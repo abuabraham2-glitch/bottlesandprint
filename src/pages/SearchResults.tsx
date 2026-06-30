@@ -356,7 +356,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
             <thead><tr className="border-b bg-muted/40">
               <th className="text-left p-3 font-medium text-muted-foreground">From</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Subject</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+              <th className="text-left p-3 font-medium text-muted-foreground">Preview</th>
               <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
             </tr></thead>
             <tbody>{emails.map(e => {
@@ -368,7 +368,7 @@ export default function SearchResults({ searchQuery }: SearchResultsProps) {
                   <div>{e.subject}</div>
                   {showSnippet && renderThreadSnippet(e.thread_id)}
                 </td>
-                <td className="p-3 text-muted-foreground">{e.category || "—"}</td>
+                <td className="p-3 text-muted-foreground max-w-xs truncate">{extractSnippet(stripN8nFooter(e.body || ""), 60) || "—"}</td>
                 <td className="p-3 text-muted-foreground whitespace-nowrap">{formatTime((e.direction === "outbound" && (e as any).approved_sent_at) ? (e as any).approved_sent_at : e.created_at)}</td>
               </tr>
               );
