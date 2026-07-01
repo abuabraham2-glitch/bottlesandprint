@@ -103,12 +103,16 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         attachments: attachments.map((a) => ({ filename: a.filename, mimeType: a.mimeType, data: a.data })),
         original_draft: email.draft_response || undefined,
       };
-      await sendEmailViaWebhook(payload);
+      const sendResult = await sendEmailViaWebhook(payload);
       const sentAt = new Date().toISOString();
+      // Use the REAL id of the message we just sent (unique). Never reuse the
+      // inbound email's gmail_id — it already exists and the UNIQUE constraint
+      // (emails_gmail_id_key) rejects the insert, silently dropping the outbound row.
+      const sentGmailId = sendResult?.gmail_message_id ?? null;
       // Insert the reply as its own outbound message row so it appears in the thread
       await supabase.from("emails").insert({
         thread_id: email.thread_id,
-        gmail_id: email.gmail_id,
+        gmail_id: sentGmailId,
         from_name: "Abu Mathew Abraham",
         from_email: "abu@bottlesandprint.com",
         to_recipients: toValue,
