@@ -262,8 +262,9 @@ export function ThreadView({
               </p>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {isOutbound ? "to " : "from "}
-              {msg.from_email}
+              {isOutbound
+                ? `to ${msg.to_recipients || msg.to_email_all || msg.from_email}`
+                : `from ${msg.from_email}`}
             </p>
             <p className="text-xs text-muted-foreground">
               {formatTimeFull(
