@@ -1219,7 +1219,7 @@ export default function Inbox() {
           }
           await supabase
             .from("emails")
-            .update({ status: "waiting", direction: "outbound" } as any)
+            .update({ status: "waiting" } as any)
             .eq("id", email.id);
           queryClient.invalidateQueries({ queryKey: ["emails"] });
           queryClient.invalidateQueries({ queryKey: ["all-emails"] });
