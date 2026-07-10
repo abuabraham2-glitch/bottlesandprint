@@ -49,6 +49,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
     const replyAllCc = getReplyAllCc(email);
     setCcValue(replyAllCc || email.cc_recipients || "");
     setSubjectValue(`Re: ${email.subject || ""}`);
+    setAttachments([]);
   }, [email?.id]);
 
   const threadId = email?.thread_id ?? null;
