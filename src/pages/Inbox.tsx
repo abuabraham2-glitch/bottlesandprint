@@ -804,6 +804,7 @@ export default function Inbox() {
               setComposeOpen(true);
               setComposeEmailRef(null);
               setComposeBody(SIGNATURE);
+              setComposeAttachments([]);
             }}
           >
             <Plus size={14} /> Compose
