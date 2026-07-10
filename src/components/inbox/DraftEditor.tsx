@@ -132,6 +132,7 @@ export function DraftEditor({ email, onClose, onNavigateToEmail }: DraftEditorPr
         .update({ status: "resolved", resolved_at: sentAt } as any)
         .eq("id", email.id);
       queryClient.invalidateQueries({ queryKey: ["emails"] });
+      setAttachments([]);
       if (markAsQuoted) {
         await supabase
           .from("emails")
