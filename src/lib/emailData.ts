@@ -313,8 +313,31 @@ export function useInboxCounts() {
         .from("emails")
         .select("status, thread_id, direction, is_read, created_at")
         .in("status", ["pending", "needs_response", "waiting"]);
+
+      /* activeInbox must see EACH candidate thread in full so the latest
+         row per thread is judged correctly (an outbound approved_sent/
+         archived/resolved reply can make a thread "waiting"). The fetch
+         above only returns pending/needs_response/waiting rows, so we
+         re-fetch ALL rows for the candidate thread_ids and count on those.
+         inboxHasUnread below still uses inboxRows (outbound excluded via
+         candidateRows), so it is unaffected. */
+      const candidateThreadIds = Array.from(
+        new Set(
+          (inboxRows || [])
+            .filter((r: any) => r.status === "pending" || r.status === "needs_response")
+            .map((r: any) => r.thread_id)
+            .filter((id: any) => id)
+        )
+      );
       const { countNeedsReplyThreads } = await import("@/lib/emailHelpers");
-      const activeInbox = countNeedsReplyThreads((inboxRows || []) as any);
+      let activeInbox = 0;
+      if (candidateThreadIds.length > 0) {
+        const { data: fullThreadRows } = await supabase
+          .from("emails")
+          .select("status, thread_id, direction, created_at")
+          .in("thread_id", candidateThreadIds);
+        activeInbox = countNeedsReplyThreads((fullThreadRows || []) as any);
+      }
 
       // inboxHasUnread = true if any thread's LATEST INBOUND row in pending/needs_response
       // is is_read = false. Inbound-only, to match the per-row amber unread dot on the Inbox page
